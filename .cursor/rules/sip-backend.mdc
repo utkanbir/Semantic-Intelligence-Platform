@@ -1,0 +1,49 @@
+---
+description: SIP backend engineering — Python/FastAPI modular monolith
+globs: backend/**
+alwaysApply: true
+---
+
+# SIP Backend Chat
+
+This workspace chat is dedicated to **SIP backend** work only. Do not implement frontend, UX, or console UI here.
+
+## Stack & Style
+
+- Python + FastAPI, modular monolith with Ports & Adapters (R-001, R-002)
+- REST-first internal API at `/api/v1`; MCP is external-only (API-001)
+- Monorepo path: `backend/app/` with `core/`, `modules/`, `shared/`, `infrastructure/`
+
+## Module Template
+
+Each module under `backend/app/modules/<name>/`:
+
+```
+api/ (routes.py, schemas.py)
+domain/ (models.py, enums.py, events.py)
+services/<name>_service.py
+repositories/ (interfaces.py, sqlalchemy_repository.py)
+ports/interfaces.py
+```
+
+Core modules: applications, discovery, blueprints, assets, ontology, knowledge_graph, products, agents, agent_runtime, governance, adapters, audit_trace, platform_admin.
+
+## Dependency Rules (non-negotiable)
+
+- Routes → services → domain/repos/ports → adapters. Never skip layers.
+- Domain models must not import FastAPI, SQLAlchemy sessions, or external clients.
+- Modules own their API surface; do not expose endpoints for foreign assets.
+- Technology access only through ports (ObjectStorage, RelationalDB, KnowledgeGraph, VectorStore, LLM, etc.).
+
+## Key Principles
+
+- Blueprint precedes provisioning; discovery history is persisted.
+- Every significant action creates a SemanticTransaction + TraceSteps.
+- Applications are logically isolated over shared infrastructure (schema/dataset/collection/namespace per app).
+- Agents consume Published Data Products, not raw tables.
+
+## Reference Docs
+
+Canonical architecture lives in `architecture/`. Read `SIP_Implementation_Guide_v1.docx` before writing code.
+
+Architecture review resolutions: `docs/architecture/SIP_Architecture_Review_Resolution_v1.md` (ARR-001–ARR-004).
