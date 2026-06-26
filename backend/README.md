@@ -30,8 +30,42 @@ Settings load from environment variables with the `SIP_` prefix. See `env.exampl
 | `SIP_PORT` | `8000` | Bind port for uvicorn |
 | `SIP_API_V1_PREFIX` | `/api/v1` | REST API version prefix (API-002) |
 | `SIP_LOG_LEVEL` | `info` | Uvicorn log level |
+| `SIP_DATABASE_URL` | see `env.example` | PostgreSQL URL for Alembic (`postgresql+psycopg://...`) |
 
 Do not commit `.env` files with secrets.
+
+## Database and Alembic (S0-06)
+
+Alembic migrations live under `backend/alembic/`. Initial baseline revision has no domain tables.
+
+### Kubernetes (`sip-dev`)
+
+PostgreSQL Service DNS:
+
+```text
+sip-postgres.sip-dev.svc.cluster.local:5432
+```
+
+Example connection URL (match `sip-postgres-config` / `sip-postgres-secrets` manifests):
+
+```text
+postgresql+psycopg://sip_user:<password>@sip-postgres.sip-dev.svc.cluster.local:5432/sip_db
+```
+
+Set `SIP_DATABASE_URL` in the backend Deployment environment (or port-forward Postgres locally).
+
+### Commands
+
+From `backend/`:
+
+```bash
+pip install -e ".[dev]"
+alembic upgrade head          # apply migrations
+alembic downgrade -1          # rollback one revision
+alembic history               # show revision chain
+```
+
+Verify against a running Postgres (local or `kubectl port-forward -n sip-dev svc/sip-postgres 5432:5432`).
 
 ## Health endpoints (ADR-001)
 
