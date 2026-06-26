@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     port: int = 8000
     api_v1_prefix: str = "/api/v1"
     log_level: str = "info"
+    database_url: str = (
+        "postgresql+psycopg://sip_user:replace-me@localhost:5432/sip_db"
+    )
 
 
 @lru_cache
