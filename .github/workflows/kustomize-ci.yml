@@ -1,0 +1,29 @@
+name: Kustomize CI
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kustomize-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kustomize:
+    name: Kustomize CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate dev overlay
+        run: kubectl kustomize infra/kubernetes/overlays/dev
+
+      - name: Validate prod overlay
+        run: kubectl kustomize infra/kubernetes/overlays/prod
