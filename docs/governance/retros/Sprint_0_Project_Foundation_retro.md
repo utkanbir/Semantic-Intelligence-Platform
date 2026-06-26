@@ -85,5 +85,35 @@
 ## 7. Sprint 1 adjustments
 
 - Begin **Sprint 1 — Applications Module** per Implementation Guide §17.
-- All module work branches from protected `develop`; PRs require human reviewer until team expands.
+- Solo maintainer: **required reviews = 0** on `develop`; CI checks remain required (see playbook Section 6).
+- DevOps work delegated with `sip-devops.mdc`; PMO does not implement `infra/**`.
+- Applications module PRs are **gate = Yes** — Architect subagent review required.
 - Frontend office activates when API contracts for console are stable on `develop`.
+
+---
+
+## 8. Office perspectives (facilitated retro)
+
+### [Backend]
+
+- **Well:** FastAPI bootstrap, Alembic baseline, module scaffold aligned with template.
+- **Gap:** `/ready` does not check PostgreSQL; no SQLAlchemy session layer for repositories.
+- **Sprint 1:** Session infrastructure + Applications ORM before CRUD.
+
+### [DevOps]
+
+- **Well:** `sip-dev` Kustomize stack, Kustomize CI, documented bootstrap path.
+- **Gap:** PMO implemented infra when subagents inherited PMO rules; template secrets (`replace-me`).
+- **Sprint 1:** `sip-devops.mdc` routing + dev secrets strategy.
+
+### [QA]
+
+- **Well:** Backend CI health contract tests; Kustomize CI; issue templates include QA scenarios.
+- **Gap:** No cluster E2E in CI; merge→QA column not exercised cleanly solo.
+- **Sprint 1:** Fresh-machine `sip-dev` bootstrap smoke checklist.
+
+### [Architect]
+
+- **Well:** ADR-001 before build; gate = No correctly applied; R-001 boundaries held.
+- **Gap:** Gate = Yes path untested; ARR-001 nine namespace fields deferred to Sprint 1.
+- **Sprint 1:** ApplicationWorkspace provisioning contract; gate = Yes on Applications PRs.

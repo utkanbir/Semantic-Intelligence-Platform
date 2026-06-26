@@ -243,6 +243,20 @@ When a feature spans backend and frontend:
 
 Direct pushes to `main` and `develop` are prohibited.
 
+### Solo maintainer merge policy (Sprint 0 retro)
+
+When the repository has a **single maintainer with write access**:
+
+| Topic | Policy |
+|-------|--------|
+| Self-approval | **Not possible** on GitHub — the PR author cannot Approve their own PR |
+| Review requirement | Set branch protection **required reviews = 0** on `develop` and `main`, then merge via PR without Approve |
+| Alternative | Add a second GitHub account as collaborator solely for PR review |
+| CI | Keep `Backend CI` and `Kustomize CI` as required status checks |
+| Auto-merge | Enable in repo Settings if desired after reviews are configured |
+
+Re-enable **required reviews = 1** when a second human reviewer joins the team.
+
 ### What not to commit
 
 - Credentials and `.env` files with secrets
