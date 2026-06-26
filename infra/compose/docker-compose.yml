@@ -1,0 +1,27 @@
+# NON-AUTHORITATIVE — secondary to Kubernetes (ADR-001)
+#
+# Minimal PostgreSQL-only fallback for developers who cannot run a local
+# Kubernetes cluster temporarily. Do NOT use as the primary SIP dev runtime.
+#
+# Primary path: infra/kubernetes/overlays/dev (see infra/README.md)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sip-postgres-compose
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: sip_db
+      POSTGRES_USER: sip_user
+      POSTGRES_PASSWORD: replace-me
+    volumes:
+      - sip-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sip_user -d sip_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  sip-postgres-data:
