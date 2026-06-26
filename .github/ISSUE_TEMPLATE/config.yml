@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture escalation guide
+    url: https://github.com/utkanbir/Semantic-Intelligence-Platform/blob/develop/docs/project/SIP_GITHUB_WORKFLOW.md#14-architecture-escalation-workflow
+    about: Read before opening architecture-related work
