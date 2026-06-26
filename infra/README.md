@@ -18,7 +18,12 @@ infra/kubernetes/
     └── prod/      # Production overlay (future)
 ```
 
-Kustomize manifests and namespace resources are added in Sprint 0 issue **S0-10**.
+Build the dev overlay:
+
+```bash
+kubectl kustomize infra/kubernetes/overlays/dev
+kubectl apply -k infra/kubernetes/overlays/dev   # full stack — S0-07
+```
 
 ## Docker Compose (optional, non-authoritative)
 
