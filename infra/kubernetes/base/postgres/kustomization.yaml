@@ -1,0 +1,5 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# PostgreSQL StatefulSet, Service, PVC, and Secret templates — S0-07
+resources: []
