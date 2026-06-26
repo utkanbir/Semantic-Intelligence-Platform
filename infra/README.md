@@ -8,43 +8,166 @@ Infrastructure for the **Semantic Intelligence Platform (SIP)** monorepo.
 
 This is the authoritative path per [ADR-001: Cloud Native Deployment Strategy](../docs/adr/ADR-001-cloud-native-deployment-strategy.md) (Accepted).
 
-## Directory layout
+Optional Docker Compose (PostgreSQL-only) under `infra/compose/` is **non-authoritative** — see [S0-13 optional fallback](#docker-compose-optional-non-authoritative).
 
-```
-infra/kubernetes/
-├── base/          # Shared manifests per workload (backend, postgres, ingress, …)
-└── overlays/
-    ├── dev/       # Local development (sip-dev namespace)
-    └── prod/      # Production overlay (future)
-```
+---
 
-Build the dev overlay:
+## Local Development Guide
+
+### Prerequisites
+
+| Tool | Purpose | Notes |
+|------|---------|--------|
+| **Kubernetes cluster** | Runtime | Docker Desktop Kubernetes, minikube, kind, or equivalent |
+| **kubectl** | Apply manifests | Must match cluster context |
+| **Docker** | Build `sip-backend:dev` image | Required for in-cluster backend |
+| **Python 3.11+** | Backend dev / Alembic | See `backend/README.md` |
+| **Ingress controller** (optional) | `api.sip.local` routing | nginx Ingress Controller or Docker Desktop built-in |
+
+Verify cluster access:
 
 ```bash
-docker build -t sip-backend:dev backend
+kubectl cluster-info
+kubectl get nodes
+```
+
+### Namespace: `sip-dev`
+
+The dev overlay (`infra/kubernetes/overlays/dev`) sets `namespace: sip-dev`. All Sprint 0 workloads deploy there:
+
+- `sip-backend` — FastAPI (Deployment + Service)
+- `sip-postgres` — PostgreSQL (StatefulSet + PVC)
+- `sip-api` — Ingress for `api.sip.local`
+
+Render manifests (CI also validates this):
+
+```bash
 kubectl kustomize infra/kubernetes/overlays/dev
-kubectl apply -k infra/kubernetes/overlays/dev   # full stack — S0-07
 ```
 
-Verify backend health:
+### End-to-end bootstrap (Sprint 0)
+
+From the **repository root**:
 
 ```bash
-# Option A: ingress host routing (requires local ingress controller)
-curl -H "Host: api.sip.local" http://127.0.0.1/api/v1/health
+# 1. Build backend image (loaded into cluster Docker context)
+docker build -t sip-backend:dev backend
 
-# Option B: direct service forwarding
+# 2. Deploy stack to sip-dev
+kubectl apply -k infra/kubernetes/overlays/dev
+
+# 3. Wait for workloads
+kubectl -n sip-dev get pods,svc,ingress,pvc -w
+```
+
+For **minikube**, load the image after build:
+
+```bash
+minikube image load sip-backend:dev
+```
+
+### Ingress hosts
+
+Per [ADR-001](../docs/adr/ADR-001-cloud-native-deployment-strategy.md):
+
+| Host | Purpose | Sprint 0 status |
+|------|---------|-----------------|
+| `api.sip.local` | Backend API (`/api/v1/*`) | **Configured** — `infra/kubernetes/base/ingress/api-ingress.yaml` |
+| `console.sip.local` | Platform Console (React) | **Reserved** — frontend Deployment not in Sprint 0 |
+
+Add to your hosts file for local ingress testing:
+
+```text
+127.0.0.1 api.sip.local
+127.0.0.1 console.sip.local
+```
+
+On Windows: `C:\Windows\System32\drivers\etc\hosts`  
+On macOS/Linux: `/etc/hosts`
+
+Requires a local ingress controller reachable on port 80 (e.g. Docker Desktop Kubernetes ingress).
+
+### Health check verification
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/health` | General health |
+| `GET /api/v1/health/ready` | Kubernetes readiness probe |
+| `GET /api/v1/health/live` | Kubernetes liveness probe |
+
+**Option A — Ingress** (ingress controller running):
+
+```bash
+curl -H "Host: api.sip.local" http://127.0.0.1/api/v1/health
+curl -H "Host: api.sip.local" http://127.0.0.1/api/v1/health/ready
+curl -H "Host: api.sip.local" http://127.0.0.1/api/v1/health/live
+```
+
+**Option B — Port-forward** (no ingress required):
+
+```bash
 kubectl -n sip-dev port-forward svc/sip-backend 8080:80
 curl http://127.0.0.1:8080/api/v1/health
+curl http://127.0.0.1:8080/api/v1/health/ready
+curl http://127.0.0.1:8080/api/v1/health/live
 ```
+
+### Database and Alembic
+
+PostgreSQL in-cluster Service DNS:
+
+```text
+sip-postgres.sip-dev.svc.cluster.local:5432
+```
+
+Port-forward for local Alembic:
+
+```bash
+kubectl -n sip-dev port-forward svc/sip-postgres 5432:5432
+```
+
+From `backend/` (see `backend/README.md`):
+
+```bash
+export SIP_DATABASE_URL=postgresql+psycopg://sip_user:replace-me@localhost:5432/sip_db
+alembic upgrade head
+alembic downgrade -1   # verify rollback
+```
+
+Replace credentials to match `infra/kubernetes/base/postgres/secret.template.yaml`.
+
+### Directory layout
+
+```
+infra/
+├── kubernetes/
+│   ├── base/          # Shared manifests (backend, postgres, ingress, placeholders)
+│   └── overlays/
+│       ├── dev/       # sip-dev namespace
+│       └── prod/      # Production scaffold (future)
+├── compose/           # Optional non-authoritative fallback (S0-13)
+└── README.md          # This guide
+```
+
+Placeholder workloads under `base/` (not deployed in Sprint 0): `minio/`, `qdrant/`, `fuseki/`, `openmetadata/`, `frontend/`.
+
+---
 
 ## Docker Compose (optional, non-authoritative)
 
-A minimal Docker Compose fallback for PostgreSQL-only bootstrap may be added later under `infra/compose/` (Sprint 0 issue **S0-13**). It is **not** the primary dev path and must not duplicate the full platform stack once Kubernetes base manifests exist.
+A minimal PostgreSQL-only Compose file may exist under `infra/compose/` (issue **S0-13**). It is:
+
+- **Not** the primary development path
+- **Not** a substitute for the full Kubernetes stack
+- **Non-authoritative** per ADR-001
 
 **Do not use Compose as the authoritative runtime model.**
+
+---
 
 ## References
 
 - [ADR-001 — Cloud Native Deployment Strategy](../docs/adr/ADR-001-cloud-native-deployment-strategy.md)
+- [SIP GitHub Workflow](../docs/project/SIP_GITHUB_WORKFLOW.md) — Sprint 0 issues and acceptance criteria
 - [SIP Development Playbook](../docs/project/SIP_DEVELOPMENT_PLAYBOOK.md)
-- [SIP GitHub Workflow](../docs/project/SIP_GITHUB_WORKFLOW.md)
+- [Backend README](../backend/README.md) — FastAPI, Alembic, `SIP_*` configuration
