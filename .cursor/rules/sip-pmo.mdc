@@ -58,7 +58,7 @@ PMO MUST:
 |--------|-------|-------|----------|
 | Backend | API, domain, DB | `backend/**` | generalPurpose / shell |
 | Frontend | Platform Console | `frontend/**` | generalPurpose |
-| DevOps | K8s, Kustomize, CI | `infra/**`, `.github/**` | generalPurpose / shell |
+| DevOps | K8s, Kustomize, CI | `infra/**`, `.github/**` | generalPurpose / shell — **must load `sip-devops.mdc`** |
 | QA | Checklists only | read-only | explore / readonly |
 | Architect | Gate Yes PRs | analysis only | readonly or escalate to user |
 
@@ -68,6 +68,20 @@ Every subagent prompt: Issue #, branch, acceptance criteria, architecture refs, 
 - Frontend: MUST NOT edit `backend/**` or `infra/**`; API on develop or issue contract
 - DevOps: MUST NOT edit backend business logic or `frontend/**`
 - Do not mix offices in one subagent unless user approves
+
+### DevOps subagent rules (Sprint 0 retro)
+
+Every DevOps subagent prompt MUST include: **Apply `.cursor/rules/sip-devops.mdc`. Scope: `infra/**` and `.github/**` only.**
+
+PMO MUST NOT implement `infra/**` or `.github/workflows/**` when DevOps delegation is available — spawn a DevOps subagent with the rule above instead of relying on `sip-pmo.mdc` inheritance.
+
+### Solo maintainer merge policy (Sprint 0 retro)
+
+GitHub never allows self-approval of own PRs. For single-maintainer repos:
+
+- Set **required approving review count = 0** on `develop` (and `main`), **or** add a second collaborator for reviews.
+- Keep **CI status checks** required (`Backend CI`, `Kustomize CI`).
+- PMO documents the chosen policy in playbook Section 6.
 
 ### Frontend rules fallback
 
