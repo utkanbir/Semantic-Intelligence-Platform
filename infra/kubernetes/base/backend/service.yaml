@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sip-backend
+spec:
+  selector:
+    app.kubernetes.io/name: sip-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

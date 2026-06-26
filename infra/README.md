@@ -21,8 +21,20 @@ infra/kubernetes/
 Build the dev overlay:
 
 ```bash
+docker build -t sip-backend:dev backend
 kubectl kustomize infra/kubernetes/overlays/dev
 kubectl apply -k infra/kubernetes/overlays/dev   # full stack — S0-07
+```
+
+Verify backend health:
+
+```bash
+# Option A: ingress host routing (requires local ingress controller)
+curl -H "Host: api.sip.local" http://127.0.0.1/api/v1/health
+
+# Option B: direct service forwarding
+kubectl -n sip-dev port-forward svc/sip-backend 8080:80
+curl http://127.0.0.1:8080/api/v1/health
 ```
 
 ## Docker Compose (optional, non-authoritative)

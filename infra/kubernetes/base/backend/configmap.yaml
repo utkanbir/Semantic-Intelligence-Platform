@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sip-backend-config
+data:
+  SIP_APP_NAME: sip-backend
+  SIP_ENVIRONMENT: development
+  SIP_DEBUG: "false"
+  SIP_HOST: 0.0.0.0
+  SIP_PORT: "8000"
+  SIP_API_V1_PREFIX: /api/v1
+  SIP_LOG_LEVEL: info
