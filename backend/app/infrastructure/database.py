@@ -1,9 +1,12 @@
-"""SQLAlchemy metadata baseline for Alembic migrations (S0-06).
+"""SQLAlchemy infrastructure: metadata, engine, sessions, and dependency."""
 
-Domain module models will register with this metadata in later sprints.
-"""
+from collections.abc import Generator
 
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.core.config import get_settings
 
 # Naming convention for future Alembic autogenerate (Implementation Guide).
 metadata = MetaData(
@@ -15,3 +18,22 @@ metadata = MetaData(
         "pk": "pk_%(table_name)s",
     }
 )
+
+settings = get_settings()
+engine: Engine = create_engine(settings.database_url, pool_pre_ping=True)
+SessionLocal = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+    class_=Session,
+)
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Yield a SQLAlchemy session for request-scoped usage."""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
