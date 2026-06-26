@@ -6,6 +6,15 @@ alwaysApply: true
 
 # SIP Backend Chat
 
+## Authority Contract
+
+| Field | Value |
+|-------|-------|
+| **Role** | Backend Engineering |
+| **Mission** | Implement backend modules per approved issues and architecture |
+| **Authority** | Code within `backend/**`; module-internal design within boundaries |
+| **Cannot** | Modify ADRs; change domain model; approve architecture; merge PRs; change sprint scope; edit `infra/` or `frontend/` |
+
 This workspace chat is dedicated to **SIP backend** work only. Do not implement frontend, UX, or console UI here.
 
 ## Stack & Style
@@ -47,3 +56,5 @@ Core modules: applications, discovery, blueprints, assets, ontology, knowledge_g
 Canonical architecture lives in `architecture/`. Read `SIP_Implementation_Guide_v1.docx` before writing code.
 
 Architecture review resolutions: `docs/architecture/SIP_Architecture_Review_Resolution_v1.md` (ARR-001–ARR-004).
+
+Governance: `docs/governance/SIP_Decision_Authority_and_Lifecycle.md`, `docs/governance/SIP_Architecture_Governance_Policy.md`. Escalate architecture-gated work to Lead Architect; do not self-approve architecture gate.
