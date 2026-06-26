@@ -1,0 +1,60 @@
+name: ADR Proposal
+description: Architecture decision record proposal
+title: "[ADR] "
+labels: ["type:adr", "architecture"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What decision is needed?
+    validations:
+      required: true
+  - type: textarea
+    id: ambiguity
+    attributes:
+      label: Ambiguity
+      description: What is unclear in architecture?
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered
+      description: Alternatives evaluated
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_decision
+    attributes:
+      label: Proposed decision
+      description: Draft decision text
+    validations:
+      required: true
+  - type: textarea
+    id: architecture_refs
+    attributes:
+      label: Architecture references
+      description: Related D-*, R-*, DM-*, API-*, ARR-*
+    validations:
+      required: true
+  - type: textarea
+    id: affected_documents
+    attributes:
+      label: Affected documents
+      description: List .docx or supplement paths to update
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: What must be true when ADR is accepted
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+    validations:
+      required: true

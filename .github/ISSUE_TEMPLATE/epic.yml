@@ -1,0 +1,67 @@
+name: Epic
+description: Multi-sprint capability grouping child features and tasks
+title: "[Epic] "
+labels: ["type:epic"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: Capability delivered across sprints
+    validations:
+      required: true
+  - type: textarea
+    id: mvp_scope
+    attributes:
+      label: MVP scope reference
+      description: Section in SIP_MVP_Scope_v0_1 or user journey in SIP_Core_User_Journeys_v1
+    validations:
+      required: true
+  - type: textarea
+    id: architecture_refs
+    attributes:
+      label: Architecture references
+      description: Primary D-*, R-*, DM-*, API-*, ARR-*
+      placeholder: "R-001, DM-002, ARR-001"
+    validations:
+      required: true
+  - type: checkboxes
+    id: modules
+    attributes:
+      label: Modules involved
+      options:
+        - label: applications
+        - label: discovery
+        - label: blueprints
+        - label: assets
+        - label: ontology
+        - label: knowledge_graph
+        - label: products
+        - label: agents
+        - label: agent_runtime
+        - label: governance
+        - label: adapters
+        - label: audit_trace
+        - label: platform_admin
+        - label: core / shared
+        - label: infra / docs
+  - type: textarea
+    id: child_issues
+    attributes:
+      label: Child issues
+      description: Linked Features/Tasks (GitHub sub-issues or task list)
+    validations:
+      required: true
+  - type: textarea
+    id: success_criteria
+    attributes:
+      label: Success criteria
+      description: Demonstrable outcome for sprint review
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+    validations:
+      required: true

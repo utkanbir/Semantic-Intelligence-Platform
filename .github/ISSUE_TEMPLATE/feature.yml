@@ -1,0 +1,98 @@
+name: Feature
+description: User-visible or API-deliverable work
+title: "[Feature] "
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What is delivered?
+    validations:
+      required: true
+  - type: textarea
+    id: architecture_refs
+    attributes:
+      label: Architecture references
+      description: D-*, R-*, DM-*, API-*, ARR-*
+      placeholder: "R-001, DM-002, ARR-001"
+    validations:
+      required: true
+  - type: textarea
+    id: mvp_scope
+    attributes:
+      label: MVP scope reference
+      description: Section from SIP_MVP_Scope_v0_1, or N/A — infrastructure with Tech Lead approval
+    validations:
+      required: true
+  - type: checkboxes
+    id: modules
+    attributes:
+      label: Affected modules
+      options:
+        - label: applications
+        - label: discovery
+        - label: blueprints
+        - label: assets
+        - label: ontology
+        - label: knowledge_graph
+        - label: products
+        - label: agents
+        - label: agent_runtime
+        - label: governance
+        - label: adapters
+        - label: audit_trace
+        - label: platform_admin
+        - label: core / shared
+        - label: infra / docs
+  - type: textarea
+    id: api_contract
+    attributes:
+      label: API contract impact
+      description: New/changed endpoints per SIP_API_Boundary_v1, or None
+      placeholder: "None"
+    validations:
+      required: true
+  - type: textarea
+    id: domain_events
+    attributes:
+      label: Domain events impact
+      description: Events emitted/consumed per SIP_Domain_Events_v1, or None
+      placeholder: "None"
+    validations:
+      required: true
+  - type: textarea
+    id: trace_expectations
+    attributes:
+      label: Semantic Transaction / Trace Step expectations
+      description: What significant actions create traces, or N/A with justification
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Linked issues #NNN, or None
+      placeholder: "None"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Testable checklist
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+    validations:
+      required: true
+  - type: textarea
+    id: qa_scenarios
+    attributes:
+      label: QA scenarios
+      description: Test steps or link to scenario doc
+    validations:
+      required: true
