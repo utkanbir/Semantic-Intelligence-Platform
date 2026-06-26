@@ -1,7 +1,7 @@
 # SIP Development Playbook
 
 **Product:** Semantic Intelligence Platform (SIP)  
-**Version:** 1.0  
+**Version:** 1.1  
 **Status:** Authoritative — Source of Truth  
 **Audience:** Engineering, QA, Architecture, AI-assisted development  
 **Scope:** Defines **how SIP is developed**. It does not define platform behavior.
@@ -15,8 +15,9 @@ This playbook sits alongside the SIP architecture document set. When engineering
 1. `architecture/` — platform architecture (`.docx` specifications)
 2. `docs/architecture/` — architecture resolutions and supplements (e.g. `SIP_Architecture_Review_Resolution_v1.md`)
 3. `docs/adr/` — Architecture Decision Records for implementation-time decisions (e.g. ADR-001 deployment)
-4. **This document** — development process, workflow, and quality gates
-5. `docs/project/` — project management supplements
+4. `docs/governance/` — decision authority, architecture governance policy, retros, health reports
+5. **This document** — development process, workflow, and quality gates
+6. `docs/project/` — project management supplements
 
 If a development practice conflicts with architecture, **architecture wins**. Escalate through the ADR process (Section 17).
 
@@ -71,6 +72,7 @@ sip-platform/
 ├── docs/
 │   ├── architecture/      # Architecture resolutions and supplements
 │   ├── adr/               # Architecture Decision Records
+│   ├── governance/        # Decision authority, architecture governance, org memory
 │   └── project/           # This playbook and project docs
 ├── examples/              # Reference examples
 └── scripts/               # Approved automation scripts
@@ -152,17 +154,21 @@ A single repository workspace hosts the SIP monorepo. **Separate Cursor chats** 
 
 | Chat | Rules file | Scope |
 |------|------------|-------|
+| **SIP PMO** | `.cursor/rules/sip-pmo.mdc` | Delivery + engineering coordination; GitHub metadata; no production code |
 | **SIP Backend** | `.cursor/rules/sip-backend.mdc` | `backend/**` only |
 | **SIP Frontend** | `.cursor/rules/sip-frontend.mdc` (when present) | `frontend/**` only |
-| **SIP Architecture** | Architecture-focused rules | `architecture/`, `docs/architecture/`, `docs/adr/` — analysis and ADRs only |
-| **SIP DevOps** | Infra rules (when present) | `infra/**`, CI configuration |
+| **SIP Architecture** | `.cursor/rules/sip-architecture.mdc` | `architecture/`, `docs/architecture/`, `docs/adr/`, `docs/governance/` — analysis and ADRs only |
+| **SIP DevOps** | `.cursor/rules/sip-devops.mdc` | `infra/**`, CI configuration |
+
+Each chat rules file includes an **Authority Contract** (role, mission, authority, cannot). Declare the active PMO hat (Delivery Manager or Engineering Manager) at session start.
 
 ### Rules hierarchy
 
 1. Architecture documents (`architecture/`, `docs/architecture/`)
-2. This playbook
-3. Cursor rules (`.cursor/rules/*.mdc`)
-4. Module-local conventions (only if approved and documented)
+2. `docs/governance/` (decision authority and architecture governance policy)
+3. This playbook
+4. Cursor rules (`.cursor/rules/*.mdc`)
+5. Module-local conventions (only if approved and documented)
 
 ### Context discipline
 
@@ -335,7 +341,8 @@ Every implementation issue must include:
 | **Daily Sync** | Blockers, cross-module dependencies, CI status |
 | **Architecture Checkpoint** | Mid-sprint review for module boundaries and ADR needs |
 | **Sprint Review** | Demo against MVP flow or sprint goals |
-| **Retrospective** | Process improvements; playbook updates if needed |
+| **Retrospective** | Process improvements; playbook/governance updates if approved |
+| **Architecture Health Check** | Sprint-end boundary, debt, ADR, gate effectiveness review (see `docs/governance/health-reports/`) |
 
 ### Recommended MVP build sequence
 
@@ -569,6 +576,19 @@ Follow canonical names in Implementation Guide §2 where applicable:
 ---
 
 ## 16. Architecture Governance
+
+Organizational governance (decision authority, PR architecture gates, retro-driven process changes) is defined in `docs/governance/`. This section covers product architecture authority; governance policy covers **how it is enforced during delivery**.
+
+### Process change rule
+
+**Playbook and governance documents may change only after:**
+
+1. A **Sprint Retrospective** decision recorded in `docs/governance/retros/`, or  
+2. An **accepted ADR** that requires a process change.
+
+**No spontaneous process changes during an active sprint.**
+
+Governance v1.0 was frozen in the Governance Sprint (2026-06-25). The earliest review window for governance v1.1 is the **Sprint 2 Retrospective**.
 
 ### Authority model
 
@@ -804,7 +824,8 @@ Update this playbook when process changes. Do not maintain parallel informal pro
 6. `SIP_API_Boundary_v1`  
 7. `docs/architecture/SIP_Architecture_Review_Resolution_v1.md`  
 8. `docs/adr/ADR-001-cloud-native-deployment-strategy.md`  
-9. **This playbook**
+9. `docs/governance/` — decision authority and architecture governance (v1.0)  
+10. **This playbook**
 
 ### Decision prefix quick reference
 
@@ -828,6 +849,7 @@ Update this playbook when process changes. Do not maintain parallel informal pro
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-06-25 | SIP Engineering | Initial authoritative playbook |
+| 1.1 | 2026-06-25 | SIP Engineering | Governance Sprint v1.0 references; process change rule; Architecture Health Check |
 
 ---
 

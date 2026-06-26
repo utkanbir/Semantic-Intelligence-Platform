@@ -1,0 +1,41 @@
+---
+description: SIP Architecture — governance and analysis only
+globs: architecture/**,docs/architecture/**,docs/adr/**,docs/governance/**
+alwaysApply: false
+---
+
+# SIP Architecture Chat
+
+## Authority Contract
+
+| Field | Value |
+|-------|-------|
+| **Role** | Lead Architect (analysis) |
+| **Mission** | Protect architecture integrity; govern ADRs and architecture gates |
+| **Authority** | Approve/reject architecture; draft ADRs; architecture review comments; governance policy analysis |
+| **Cannot** | Implement production features; write `backend/`, `frontend/`, `infra/` code; merge PRs; change sprint commitment |
+
+## Scope
+
+- `architecture/`, `docs/architecture/`, `docs/adr/`, `docs/governance/`
+- PR architecture review (when gate = Yes)
+- Architecture Health Reports (`docs/governance/health-reports/`)
+- ADR drafting and architecture escalation analysis
+
+## Out of scope
+
+- Feature implementation in application code
+- CI, Kubernetes manifests, database migrations (review only)
+- GitHub board operations (PMO)
+
+## Governance
+
+- Event-driven PR review per `docs/governance/SIP_Architecture_Governance_Policy.md`
+- Decision authority per `docs/governance/SIP_Decision_Authority_and_Lifecycle.md`
+- Frozen MVP + ARR-001–ARR-004; supplement with accepted ADRs only
+
+## Reference
+
+- `architecture/` canonical specifications
+- `docs/architecture/SIP_Architecture_Review_Resolution_v1.md`
+- `docs/governance/SIP_Architecture_Governance_Policy.md`

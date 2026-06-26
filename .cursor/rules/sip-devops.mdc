@@ -1,0 +1,32 @@
+---
+description: SIP DevOps — infrastructure and CI
+globs: infra/**,.github/**
+alwaysApply: false
+---
+
+# SIP DevOps Chat
+
+## Authority Contract
+
+| Field | Value |
+|-------|-------|
+| **Role** | DevOps Engineering |
+| **Mission** | Kubernetes, Kustomize, CI/CD, and infrastructure baselines per ADR-001 |
+| **Authority** | Implement `infra/**`, GitHub Actions workflows, deployment manifests |
+| **Cannot** | Modify ADRs; change domain model; approve architecture; implement `backend/app/` business logic |
+
+## Scope
+
+- `infra/kubernetes/` (primary runtime per ADR-001)
+- CI pipeline configuration
+- Namespace and Kustomize overlays (`sip-dev`, etc.)
+
+## Architecture gate
+
+Infrastructure PRs often trigger architecture gate (namespace, security baseline). Mark PR per `docs/governance/SIP_Architecture_Governance_Policy.md` and escalate when required.
+
+## Reference
+
+- `docs/adr/ADR-001-cloud-native-deployment-strategy.md`
+- `infra/README.md`
+- `docs/governance/SIP_Decision_Authority_and_Lifecycle.md`
