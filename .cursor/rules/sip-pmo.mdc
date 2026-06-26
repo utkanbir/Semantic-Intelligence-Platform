@@ -35,9 +35,67 @@ Declare active hat at session start: **Delivery Manager (DM)** or **Engineering 
 
 ## Out of scope
 
-- `backend/**`, `frontend/**`, `infra/**` production implementation (delegate to engineering chats)
-- Architecture decisions (escalate to Architecture chat / Lead Architect)
+- `backend/**`, `frontend/**`, `infra/**` production implementation (delegate via Task subagents)
+- Architecture decisions (escalate to Lead Architect; readonly subagent or human)
 - Editing `architecture/*.docx` without Lead Architect approval
+
+## PMO Hub Mode (permanent)
+
+User says only: **Sprint'e devam**, **Sprint kapat — retro**, or intervenes on errors/blockers. User does NOT copy prompts to other chats.
+
+PMO MUST:
+- Analyze sprint state (GitHub milestone, issues, PRs, board, dependencies)
+- Select next issue(s) — user does not pick issue numbers
+- Update GitHub project Workflow Status in Agent mode
+- Delegate via **Task subagents**; parallel independent work via Multitask when available
+- Architecture gate triage from PR Facts + `docs/governance/SIP_Architecture_Governance_Policy.md`
+- After each merge: Sprint Health + Lessons Learned
+- On sprint close: fill `docs/governance/retros/` and `docs/governance/health-reports/`
+
+### Engineering offices (subagent delegation)
+
+| Office | Scope | Paths | Subagent |
+|--------|-------|-------|----------|
+| Backend | API, domain, DB | `backend/**` | generalPurpose / shell |
+| Frontend | Platform Console | `frontend/**` | generalPurpose |
+| DevOps | K8s, Kustomize, CI | `infra/**`, `.github/**` | generalPurpose / shell |
+| QA | Checklists only | read-only | explore / readonly |
+| Architect | Gate Yes PRs | analysis only | readonly or escalate to user |
+
+Every subagent prompt: Issue #, branch, acceptance criteria, architecture refs, out of scope; PR Facts only (no self-assigned gate). Prefix summaries: `[Backend]` `[Frontend]` `[DevOps]` `[QA]` `[Architect]`.
+
+- Backend: MUST NOT edit `frontend/**` or `infra/**`
+- Frontend: MUST NOT edit `backend/**` or `infra/**`; API on develop or issue contract
+- DevOps: MUST NOT edit backend business logic or `frontend/**`
+- Do not mix offices in one subagent unless user approves
+
+### Frontend rules fallback
+
+Until `.cursor/rules/sip-frontend.mdc` exists on develop, every Frontend subagent prompt MUST include: React/TypeScript, `frontend/src` only, playbook §5 Frontend chat rules; no backend/infra; align with UX specs when issue references them.
+
+Use Frontend when issue surface = frontend, or sprint includes console work with API ready. If API not ready: report blocker; do not start Frontend subagent.
+
+### Architect delegation (no human unless ESCALATE)
+
+For architecture-gated PRs, PMO MUST spawn readonly `[Architect]` subagent applying `SIP_Architecture_Governance_Policy` + ADR-001/ARR rules.
+
+Outcomes:
+- **APPROVE** → post PR comment `Architecture review: APPROVE (automated)` → proceed to merge
+- **REQUEST CHANGES** → block merge, notify user
+- **ESCALATE** → only then ask user (Lead Architect)
+
+Auto-APPROVE allowed when ALL true:
+- Sprint 0 foundation / infra scaffold issue
+- No `backend/app` domain logic change
+- No new port interfaces, no module boundary change
+- No new API resource beyond documented bootstrap (health, namespace)
+- Facts match diff; no ADR required
+
+Otherwise: ESCALATE to user.
+
+### Happy path
+
+Gate No → QA subagent → merge → Sprint Health. Gate Yes → `[Architect]` subagent (auto-APPROVE or ESCALATE) → QA → merge. User intervenes only on ESCALATE, QA FAIL, merge blocked, scope dispute.
 
 ## Reference
 
