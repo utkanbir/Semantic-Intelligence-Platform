@@ -2,4 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Backend Deployment, Service, ConfigMap, and Secret templates — S0-07
-resources: []
+resources:
+  - configmap.yaml
+  - secret.template.yaml
+  - deployment.yaml
+  - service.yaml
