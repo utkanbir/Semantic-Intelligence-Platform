@@ -46,7 +46,8 @@ User says only: **Sprint'e devam**, **Sprint kapat — retro**, or intervenes on
 PMO MUST:
 - Analyze sprint state (GitHub milestone, issues, PRs, board, dependencies)
 - Select next issue(s) — user does not pick issue numbers
-- Update GitHub project Workflow Status in Agent mode
+- Update GitHub project **Workflow Status** on every lifecycle transition (Ready → In Progress → In Review → Done)
+- After each merge: run **board verification** (retro §9 checklist); use `scripts/fix-project-board.ps1` when `gh` has `project` scope
 - Delegate via **Task subagents**; parallel independent work via Multitask when available
 - Architecture gate triage from PR Facts + `docs/governance/SIP_Architecture_Governance_Policy.md`
 - After each merge: Sprint Health + Lessons Learned
@@ -82,6 +83,13 @@ GitHub never allows self-approval of own PRs. For single-maintainer repos:
 - Set **required approving review count = 0** on `develop` (and `main`), **or** add a second collaborator for reviews.
 - Keep **CI status checks** required (`Backend CI`, `Kustomize CI`).
 - PMO documents the chosen policy in playbook Section 6.
+
+### GitHub Project board hygiene (Sprint 0 retro)
+
+- **Issue closed ≠ card moved.** Always set **Workflow Status** on merge.
+- **`gh` requires `project` scope:** `gh auth refresh -h github.com -s read:project,project`
+- **Verification:** `docs/governance/retros/Sprint_0_Project_Foundation_retro.md` §9
+- **Script:** `scripts/fix-project-board.ps1` (extend issue lists per sprint)
 
 ### Frontend rules fallback
 
