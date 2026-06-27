@@ -45,6 +45,9 @@
 - PMO subagents inherited `sip-pmo.mdc` and could not edit `infra/**` — PMO agent implemented some DevOps issues directly.
 - `main` branch not yet created — S0-02 partially satisfied on `develop` only.
 - Auto-review / smart-mode approval added friction for board GraphQL updates and merges.
+- **GitHub Project board drift:** closing issues / merging PRs did not move cards on **SIP MVP Delivery**. Half of Sprint 0 cards stayed in **Backlog** with **Done** badge while others were in **Done** column. Sprint 1 issues landed in **No Workflow Status** until manually fixed.
+- **`gh` token lacked `read:project` / `project` scopes** — PMO could not update board until maintainer ran `gh auth refresh -h github.com -s read:project,project`.
+- **PowerShell GraphQL bug:** passing `$statusField.id` to `gh api graphql -f field=...` serialized the whole object; mutations failed with `Could not resolve to a node with the global id of '@{id=PVTSSF_...}.id'`.
 
 ---
 
@@ -67,18 +70,24 @@
 |----------|---------|----------------------|--------|
 | DevOps subagent must load `sip-devops` rule, not PMO rule | `.cursor/rules/` | EM | Deferred to Sprint 1 setup |
 | Create `main` from `develop` and apply same branch protection | GitHub settings | DM | Action item below |
-| Document self-approve workaround for solo maintainer (bot vs human reviewer) | playbook | PO + EM | Deferred |
+| Document self-approve workaround for solo maintainer (bot vs human reviewer) | playbook | PO + EM | **Done** — playbook §6 |
+| **PMO updates Workflow Status on every PR lifecycle transition** | `sip-pmo.mdc` | DM | **Adopted** — see §9 |
+| **Board verification checklist at merge and sprint close** | playbook / `scripts/` | DM | **Adopted** — see §9 |
+| **`gh` CLI must include `project` scope for PMO automation** | maintainer setup | DM | **Done** — one-time `gh auth refresh` |
 
 ---
 
 ## 6. Action items
 
-| Action | Owner | Due |
-|--------|-------|-----|
-| Create `main` branch and apply S0-02 protection | DM | Sprint 1 planning |
-| Add `.cursor/rules/sip-devops.mdc` for DevOps subagent isolation | EM | Sprint 1 week 1 |
-| Validate `sip-dev` bootstrap on fresh machine using `infra/README.md` | QA | Sprint 1 week 1 |
-| Close Sprint 0 milestone on GitHub | DM | Sprint close |
+| Action | Owner | Due | Status |
+|--------|-------|-----|--------|
+| Create `main` branch and apply S0-02 protection | DM | Sprint 1 planning | **Done** |
+| Add `.cursor/rules/sip-devops.mdc` for DevOps subagent isolation | EM | Sprint 1 week 1 | **Done** |
+| Validate `sip-dev` bootstrap on fresh machine using `infra/README.md` | QA | Sprint 1 week 1 | Open |
+| Close Sprint 0 milestone on GitHub | DM | Sprint close | **Done** |
+| Fix Sprint 0 board column drift (`scripts/fix-project-board.ps1`) | DM | Sprint close | **Done** |
+| One-time `gh auth refresh` with `project` scope | Maintainer | Sprint close | **Done** |
+| Run board verification after every merge (§9) | PMO | Sprint 1+ | **Ongoing** |
 
 ---
 
@@ -89,6 +98,48 @@
 - DevOps work delegated with `sip-devops.mdc`; PMO does not implement `infra/**`.
 - Applications module PRs are **gate = Yes** — Architect subagent review required.
 - Frontend office activates when API contracts for console are stable on `develop`.
+- **Board hygiene (mandatory):** after each merge, PMO sets **Workflow Status** on the project item; at sprint close run §9 verification checklist.
+
+---
+
+## 9. GitHub Project board — lessons and verification (Sprint 1+)
+
+### Root cause
+
+GitHub **issue closed** ≠ **Project card column updated**. The board groups by custom field **Workflow Status** (`Backlog` … `Done`). If PMO only closes issues or merges PRs without updating that field, cards stay in **Backlog** or **No Workflow Status** even when work is finished.
+
+### Fix applied (Sprint 0 close)
+
+- Maintainer granted `gh` **project** scope: `gh auth refresh -h github.com -s read:project,project`
+- Script `scripts/fix-project-board.ps1` moves items to the correct **Workflow Status** value
+- PowerShell fix: capture field ID in a `[string]` variable before GraphQL mutation (never pass `$object.id` inline to `gh -f`)
+
+### PMO rules (from Sprint 1)
+
+| Event | Workflow Status |
+|-------|-----------------|
+| Issue picked for sprint | **Ready** or **In Progress** |
+| PR opened | **In Review** |
+| PR merged | **Done** (or **QA** first if QA scenarios apply) |
+| New issue added to project | Set status immediately — never leave **No Workflow Status** |
+
+### Board verification checklist (run after each merge + sprint close)
+
+- [ ] **No Workflow Status** column is **empty**
+- [ ] All **closed** milestone issues are in **Done** (not Backlog)
+- [ ] Active sprint issue is in **Ready** or **In Progress** (only one **In Progress** per engineer WIP limit)
+- [ ] **Done** badge / Workflow Status field matches physical column
+- [ ] New issues for current milestone appear on board with correct status
+
+**Automation (preferred):** from repo root with `project` scope:
+
+```powershell
+powershell -File scripts/fix-project-board.ps1
+```
+
+Extend the script each sprint with new issue numbers and target statuses; or replace with PMO GraphQL updates per transition.
+
+**Manual fallback:** drag cards on [SIP MVP Delivery](https://github.com/users/utkanbir/projects/3) board view.
 
 ---
 
