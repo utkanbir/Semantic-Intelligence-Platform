@@ -1,5 +1,10 @@
 # Keep SIP MVP Delivery board columns in sync with PR/issue lifecycle.
 # PO requirement: visible In Progress / In Review / Done during sprint — not batch at close.
+#
+# Requires repo secret PROJECT_SYNC_TOKEN — fine-grained PAT with:
+#   Repository: Semantic-Intelligence-Platform — Issues (R/W), Pull requests (R), Projects (R/W)
+#   Account: Projects (R/W)
+# See docs/project/SIP_DEVELOPMENT_PLAYBOOK.md §8 (Live board visibility).
 name: Project Board Sync
 
 on:
@@ -11,13 +16,22 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  issues: write
+  issues: read
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify PROJECT_SYNC_TOKEN
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::PROJECT_SYNC_TOKEN secret is not set. See playbook §8 (Live board visibility)."
+            exit 1
+          fi
 
       - name: Parse issue number from PR
         if: github.event_name == 'pull_request'
@@ -41,8 +55,6 @@ jobs:
           github.event_name == 'pull_request' &&
           github.event.action != 'closed' &&
           steps.pr_issue.outputs.number != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/board_sync.py \
             --issue "${{ steps.pr_issue.outputs.number }}" \
@@ -55,8 +67,6 @@ jobs:
           github.event.action == 'closed' &&
           github.event.pull_request.merged == true &&
           steps.pr_issue.outputs.number != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/board_sync.py \
             --issue "${{ steps.pr_issue.outputs.number }}" \
@@ -66,7 +76,6 @@ jobs:
       - name: Milestone issue → Ready on board
         if: github.event_name == 'issues'
         env:
-          GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           if [ -z "${{ github.event.issue.milestone.title }}" ]; then

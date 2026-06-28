@@ -125,3 +125,11 @@
 | SemanticTransaction on blueprint create | **Met** |
 | No semantic assets at blueprint create (ARR-004) | **Met** |
 | Sprint 1 ADR backlog | **Carried** — [deferral doc](../Sprint_1_architecture_clarification_deferral.md) still in effect |
+
+---
+
+## 10. End-user release notes
+
+**Bu sprintte son kullanıcı için görünür bir değişiklik yok.**
+
+Sprint 3 tamamen backend (`blueprints` modülü — internal REST API, lifecycle, versioning, audit stub). Platform Console ekranı yok; dışarıya açık MVP akışı veya authentication henüz yok. Son kullanıcıya yansıyan bir özellik bu sprintte teslim edilmedi.
