@@ -12,6 +12,9 @@ from app.infrastructure.database import get_db
 from app.modules.applications.repositories.sqlalchemy_repository import (
     SqlAlchemyApplicationRepository,
 )
+from app.modules.audit_trace.repositories.sqlalchemy_repository import (
+    SqlAlchemyAuditTraceRepository,
+)
 from app.modules.blueprints.api.schemas import (
     BlueprintCreateRequest,
     BlueprintResponse,
@@ -37,10 +40,31 @@ router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 
 
+class SqlAlchemyTraceRecorderAdapter:
+    """Adapter from blueprints TraceRecorder port to audit_trace repository."""
+
+    def __init__(self, session: Session) -> None:
+        self._repository = SqlAlchemyAuditTraceRepository(session)
+
+    def record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+    ) -> None:
+        self._repository.record_transaction(
+            transaction_type=transaction_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+        )
+
+
 def _get_service(db: Session) -> BlueprintsService:
     return BlueprintsService(
         SqlAlchemyBlueprintRepository(db),
         SqlAlchemyApplicationRepository(db),
+        SqlAlchemyTraceRecorderAdapter(db),
     )
 
 
