@@ -7,16 +7,18 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.modules.applications.repositories.orm_models  # noqa: F401
+import app.modules.audit_trace.repositories.orm_models  # noqa: F401
 import app.modules.blueprints.repositories.orm_models  # noqa: F401
 from app.infrastructure.database import get_db
 from app.main import app as fastapi_app
 from app.modules.applications.repositories.orm_models import Base
+from app.modules.audit_trace.repositories.orm_models import SemanticTransaction
 
 
 @pytest.fixture()
@@ -80,6 +82,28 @@ def test_create_blueprint(client: TestClient) -> None:
     assert body["status"] == "Draft"
     assert body["version_number"] == 1
     assert body["blueprint_snapshot"]["personas"] == []
+
+
+def test_create_blueprint_records_semantic_transaction(
+    client: TestClient, db_engine: Engine
+) -> None:
+    application_id = _create_application(client)
+    response = client.post(
+        "/api/v1/blueprints",
+        json={"application_id": application_id, "title": "Traced Blueprint"},
+    )
+    assert response.status_code == 201
+    blueprint_id = response.json()["id"]
+
+    with Session(db_engine) as session:
+        row = session.scalar(
+            select(SemanticTransaction).where(
+                SemanticTransaction.resource_id == blueprint_id,
+            )
+        )
+        assert row is not None
+        assert row.transaction_type == "blueprint.created"
+        assert row.resource_type == "Blueprint"
 
 
 def test_create_blueprint_returns_404_for_unknown_application(client: TestClient) -> None:

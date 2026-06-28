@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.blueprints.domain.enums import BlueprintStatus
 from app.modules.blueprints.domain.models import Blueprint
+from app.modules.blueprints.ports.interfaces import TraceRecorder
 from app.modules.blueprints.repositories.interfaces import BlueprintRepository
 
 UNSET = object()
@@ -47,6 +48,19 @@ class InvalidBlueprintVersionForkError(Exception):
     """Raised when a blueprint version fork is not allowed."""
 
 
+class _NoOpTraceRecorder:
+    """Default recorder when audit_trace wiring is not provided."""
+
+    def record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+    ) -> None:
+        return None
+
+
 class BlueprintsService:
     """Blueprint CRUD orchestration."""
 
@@ -54,9 +68,11 @@ class BlueprintsService:
         self,
         repository: BlueprintRepository,
         application_repository: ApplicationRepository,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
+        self._trace_recorder = trace_recorder or _NoOpTraceRecorder()
 
     def create_blueprint(
         self,
@@ -86,7 +102,13 @@ class BlueprintsService:
             created_at=datetime.now(UTC),
             blueprint_snapshot=snapshot,
         )
-        return self._repository.create(blueprint)
+        created = self._repository.create(blueprint)
+        self._trace_recorder.record_transaction(
+            transaction_type="blueprint.created",
+            resource_type="Blueprint",
+            resource_id=str(created.id),
+        )
+        return created
 
     def list_blueprints(self, *, application_id: UUID) -> list[Blueprint]:
         if self._application_repository.get(application_id) is None:
