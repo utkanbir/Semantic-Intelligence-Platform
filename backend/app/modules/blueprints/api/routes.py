@@ -17,6 +17,7 @@ from app.modules.blueprints.api.schemas import (
     BlueprintResponse,
     BlueprintStatusUpdateRequest,
     BlueprintUpdateRequest,
+    BlueprintVersionCreateRequest,
     to_blueprint_response,
 )
 from app.modules.blueprints.repositories.sqlalchemy_repository import (
@@ -29,6 +30,7 @@ from app.modules.blueprints.services.blueprints_service import (
     BlueprintsService,
     ImmutableBlueprintError,
     InvalidBlueprintStatusTransitionError,
+    InvalidBlueprintVersionForkError,
 )
 
 router = APIRouter()
@@ -116,6 +118,32 @@ def update_blueprint_status(
     except BlueprintNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except InvalidBlueprintStatusTransitionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return to_blueprint_response(blueprint)
+
+
+@router.post(
+    "/{blueprint_id}/versions",
+    response_model=BlueprintResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_blueprint_version(
+    blueprint_id: UUID,
+    payload: BlueprintVersionCreateRequest,
+    db: DbSession,
+) -> BlueprintResponse:
+    service = _get_service(db)
+    try:
+        blueprint = service.create_version(
+            blueprint_id,
+            blueprint_snapshot=payload.blueprint_snapshot,
+        )
+    except BlueprintNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidBlueprintVersionForkError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
