@@ -24,14 +24,8 @@ Guidelines:
 from fastapi import APIRouter
 
 from app.api.v1.health import router as health_router
+from app.modules.applications.api.routes import router as applications_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health_router, prefix="/health", tags=["health"])
-
-# Future module routers (uncomment when module routes are implemented):
-#
-# from app.modules.applications.api.routes import router as applications_router
-# api_v1_router.include_router(applications_router, prefix="/applications", tags=["applications"])
-#
-# from app.modules.discovery.api.routes import router as discovery_router
-# api_v1_router.include_router(discovery_router, prefix="/discovery-sessions", tags=["discovery"])
+api_v1_router.include_router(applications_router, prefix="/applications", tags=["applications"])
