@@ -33,13 +33,13 @@ $s2Statuses = @{
     49 = "Done"
 }
 $s3Statuses = @{
-    56 = "Backlog"       # E-04 epic
-    57 = "In Progress"   # S3-01 contract
-    58 = "Ready"
-    59 = "Ready"
-    60 = "Ready"
-    61 = "Ready"
-    62 = "Ready"
+    56 = "Done"       # E-04 epic
+    57 = "Done"
+    58 = "Done"
+    59 = "Done"
+    60 = "Done"
+    61 = "Done"
+    62 = "Done"
 }
 
 $query = @'
