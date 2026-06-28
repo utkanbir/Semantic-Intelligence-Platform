@@ -17,3 +17,15 @@ class TraceStep:
     step_type: str
     created_at: datetime
     message: str | None = None
+
+
+@dataclass(slots=True)
+class SemanticTransactionRecord:
+    """Semantic transaction audit log row (read model)."""
+
+    id: UUID
+    transaction_type: str
+    resource_type: str
+    resource_id: str
+    created_at: datetime
+    trace_steps: list[TraceStep]
