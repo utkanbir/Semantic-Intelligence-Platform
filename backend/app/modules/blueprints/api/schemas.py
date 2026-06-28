@@ -56,6 +56,12 @@ class BlueprintStatusUpdateRequest(BaseModel):
     status: BlueprintStatus
 
 
+class BlueprintVersionCreateRequest(BaseModel):
+    """Blueprint version fork request."""
+
+    blueprint_snapshot: dict[str, Any] | None = None
+
+
 def to_blueprint_response(blueprint: Blueprint) -> BlueprintResponse:
     """Map domain model to API response schema."""
     return BlueprintResponse(
