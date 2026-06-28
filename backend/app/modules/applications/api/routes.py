@@ -26,13 +26,39 @@ from app.modules.applications.services.applications_service import (
     ApplicationsService,
     InvalidApplicationStatusTransitionError,
 )
+from app.modules.audit_trace.repositories.sqlalchemy_repository import (
+    SqlAlchemyAuditTraceRepository,
+)
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 
 
+class SqlAlchemyTraceRecorderAdapter:
+    """Adapter from applications TraceRecorder port to audit_trace repository."""
+
+    def __init__(self, session: Session) -> None:
+        self._repository = SqlAlchemyAuditTraceRepository(session)
+
+    def record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+    ) -> None:
+        self._repository.record_transaction(
+            transaction_type=transaction_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+        )
+
+
 def _get_service(db: Session) -> ApplicationsService:
-    return ApplicationsService(SqlAlchemyApplicationRepository(db))
+    return ApplicationsService(
+        SqlAlchemyApplicationRepository(db),
+        SqlAlchemyTraceRecorderAdapter(db),
+    )
 
 
 @router.post("", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
