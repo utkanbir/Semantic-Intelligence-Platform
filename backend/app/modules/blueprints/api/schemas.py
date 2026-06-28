@@ -50,6 +50,12 @@ class BlueprintUpdateRequest(BaseModel):
     blueprint_snapshot: dict[str, Any] | None = None
 
 
+class BlueprintStatusUpdateRequest(BaseModel):
+    """Blueprint status update request."""
+
+    status: BlueprintStatus
+
+
 def to_blueprint_response(blueprint: Blueprint) -> BlueprintResponse:
     """Map domain model to API response schema."""
     return BlueprintResponse(
