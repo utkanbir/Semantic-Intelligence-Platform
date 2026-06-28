@@ -133,3 +133,49 @@
 **Bu sprintte son kullanıcı için görünür bir değişiklik yok.**
 
 Sprint 3 tamamen backend (`blueprints` modülü — internal REST API, lifecycle, versioning, audit stub). Platform Console ekranı yok; dışarıya açık MVP akışı veya authentication henüz yok. Son kullanıcıya yansıyan bir özellik bu sprintte teslim edilmedi.
+
+---
+
+## 11. Technical deliverables
+
+### 1) REST / API
+
+Yeni endpoint'ler (`/api/v1/blueprints`, PR #65–#68):
+
+| Method | Path | Açıklama |
+|--------|------|----------|
+| `POST` | `/api/v1/blueprints` | Blueprint oluştur (Draft, v1) |
+| `GET` | `/api/v1/blueprints?application_id=` | Application'a göre listele |
+| `GET` | `/api/v1/blueprints/{id}` | Tekil getir |
+| `PATCH` | `/api/v1/blueprints/{id}` | title, goal, outcome, snapshot (mutable statülerde) |
+| `PATCH` | `/api/v1/blueprints/{id}/status` | Lifecycle geçişi (Draft→Review→Approved→Versioned→Retired) |
+| `POST` | `/api/v1/blueprints/{id}/versions` | Approved/Versioned parent'tan yeni versiyon fork |
+
+Audit: başarılı create sonrası `blueprint.created` SemanticTransaction (PR #68).
+
+### 2) Data model
+
+| Öğe | Detay |
+|-----|--------|
+| Domain | `Blueprint` aggregate, `BlueprintStatus` enum — `backend/app/modules/blueprints/domain/` |
+| Tablo | `blueprints` — migration `20260628_0006` (JSONB snapshot, version lineage, lifecycle alanları) |
+| Modül | `backend/app/modules/blueprints/` — repository, service, ports (`TraceRecorder`) |
+
+Binding contract: `docs/architecture/SIP_Blueprint_Lifecycle_Contract_v1.md` (PR #63).
+
+### 3) Reports
+
+| Rapor | Dosya |
+|-------|--------|
+| Sprint 3 retrospective | `docs/governance/retros/Sprint_3_Blueprint_Lifecycle_retro.md` |
+| Architecture health report | `docs/governance/health-reports/Sprint_3_architecture_health.md` |
+
+Operasyonel / export raporu: **Yok**.
+
+### 4) Infrastructure
+
+| Öğe | Detay |
+|-----|--------|
+| Kubernetes / Compose | **Yok** — yeni manifest veya servis yok |
+| CI / GitHub | `project-board-sync.yml` → `PROJECT_SYNC_TOKEN` (PR #70); board otomasyonu düzeltildi |
+| Test suite | **89** pytest (`develop`) |
