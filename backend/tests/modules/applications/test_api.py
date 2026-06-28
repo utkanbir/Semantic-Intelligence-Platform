@@ -6,29 +6,39 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import app.modules.audit_trace.repositories.orm_models  # noqa: F401
 from app.infrastructure.database import get_db
-from app.main import app
+from app.main import app as fastapi_app
 from app.modules.applications.repositories.orm_models import Base
+from app.modules.audit_trace.repositories.orm_models import SemanticTransaction
 
 
 @pytest.fixture()
-def client() -> Generator[TestClient, None, None]:
+def db_engine() -> Generator[Engine, None, None]:
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture()
+def client(db_engine: Engine) -> Generator[TestClient, None, None]:
     testing_session_local = sessionmaker(
-        bind=engine,
+        bind=db_engine,
         autoflush=False,
         autocommit=False,
         class_=Session,
     )
-    Base.metadata.create_all(bind=engine)
+
     def override_get_db() -> Generator[Session, None, None]:
         db = testing_session_local()
         try:
@@ -36,11 +46,10 @@ def client() -> Generator[TestClient, None, None]:
         finally:
             db.close()
 
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
+    fastapi_app.dependency_overrides[get_db] = override_get_db
+    with TestClient(fastapi_app) as test_client:
         yield test_client
-    app.dependency_overrides.clear()
-    Base.metadata.drop_all(bind=engine)
+    fastapi_app.dependency_overrides.clear()
 
 
 def test_create_application_provisions_blank_workspace(client: TestClient) -> None:
@@ -95,6 +104,20 @@ def test_create_application_returns_409_for_slug_namespace_collision(
     assert first.status_code == 201
     assert second.status_code == 409
     assert second.json()["detail"] == "Application namespace slug already exists"
+
+
+def test_create_application_records_semantic_transaction(
+    client: TestClient, db_engine: Engine
+) -> None:
+    response = client.post(
+        "/api/v1/applications",
+        json={"key": "trace-app", "name": "Trace App"},
+    )
+    assert response.status_code == 201
+
+    with Session(bind=db_engine) as session:
+        count = session.scalar(select(func.count()).select_from(SemanticTransaction))
+    assert count == 1
 
 
 def test_list_get_update_delete_application(client: TestClient) -> None:
