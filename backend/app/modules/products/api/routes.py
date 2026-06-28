@@ -16,6 +16,7 @@ from app.modules.assets.repositories.sqlalchemy_repository import SqlAlchemyAsse
 from app.modules.products.api.schemas import (
     PublishedDataProductCreateRequest,
     PublishedDataProductResponse,
+    PublishedDataProductStatusUpdateRequest,
     PublishedDataProductUpdateRequest,
     to_published_data_product_response,
 )
@@ -29,6 +30,7 @@ from app.modules.products.services.products_service import (
     AssetRecordNotFoundError,
     ImmutablePublishedDataProductError,
     InvalidAssetRecordReferenceError,
+    InvalidPublishedDataProductStatusTransitionError,
     ProductsService,
     PublishedDataProductNotFoundError,
 )
@@ -119,6 +121,23 @@ def update_product(
     except AssetRecordNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except InvalidAssetRecordReferenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return to_published_data_product_response(product)
+
+
+@router.patch("/{product_id}/status", response_model=PublishedDataProductResponse)
+def update_product_status(
+    product_id: UUID, payload: PublishedDataProductStatusUpdateRequest, db: DbSession
+) -> PublishedDataProductResponse:
+    service = _get_service(db)
+    try:
+        product = service.update_status(product_id, status=payload.status)
+    except PublishedDataProductNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidPublishedDataProductStatusTransitionError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
