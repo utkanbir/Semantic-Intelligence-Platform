@@ -50,6 +50,12 @@ class AssetRecordUpdateRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class AssetRecordStatusUpdateRequest(BaseModel):
+    """Asset record status update request."""
+
+    status: AssetRecordStatus
+
+
 def to_asset_record_response(asset_record: AssetRecord) -> AssetRecordResponse:
     """Map domain model to API response schema."""
     return AssetRecordResponse(

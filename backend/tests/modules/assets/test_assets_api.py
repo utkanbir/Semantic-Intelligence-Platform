@@ -174,3 +174,77 @@ def test_update_asset_record(client: TestClient) -> None:
     assert body["title"] == "After"
     assert body["description"] == "Updated description"
     assert body["metadata"] == {"reviewed": True}
+
+
+def _create_asset(client: TestClient, application_id: str) -> str:
+    response = client.post(
+        "/api/v1/assets",
+        json={
+            "application_id": application_id,
+            "asset_type": "Blueprint",
+            "resource_type": "Blueprint",
+            "resource_id": str(uuid4()),
+            "title": "Lifecycle test",
+        },
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def test_patch_status_draft_to_active_to_published(client: TestClient) -> None:
+    application_id = _create_application(client)
+    asset_record_id = _create_asset(client, application_id)
+
+    active = client.patch(
+        f"/api/v1/assets/{asset_record_id}/status",
+        json={"status": "Active"},
+    )
+    assert active.status_code == 200
+    assert active.json()["status"] == "Active"
+
+    published = client.patch(
+        f"/api/v1/assets/{asset_record_id}/status",
+        json={"status": "Published"},
+    )
+    assert published.status_code == 200
+    assert published.json()["status"] == "Published"
+
+
+def test_patch_status_active_back_to_draft(client: TestClient) -> None:
+    application_id = _create_application(client)
+    asset_record_id = _create_asset(client, application_id)
+    client.patch(f"/api/v1/assets/{asset_record_id}/status", json={"status": "Active"})
+
+    draft = client.patch(
+        f"/api/v1/assets/{asset_record_id}/status",
+        json={"status": "Draft"},
+    )
+    assert draft.status_code == 200
+    assert draft.json()["status"] == "Draft"
+
+
+def test_patch_status_invalid_transition_returns_422(client: TestClient) -> None:
+    application_id = _create_application(client)
+    asset_record_id = _create_asset(client, application_id)
+
+    response = client.patch(
+        f"/api/v1/assets/{asset_record_id}/status",
+        json={"status": "Published"},
+    )
+    assert response.status_code == 422
+
+
+def test_patch_status_published_to_retired_via_deprecated(client: TestClient) -> None:
+    application_id = _create_application(client)
+    asset_record_id = _create_asset(client, application_id)
+    for status in ("Active", "Published", "Deprecated", "Retired"):
+        client.patch(
+            f"/api/v1/assets/{asset_record_id}/status",
+            json={"status": status},
+        )
+
+    blocked = client.patch(
+        f"/api/v1/assets/{asset_record_id}/status",
+        json={"status": "Active"},
+    )
+    assert blocked.status_code == 422
