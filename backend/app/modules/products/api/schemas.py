@@ -52,6 +52,12 @@ class PublishedDataProductUpdateRequest(BaseModel):
     source_asset_record_ids: list[str] | None = None
 
 
+class PublishedDataProductStatusUpdateRequest(BaseModel):
+    """Published data product status update request."""
+
+    status: PublishedDataProductStatus
+
+
 def to_published_data_product_response(
     product: PublishedDataProduct,
 ) -> PublishedDataProductResponse:
