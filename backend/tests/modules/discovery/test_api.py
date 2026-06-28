@@ -7,16 +7,18 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.modules.applications.repositories.orm_models  # noqa: F401
+import app.modules.audit_trace.repositories.orm_models  # noqa: F401
 import app.modules.discovery.repositories.orm_models  # noqa: F401
 from app.infrastructure.database import get_db
 from app.main import app as fastapi_app
 from app.modules.applications.repositories.orm_models import Base
+from app.modules.audit_trace.repositories.orm_models import SemanticTransaction
 
 
 @pytest.fixture()
@@ -310,3 +312,25 @@ def test_advance_phase_rejected_when_paused(client: TestClient) -> None:
 
     response = client.post(f"/api/v1/discovery-sessions/{session_id}/phases/advance", json={})
     assert response.status_code == 422
+
+
+def test_create_discovery_session_records_semantic_transaction(
+    client: TestClient, db_engine: Engine
+) -> None:
+    application_id = _create_application(client)
+    response = client.post(
+        "/api/v1/discovery-sessions",
+        json={"application_id": application_id, "title": "Traced session"},
+    )
+    assert response.status_code == 201
+    session_id = response.json()["id"]
+
+    with Session(db_engine) as session:
+        row = session.scalar(
+            select(SemanticTransaction).where(
+                SemanticTransaction.resource_id == session_id,
+            )
+        )
+        assert row is not None
+        assert row.transaction_type == "discovery.session.created"
+        assert row.resource_type == "DiscoverySession"
