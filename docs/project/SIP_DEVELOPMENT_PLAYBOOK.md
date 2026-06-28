@@ -351,7 +351,14 @@ The [SIP MVP Delivery](https://github.com/users/utkanbir/projects/3) board must 
 
 **Reconciliation:** `scripts/fix-project-board.ps1` — drift repair at sprint close only; not the primary update path.
 
-Maintainer one-time: `gh auth refresh -h github.com -s read:project,project`
+**GitHub Action token (required):** Default `GITHUB_TOKEN` cannot write to user Projects v2. Add repo secret **`PROJECT_SYNC_TOKEN`**:
+
+1. GitHub → **Settings → Developer settings → Fine-grained personal access tokens**
+2. Repository access: `Semantic-Intelligence-Platform` only
+3. Permissions: **Issues** (Read and write), **Pull requests** (Read), **Metadata** (Read); under **Account permissions → Projects** (Read and write)
+4. Store in repo: `gh secret set PROJECT_SYNC_TOKEN -R utkanbir/Semantic-Intelligence-Platform` (paste token when prompted)
+
+Maintainer local CLI: `gh auth refresh -h github.com -s read:project,project`
 
 ---
 
@@ -372,6 +379,17 @@ Maintainer one-time: `gh auth refresh -h github.com -s read:project,project`
 | **Sprint Review** | Demo against MVP flow or sprint goals |
 | **Retrospective** | Process improvements; playbook/governance updates if approved |
 | **Architecture Health Check** | Sprint-end boundary, debt, ADR, gate effectiveness review (see `docs/governance/health-reports/`) |
+
+### End-user release notes (mandatory at sprint close)
+
+At every sprint close, PMO MUST tell the Product Owner (and any end-user audience) **what changed for end users** — people using the Platform Console or Assessment MVP, not engineers.
+
+| Outcome | What to report |
+|---------|----------------|
+| Console screens, user-visible flows, or externally reachable MVP behavior shipped | Bullet list in plain language (Turkish or English per PO preference) |
+| Sprint was backend-only, infra, contracts, or internal API with no Console / no public surface | **"Bu sprintte son kullanıcı için görünür bir değişiklik yok."** |
+
+Record in the sprint retro as **§10 End-user release notes** (even when empty). Do not invent user-facing features from internal API work.
 
 ### Recommended MVP build sequence
 

@@ -37,7 +37,7 @@
 | TD-008 | Domain events not emitted | S1 | S3 | Event orchestration ADR |
 | TD-009 | `generated_blueprint_id` FK placeholder only | PR #51 | S3 | Blueprint generation flow Sprint 4+ |
 | TD-010 | JSON vs JSONB type mismatch in discovery ORM vs migration | PR #51 | S3 | Hygiene pass |
-| TD-011 | `project-board-sync` Action lacks project token scope | S2 | S3 | PAT secret Sprint 4 |
+| TD-011 | `project-board-sync` Action lacks project token scope | S2 | S3 | **Remediated** — workflow uses `PROJECT_SYNC_TOKEN`; maintainer must set secret |
 
 *TD-002–TD-004 from Sprint 0 remain open.*
 
