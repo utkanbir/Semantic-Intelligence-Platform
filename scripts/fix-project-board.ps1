@@ -1,9 +1,10 @@
-# Fix SIP MVP Delivery board — Workflow Status sync
+# Fix SIP MVP Delivery board — batch reconciliation (drift repair)
 #
-# See: docs/governance/retros/Sprint_0_Project_Foundation_retro.md §9
-# Requires: gh auth refresh -h github.com -s read:project,project
+# Prefer real-time updates during sprint:
+#   scripts/set-board-status.ps1  (one issue per transition)
+#   .github/workflows/project-board-sync.yml  (PR open → In Review, merge → Done)
 #
-# Update $s0DoneIssues / $s1AddIssues / $s1Statuses each sprint before running.
+# Use THIS script only to repair drift at sprint close or after board verification fails.
 $ErrorActionPreference = "Stop"
 $owner = "utkanbir"
 $projectNumber = 3

@@ -338,6 +338,21 @@ Every implementation issue must include:
 - PR body: acceptance criteria checklist, architecture refs, test plan
 - Close issues via PR keywords when appropriate
 
+### Live board visibility (mandatory)
+
+The [SIP MVP Delivery](https://github.com/users/utkanbir/projects/3) board must reflect **current** work during the sprint — not only at sprint close.
+
+| When | Column | How |
+|------|--------|-----|
+| Issue added to sprint milestone | **Ready** | Auto: `project-board-sync.yml` on issue open/milestoned |
+| Work starts | **In Progress** | PMO: `scripts/set-board-status.ps1 -IssueNumber N -Status "In Progress"` |
+| PR opened | **In Review** | Auto: `project-board-sync.yml` (requires `[#N]` in PR title) |
+| PR merged to `develop` | **Done** | Auto: `project-board-sync.yml` |
+
+**Reconciliation:** `scripts/fix-project-board.ps1` — drift repair at sprint close only; not the primary update path.
+
+Maintainer one-time: `gh auth refresh -h github.com -s read:project,project`
+
 ---
 
 ## 9. Sprint Lifecycle

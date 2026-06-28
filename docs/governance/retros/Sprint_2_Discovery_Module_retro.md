@@ -61,8 +61,8 @@
 
 | Proposal | Affects | Accountable approval | Action |
 |----------|---------|----------------------|--------|
-| **Auto sprint close** when all milestone implementation issues Done — retro + health report + epic/milestone close without user prompt | `sip-pmo.mdc` | DM | **Adopted** — PO directive 2026-06-28 |
-| Do not close GitHub issues until PR merged and CI green | PMO merge checklist | DM | **Adopted** |
+| **Live board visibility (PO directive Sprint 2)** | PMO / GitHub Action | DM | **Adopted** — see playbook §8, `project-board-sync.yml` |
+| Real-time board updates; `fix-project-board.ps1` reconciliation only | scripts + CI | DM | **Adopted** |
 | Run `ruff check` locally before push on backend branches | playbook §6 | EM | **Proposed** — Sprint 3 |
 | Auto sprint close triggers Sprint N+1 planning issue creation | PMO Hub | DM | **Proposed** — Sprint 3 |
 
