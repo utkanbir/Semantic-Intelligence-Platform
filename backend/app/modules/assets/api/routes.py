@@ -12,9 +12,6 @@ from app.infrastructure.database import get_db
 from app.modules.applications.repositories.sqlalchemy_repository import (
     SqlAlchemyApplicationRepository,
 )
-from app.modules.audit_trace.repositories.sqlalchemy_repository import (
-    SqlAlchemyAuditTraceRepository,
-)
 from app.modules.assets.api.schemas import (
     AssetRecordCreateRequest,
     AssetRecordResponse,
@@ -33,6 +30,9 @@ from app.modules.assets.services.assets_service import (
     AssetsService,
     DuplicateAssetRecordConflictError,
     InvalidAssetRecordStatusTransitionError,
+)
+from app.modules.audit_trace.repositories.sqlalchemy_repository import (
+    SqlAlchemyAuditTraceRepository,
 )
 
 router = APIRouter()
