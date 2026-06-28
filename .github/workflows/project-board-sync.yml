@@ -1,10 +1,10 @@
 # Keep SIP MVP Delivery board columns in sync with PR/issue lifecycle.
 # PO requirement: visible In Progress / In Review / Done during sprint — not batch at close.
 #
-# Requires repo secret PROJECT_SYNC_TOKEN — fine-grained PAT with:
-#   Repository: Semantic-Intelligence-Platform — Issues (R/W), Pull requests (R), Projects (R/W)
-#   Account: Projects (R/W)
-# See docs/project/SIP_DEVELOPMENT_PLAYBOOK.md §8 (Live board visibility).
+# Requires repo secret PROJECT_SYNC_TOKEN — Classic PAT recommended (see playbook §8):
+#   Scopes: repo, read:project, project
+# Fine-grained PAT often fails with "Resource not accessible by personal access token"
+# on user-owned Projects v2 unless Account → Projects (Read and write) is set correctly.
 name: Project Board Sync
 
 on:
@@ -32,6 +32,7 @@ jobs:
             echo "::error::PROJECT_SYNC_TOKEN secret is not set. See playbook §8 (Live board visibility)."
             exit 1
           fi
+          python3 scripts/verify_project_sync_token.py
 
       - name: Parse issue number from PR
         if: github.event_name == 'pull_request'
