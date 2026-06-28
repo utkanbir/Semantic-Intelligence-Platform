@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.modules.applications.domain.enums import ApplicationStatus
 from app.modules.applications.domain.models import Application, ApplicationWorkspace
 from app.modules.applications.repositories.interfaces import (
     ApplicationRepository,
@@ -46,6 +47,7 @@ def _to_domain_application(application_orm: ApplicationORM) -> Application:
         id=application_orm.id,
         key=application_orm.key,
         name=application_orm.name,
+        status=ApplicationStatus(application_orm.status),
         description=application_orm.description,
         created_at=application_orm.created_at,
         updated_at=application_orm.updated_at,
@@ -70,6 +72,7 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
             id=application.id,
             key=application.key,
             name=application.name,
+            status=application.status.value,
             description=application.description,
             workspace=ApplicationWorkspaceORM(
                 id=workspace.id,
@@ -139,6 +142,7 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
 
         application_orm.key = application.key
         application_orm.name = application.name
+        application_orm.status = application.status.value
         application_orm.description = application.description
 
         workspace = application.workspace

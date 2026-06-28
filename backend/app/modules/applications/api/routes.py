@@ -12,6 +12,7 @@ from app.infrastructure.database import get_db
 from app.modules.applications.api.schemas import (
     ApplicationCreateRequest,
     ApplicationResponse,
+    ApplicationStatusUpdateRequest,
     ApplicationUpdateRequest,
     to_application_response,
 )
@@ -23,6 +24,7 @@ from app.modules.applications.services.applications_service import (
     ApplicationConflictError,
     ApplicationNotFoundError,
     ApplicationsService,
+    InvalidApplicationStatusTransitionError,
 )
 
 router = APIRouter()
@@ -87,6 +89,23 @@ def update_application(
     except ApplicationConflictError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return to_application_response(application)
+
+
+@router.patch("/{application_id}/status", response_model=ApplicationResponse)
+def update_application_status(
+    application_id: UUID, payload: ApplicationStatusUpdateRequest, db: DbSession
+) -> ApplicationResponse:
+    service = _get_service(db)
+    try:
+        application = service.update_status(application_id, status=payload.status)
+    except ApplicationNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidApplicationStatusTransitionError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
