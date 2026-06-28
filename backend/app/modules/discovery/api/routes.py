@@ -15,6 +15,7 @@ from app.modules.applications.repositories.sqlalchemy_repository import (
 from app.modules.discovery.api.schemas import (
     DiscoverySessionCreateRequest,
     DiscoverySessionResponse,
+    DiscoverySessionStatusUpdateRequest,
     DiscoverySessionUpdateRequest,
     to_discovery_session_response,
 )
@@ -24,6 +25,7 @@ from app.modules.discovery.services.discovery_service import (
     ApplicationNotFoundError,
     DiscoveryService,
     DiscoverySessionNotFoundError,
+    InvalidDiscoverySessionStatusTransitionError,
 )
 
 router = APIRouter()
@@ -93,4 +95,21 @@ def update_discovery_session(
         )
     except DiscoverySessionNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    return to_discovery_session_response(session)
+
+
+@router.patch("/{session_id}/status", response_model=DiscoverySessionResponse)
+def update_discovery_session_status(
+    session_id: UUID, payload: DiscoverySessionStatusUpdateRequest, db: DbSession
+) -> DiscoverySessionResponse:
+    service = _get_service(db)
+    try:
+        session = service.update_status(session_id, status=payload.status)
+    except DiscoverySessionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidDiscoverySessionStatusTransitionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     return to_discovery_session_response(session)
