@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from app.modules.applications.domain.enums import ApplicationStatus
 from app.modules.applications.domain.models import Application, ApplicationWorkspace
+from app.modules.applications.ports.interfaces import TraceRecorder
 from app.modules.applications.repositories.interfaces import (
     ApplicationRepository,
     DuplicateApplicationKeyError,
@@ -28,11 +29,29 @@ class InvalidApplicationStatusTransitionError(Exception):
     """Raised when an application status transition is not allowed."""
 
 
+class _NoOpTraceRecorder:
+    """Default recorder when audit_trace wiring is not provided."""
+
+    def record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+    ) -> None:
+        return None
+
+
 class ApplicationsService:
     """Application CRUD and blank workspace provisioning orchestration."""
 
-    def __init__(self, repository: ApplicationRepository) -> None:
+    def __init__(
+        self,
+        repository: ApplicationRepository,
+        trace_recorder: TraceRecorder | None = None,
+    ) -> None:
         self._repository = repository
+        self._trace_recorder = trace_recorder or _NoOpTraceRecorder()
 
     def create_application(self, *, key: str, name: str, description: str | None) -> Application:
         if self._repository.get_by_key(key) is not None:
@@ -68,6 +87,11 @@ class ApplicationsService:
             created_application = self._repository.create(application)
         except DuplicateApplicationKeyError as error:
             raise ApplicationConflictError("Application key already exists") from error
+        self._trace_recorder.record_transaction(
+            transaction_type="ApplicationWorkspaceProvisioned",
+            resource_type="application",
+            resource_id=str(created_application.id),
+        )
         return created_application
 
     def list_applications(self) -> list[Application]:
