@@ -67,6 +67,12 @@ class DiscoverySessionUpdateRequest(BaseModel):
     conversation_history: list[Any] | None = None
 
 
+class DiscoverySessionStatusUpdateRequest(BaseModel):
+    """Discovery session status update request."""
+
+    status: DiscoverySessionStatus
+
+
 def to_discovery_session_response(session: DiscoverySession) -> DiscoverySessionResponse:
     """Map domain model to API response schema."""
     current_phase = session.current_phase

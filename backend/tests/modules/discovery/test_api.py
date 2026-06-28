@@ -188,3 +188,93 @@ def test_get_discovery_session_returns_404_when_missing(client: TestClient) -> N
     response = client.get(f"/api/v1/discovery-sessions/{uuid4()}")
     assert response.status_code == 404
     assert response.json()["detail"] == "Discovery session not found"
+
+
+def _create_session(client: TestClient, application_id: str, title: str = "Status test") -> str:
+    response = client.post(
+        "/api/v1/discovery-sessions",
+        json={"application_id": application_id, "title": title},
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def test_patch_status_active_to_paused_and_back(client: TestClient) -> None:
+    application_id = _create_application(client)
+    session_id = _create_session(client, application_id)
+
+    paused = client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Paused"},
+    )
+    assert paused.status_code == 200
+    assert paused.json()["status"] == "Paused"
+
+    active = client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Active"},
+    )
+    assert active.status_code == 200
+    assert active.json()["status"] == "Active"
+
+
+def test_patch_status_to_completed_sets_completed_at(client: TestClient) -> None:
+    application_id = _create_application(client)
+    session_id = _create_session(client, application_id)
+
+    completed = client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Completed"},
+    )
+    assert completed.status_code == 200
+    body = completed.json()
+    assert body["status"] == "Completed"
+    assert body["completed_at"] is not None
+
+
+def test_patch_status_invalid_from_completed(client: TestClient) -> None:
+    application_id = _create_application(client)
+    session_id = _create_session(client, application_id)
+    client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Completed"},
+    )
+
+    response = client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Active"},
+    )
+    assert response.status_code == 422
+
+
+def test_patch_status_completed_to_archived(client: TestClient) -> None:
+    application_id = _create_application(client)
+    session_id = _create_session(client, application_id)
+    client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Completed"},
+    )
+
+    archived = client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Archived"},
+    )
+    assert archived.status_code == 200
+    assert archived.json()["status"] == "Archived"
+
+
+def test_patch_status_archived_is_terminal(client: TestClient) -> None:
+    application_id = _create_application(client)
+    session_id = _create_session(client, application_id)
+
+    archived = client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Archived"},
+    )
+    assert archived.status_code == 200
+
+    blocked = client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Active"},
+    )
+    assert blocked.status_code == 422
