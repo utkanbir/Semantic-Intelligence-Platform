@@ -1,0 +1,176 @@
+"""API tests for asset registry CRUD."""
+
+from __future__ import annotations
+
+from collections.abc import Generator
+from uuid import uuid4
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+import app.modules.applications.repositories.orm_models  # noqa: F401
+import app.modules.assets.repositories.orm_models  # noqa: F401
+from app.infrastructure.database import get_db
+from app.main import app as fastapi_app
+from app.modules.applications.repositories.orm_models import Base
+
+
+@pytest.fixture()
+def db_engine() -> Generator[Engine, None, None]:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture()
+def client(db_engine: Engine) -> Generator[TestClient, None, None]:
+    testing_session_local = sessionmaker(
+        bind=db_engine,
+        autoflush=False,
+        autocommit=False,
+        class_=Session,
+    )
+
+    def override_get_db() -> Generator[Session, None, None]:
+        db = testing_session_local()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    fastapi_app.dependency_overrides[get_db] = override_get_db
+    with TestClient(fastapi_app) as test_client:
+        yield test_client
+    fastapi_app.dependency_overrides.clear()
+
+
+def _create_application(client: TestClient) -> str:
+    response = client.post(
+        "/api/v1/applications",
+        json={"key": "asset-api-app", "name": "Asset API App"},
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def test_create_asset_record(client: TestClient) -> None:
+    application_id = _create_application(client)
+    resource_id = str(uuid4())
+    response = client.post(
+        "/api/v1/assets",
+        json={
+            "application_id": application_id,
+            "asset_type": "Blueprint",
+            "resource_type": "Blueprint",
+            "resource_id": resource_id,
+            "title": "Registered Blueprint",
+            "created_by": "architect-1",
+            "metadata": {"source": "manual"},
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["application_id"] == application_id
+    assert body["resource_id"] == resource_id
+    assert body["status"] == "Draft"
+    assert body["metadata"] == {"source": "manual"}
+
+
+def test_create_asset_record_returns_404_for_unknown_application(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/assets",
+        json={
+            "application_id": str(uuid4()),
+            "asset_type": "Blueprint",
+            "resource_type": "Blueprint",
+            "resource_id": str(uuid4()),
+            "title": "Orphan",
+        },
+    )
+    assert response.status_code == 404
+
+
+def test_create_duplicate_asset_record_returns_409(client: TestClient) -> None:
+    application_id = _create_application(client)
+    resource_id = str(uuid4())
+    payload = {
+        "application_id": application_id,
+        "asset_type": "Blueprint",
+        "resource_type": "Blueprint",
+        "resource_id": resource_id,
+        "title": "First",
+    }
+    first = client.post("/api/v1/assets", json=payload)
+    assert first.status_code == 201
+
+    second = client.post("/api/v1/assets", json={**payload, "title": "Duplicate"})
+    assert second.status_code == 409
+
+
+def test_list_and_get_asset_record(client: TestClient) -> None:
+    application_id = _create_application(client)
+    created = client.post(
+        "/api/v1/assets",
+        json={
+            "application_id": application_id,
+            "asset_type": "DiscoverySession",
+            "resource_type": "DiscoverySession",
+            "resource_id": str(uuid4()),
+            "title": "Listed Asset",
+        },
+    )
+    assert created.status_code == 201
+    asset_record_id = created.json()["id"]
+
+    listed = client.get("/api/v1/assets", params={"application_id": application_id})
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+
+    filtered = client.get(
+        "/api/v1/assets",
+        params={"application_id": application_id, "asset_type": "DiscoverySession"},
+    )
+    assert filtered.status_code == 200
+    assert len(filtered.json()) == 1
+
+    got = client.get(f"/api/v1/assets/{asset_record_id}")
+    assert got.status_code == 200
+    assert got.json()["title"] == "Listed Asset"
+
+
+def test_update_asset_record(client: TestClient) -> None:
+    application_id = _create_application(client)
+    created = client.post(
+        "/api/v1/assets",
+        json={
+            "application_id": application_id,
+            "asset_type": "Blueprint",
+            "resource_type": "Blueprint",
+            "resource_id": str(uuid4()),
+            "title": "Before",
+        },
+    )
+    asset_record_id = created.json()["id"]
+
+    updated = client.patch(
+        f"/api/v1/assets/{asset_record_id}",
+        json={
+            "title": "After",
+            "description": "Updated description",
+            "metadata": {"reviewed": True},
+        },
+    )
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["title"] == "After"
+    assert body["description"] == "Updated description"
+    assert body["metadata"] == {"reviewed": True}
