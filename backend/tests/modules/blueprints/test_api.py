@@ -206,3 +206,72 @@ def test_patch_status_versioned_to_retired(client: TestClient) -> None:
         json={"status": "Draft"},
     )
     assert blocked.status_code == 422
+
+
+def _advance_to_approved(client: TestClient, blueprint_id: str) -> None:
+    for status in ("Review", "Approved"):
+        response = client.patch(
+            f"/api/v1/blueprints/{blueprint_id}/status",
+            json={"status": status},
+        )
+        assert response.status_code == 200
+
+
+def test_create_version_from_approved_copies_snapshot(client: TestClient) -> None:
+    application_id = _create_application(client)
+    blueprint_id = _create_blueprint(client, application_id)
+    client.patch(
+        f"/api/v1/blueprints/{blueprint_id}",
+        json={"blueprint_snapshot": {"goal": "v1", "personas": ["analyst"]}},
+    )
+    _advance_to_approved(client, blueprint_id)
+
+    parent_before = client.get(f"/api/v1/blueprints/{blueprint_id}").json()
+
+    version = client.post(f"/api/v1/blueprints/{blueprint_id}/versions", json={})
+    assert version.status_code == 201
+    body = version.json()
+    assert body["id"] != blueprint_id
+    assert body["status"] == "Draft"
+    assert body["version_number"] == 2
+    assert body["previous_version_id"] == blueprint_id
+    assert body["version_created_at"] is not None
+    assert body["blueprint_snapshot"] == {"goal": "v1", "personas": ["analyst"]}
+
+    parent_after = client.get(f"/api/v1/blueprints/{blueprint_id}").json()
+    assert parent_after == parent_before
+
+
+def test_create_version_with_custom_snapshot(client: TestClient) -> None:
+    application_id = _create_application(client)
+    blueprint_id = _create_blueprint(client, application_id)
+    _advance_to_approved(client, blueprint_id)
+
+    version = client.post(
+        f"/api/v1/blueprints/{blueprint_id}/versions",
+        json={"blueprint_snapshot": {"goal": "v2", "personas": ["engineer"]}},
+    )
+    assert version.status_code == 201
+    assert version.json()["blueprint_snapshot"] == {"goal": "v2", "personas": ["engineer"]}
+
+
+def test_create_version_from_versioned_parent(client: TestClient) -> None:
+    application_id = _create_application(client)
+    blueprint_id = _create_blueprint(client, application_id)
+    for status in ("Review", "Approved", "Versioned"):
+        client.patch(
+            f"/api/v1/blueprints/{blueprint_id}/status",
+            json={"status": status},
+        )
+
+    version = client.post(f"/api/v1/blueprints/{blueprint_id}/versions", json={})
+    assert version.status_code == 201
+    assert version.json()["version_number"] == 2
+
+
+def test_create_version_rejects_draft_parent(client: TestClient) -> None:
+    application_id = _create_application(client)
+    blueprint_id = _create_blueprint(client, application_id)
+
+    response = client.post(f"/api/v1/blueprints/{blueprint_id}/versions", json={})
+    assert response.status_code == 422

@@ -43,6 +43,10 @@ class InvalidBlueprintStatusTransitionError(Exception):
     """Raised when a blueprint status transition is not allowed."""
 
 
+class InvalidBlueprintVersionForkError(Exception):
+    """Raised when a blueprint version fork is not allowed."""
+
+
 class BlueprintsService:
     """Blueprint CRUD orchestration."""
 
@@ -166,6 +170,42 @@ class BlueprintsService:
         if result is None:
             raise BlueprintNotFoundError("Blueprint not found")
         return result
+
+    def create_version(
+        self,
+        blueprint_id: UUID,
+        *,
+        blueprint_snapshot: dict[str, Any] | None = None,
+    ) -> Blueprint:
+        parent = self._repository.get(blueprint_id)
+        if parent is None:
+            raise BlueprintNotFoundError("Blueprint not found")
+        if parent.status not in {BlueprintStatus.APPROVED, BlueprintStatus.VERSIONED}:
+            raise InvalidBlueprintVersionForkError(
+                "Version fork requires parent status Approved or Versioned"
+            )
+
+        snapshot = (
+            dict(parent.blueprint_snapshot)
+            if blueprint_snapshot is None
+            else blueprint_snapshot
+        )
+        now = datetime.now(UTC)
+        child = Blueprint(
+            id=uuid4(),
+            application_id=parent.application_id,
+            version_number=parent.version_number + 1,
+            previous_version_id=parent.id,
+            status=BlueprintStatus.DRAFT,
+            title=parent.title,
+            goal=parent.goal,
+            outcome=parent.outcome,
+            created_by=parent.created_by,
+            created_at=now,
+            version_created_at=now,
+            blueprint_snapshot=snapshot,
+        )
+        return self._repository.create(child)
 
 
 VALID_STATUS_TRANSITIONS: dict[BlueprintStatus, set[BlueprintStatus]] = {
