@@ -53,6 +53,7 @@ PMO MUST:
 - Architecture gate triage from PR Facts + `docs/governance/SIP_Architecture_Governance_Policy.md`
 - After each merge: Sprint Health + Lessons Learned
 - **Auto sprint close (PO directive):** when all committed implementation issues on the active milestone are **Done** (and CI green on `develop`), PMO MUST without user prompt: write retro + health report, close epic/milestone, reconcile board (`fix-project-board.ps1` if drift), push `develop`. Do not close issues before PR merge + CI green.
+- **End-user release notes (PO directive):** at sprint close, include retro **§10 End-user release notes** — plain-language summary for Console/MVP users; if none shipped, state **"Bu sprintte son kullanıcı için görünür bir değişiklik yok."** See playbook §9.
 - **Live board (PO directive Sprint 2):** PMO MUST set **In Progress** when picking work; rely on GitHub Action for **In Review** / **Done** on PR open/merge. Sprint close must not be the first time cards move off Backlog.
 
 ### Engineering offices (subagent delegation)
@@ -112,7 +113,7 @@ powershell -File scripts/set-board-status.ps1 -IssueNumber <N> -Status "In Progr
 - **`gh` requires `project` scope:** `gh auth refresh -h github.com -s read:project,project`
 - **Verification:** `docs/governance/retros/Sprint_0_Project_Foundation_retro.md` §9
 - **Scripts:** `scripts/set-board-status.ps1` (per transition), `scripts/board_sync.py` (core), `scripts/fix-project-board.ps1` (batch reconcile)
-- **Automation:** `.github/workflows/project-board-sync.yml` on PR open/merge and new milestone issues
+- **Automation:** `.github/workflows/project-board-sync.yml` on PR open/merge and new milestone issues — requires repo secret **`PROJECT_SYNC_TOKEN`** (see playbook §8); default `GITHUB_TOKEN` is insufficient for Projects v2
 
 ### Frontend rules fallback
 
