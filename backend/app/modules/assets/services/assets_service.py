@@ -108,6 +108,9 @@ class AssetsService:
         if current is None:
             raise AssetRecordNotFoundError("Asset record not found")
 
+        resolved_metadata = (
+            current.metadata if metadata is UNSET else cast(dict[str, Any] | None, metadata)
+        )
         updated = AssetRecord(
             id=current.id,
             application_id=current.application_id,
@@ -122,7 +125,7 @@ class AssetsService:
             created_by=current.created_by,
             created_at=current.created_at,
             updated_at=datetime.now(UTC),
-            metadata=current.metadata if metadata is UNSET else cast(dict[str, Any] | None, metadata),
+            metadata=resolved_metadata,
         )
         result = self._repository.update(updated)
         if result is None:
