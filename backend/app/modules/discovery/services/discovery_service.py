@@ -26,6 +26,10 @@ class DiscoverySessionNotFoundError(Exception):
     """Raised when a discovery session cannot be found."""
 
 
+class InvalidDiscoverySessionStatusTransitionError(Exception):
+    """Raised when a discovery session status transition is not allowed."""
+
+
 class DiscoveryService:
     """Discovery session CRUD orchestration."""
 
@@ -131,3 +135,64 @@ class DiscoveryService:
         if result is None:
             raise DiscoverySessionNotFoundError("Discovery session not found")
         return result
+
+    def update_status(
+        self, session_id: UUID, *, status: DiscoverySessionStatus
+    ) -> DiscoverySession:
+        current = self._repository.get(session_id)
+        if current is None:
+            raise DiscoverySessionNotFoundError("Discovery session not found")
+        if current.status == DiscoverySessionStatus.ARCHIVED:
+            raise InvalidDiscoverySessionStatusTransitionError(
+                "Archived discovery sessions cannot be modified"
+            )
+        if not _is_valid_status_transition(current.status, status):
+            raise InvalidDiscoverySessionStatusTransitionError(
+                f"Invalid status transition: {current.status.value} -> {status.value}"
+            )
+
+        completed_at = current.completed_at
+        if status == DiscoverySessionStatus.COMPLETED and completed_at is None:
+            completed_at = datetime.now(UTC)
+
+        updated = DiscoverySession(
+            id=current.id,
+            application_id=current.application_id,
+            status=status,
+            title=current.title,
+            started_by=current.started_by,
+            started_at=current.started_at,
+            completed_at=completed_at,
+            intent_summary=current.intent_summary,
+            discovery_notes=current.discovery_notes,
+            recommendations=current.recommendations,
+            generated_blueprint_id=current.generated_blueprint_id,
+            conversation_history=current.conversation_history,
+            phase_history=current.phase_history,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise DiscoverySessionNotFoundError("Discovery session not found")
+        return result
+
+
+VALID_STATUS_TRANSITIONS: dict[DiscoverySessionStatus, set[DiscoverySessionStatus]] = {
+    DiscoverySessionStatus.ACTIVE: {
+        DiscoverySessionStatus.PAUSED,
+        DiscoverySessionStatus.COMPLETED,
+        DiscoverySessionStatus.ARCHIVED,
+    },
+    DiscoverySessionStatus.PAUSED: {
+        DiscoverySessionStatus.ACTIVE,
+        DiscoverySessionStatus.COMPLETED,
+        DiscoverySessionStatus.ARCHIVED,
+    },
+    DiscoverySessionStatus.COMPLETED: {DiscoverySessionStatus.ARCHIVED},
+    DiscoverySessionStatus.ARCHIVED: set(),
+}
+
+
+def _is_valid_status_transition(
+    current: DiscoverySessionStatus, target: DiscoverySessionStatus
+) -> bool:
+    return target in VALID_STATUS_TRANSITIONS[current]
