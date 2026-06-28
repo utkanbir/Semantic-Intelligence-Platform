@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.modules.applications.domain.enums import ApplicationStatus
 from app.modules.applications.domain.models import Application
 
 
@@ -35,6 +36,7 @@ class ApplicationResponse(BaseModel):
     id: UUID
     key: str
     name: str
+    status: ApplicationStatus
     description: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -57,6 +59,12 @@ class ApplicationUpdateRequest(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
 
 
+class ApplicationStatusUpdateRequest(BaseModel):
+    """Application status update request payload."""
+
+    status: ApplicationStatus
+
+
 def to_application_response(application: Application) -> ApplicationResponse:
     """Map domain model to API response schema."""
     workspace = application.workspace
@@ -66,6 +74,7 @@ def to_application_response(application: Application) -> ApplicationResponse:
         id=application.id,
         key=application.key,
         name=application.name,
+        status=application.status,
         description=application.description,
         created_at=application.created_at,
         updated_at=application.updated_at,
