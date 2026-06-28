@@ -7,16 +7,18 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.modules.applications.repositories.orm_models  # noqa: F401
 import app.modules.assets.repositories.orm_models  # noqa: F401
+import app.modules.audit_trace.repositories.orm_models  # noqa: F401
 from app.infrastructure.database import get_db
 from app.main import app as fastapi_app
 from app.modules.applications.repositories.orm_models import Base
+from app.modules.audit_trace.repositories.orm_models import SemanticTransaction
 
 
 @pytest.fixture()
@@ -83,6 +85,34 @@ def test_create_asset_record(client: TestClient) -> None:
     assert body["resource_id"] == resource_id
     assert body["status"] == "Draft"
     assert body["metadata"] == {"source": "manual"}
+
+
+def test_create_asset_record_records_semantic_transaction(
+    client: TestClient, db_engine: Engine
+) -> None:
+    application_id = _create_application(client)
+    response = client.post(
+        "/api/v1/assets",
+        json={
+            "application_id": application_id,
+            "asset_type": "Blueprint",
+            "resource_type": "Blueprint",
+            "resource_id": str(uuid4()),
+            "title": "Traced Asset",
+        },
+    )
+    assert response.status_code == 201
+    asset_record_id = response.json()["id"]
+
+    with Session(db_engine) as session:
+        row = session.scalar(
+            select(SemanticTransaction).where(
+                SemanticTransaction.resource_id == asset_record_id,
+            )
+        )
+        assert row is not None
+        assert row.transaction_type == "asset.created"
+        assert row.resource_type == "AssetRecord"
 
 
 def test_create_asset_record_returns_404_for_unknown_application(client: TestClient) -> None:
