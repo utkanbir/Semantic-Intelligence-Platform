@@ -1,6 +1,6 @@
 """Tests for applications domain + ORM models."""
 
-from app.modules.applications.domain.models import Application, ApplicationWorkspace
+from app.modules.applications.repositories.orm_models import Application, ApplicationWorkspace
 
 
 def test_application_workspace_relationship_is_one_to_one() -> None:
