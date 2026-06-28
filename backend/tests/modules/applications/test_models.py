@@ -36,3 +36,9 @@ def test_application_workspace_requires_unique_application_id() -> None:
 
     assert table.columns["application_id"].nullable is False
     assert table.columns["application_id"].unique is True
+
+
+def test_application_status_is_required() -> None:
+    table = Application.__table__
+
+    assert table.columns["status"].nullable is False

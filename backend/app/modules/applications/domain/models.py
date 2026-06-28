@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
+from app.modules.applications.domain.enums import ApplicationStatus
+
 
 @dataclass(slots=True)
 class ApplicationWorkspace:
@@ -36,6 +38,7 @@ class Application:
     id: UUID
     key: str
     name: str
+    status: ApplicationStatus
     description: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
