@@ -8,6 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import app.modules.applications  # noqa: F401  # Ensure tables are registered on metadata.
 from app.infrastructure.database import metadata
 
 config = context.config
