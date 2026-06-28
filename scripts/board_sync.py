@@ -147,9 +147,16 @@ def set_issue_status(*, issue_number: int, status: str, add_to_project: bool = F
                 "Use --add-to-project to add it first."
             )
         _add_issue_to_project(issue_number)
-        _, _, item_by_issue, _ = _load_project()
+        item_id = None
+        for _ in range(3):
+            _, _, item_by_issue, _ = _load_project()
+            item_id = item_by_issue.get(issue_number)
+            if item_id:
+                break
+            time.sleep(2)
+    else:
+        item_id = item_by_issue.get(issue_number)
 
-    item_id = item_by_issue.get(issue_number)
     if not item_id:
         raise RuntimeError(f"Could not resolve project item for issue #{issue_number}")
 
