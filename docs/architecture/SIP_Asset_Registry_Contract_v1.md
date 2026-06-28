@@ -2,7 +2,7 @@
 
 **Status:** Authoritative supplement (Sprint 4)  
 **Date:** 2026-06-28  
-**Issue:** S4-01  
+**Issue:** S4-01 (#72)  
 **Architecture references:** ARR-002, ARR-003, DM-005, R-013, API-003, D-011  
 **Companion:** [SIP_Architecture_Review_Resolution_v1.md](./SIP_Architecture_Review_Resolution_v1.md)
 
