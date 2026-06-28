@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.assets.domain.enums import AssetRecordStatus, AssetType
 from app.modules.assets.domain.models import AssetRecord
+from app.modules.assets.ports.interfaces import TraceRecorder
 from app.modules.assets.repositories.interfaces import (
     AssetRecordRepository,
     DuplicateAssetRecordError,
@@ -33,6 +34,19 @@ class InvalidAssetRecordStatusTransitionError(Exception):
     """Raised when an asset record status transition is not allowed."""
 
 
+class _NoOpTraceRecorder:
+    """Default recorder when audit_trace wiring is not provided."""
+
+    def record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+    ) -> None:
+        return None
+
+
 class AssetsService:
     """Asset registry CRUD orchestration."""
 
@@ -40,9 +54,11 @@ class AssetsService:
         self,
         repository: AssetRecordRepository,
         application_repository: ApplicationRepository,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
+        self._trace_recorder = trace_recorder or _NoOpTraceRecorder()
 
     def create_asset_record(
         self,
@@ -75,11 +91,17 @@ class AssetsService:
             metadata=metadata,
         )
         try:
-            return self._repository.create(asset_record)
+            created = self._repository.create(asset_record)
         except DuplicateAssetRecordError as error:
             raise DuplicateAssetRecordConflictError(
                 "Asset record already exists for resource"
             ) from error
+        self._trace_recorder.record_transaction(
+            transaction_type="asset.created",
+            resource_type="AssetRecord",
+            resource_id=str(created.id),
+        )
+        return created
 
     def list_asset_records(
         self,
