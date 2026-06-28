@@ -13,6 +13,8 @@ from app.modules.applications.repositories.sqlalchemy_repository import (
     SqlAlchemyApplicationRepository,
 )
 from app.modules.discovery.api.schemas import (
+    DiscoveryPhaseAdvanceRequest,
+    DiscoveryPhaseHistoryResponse,
     DiscoverySessionCreateRequest,
     DiscoverySessionResponse,
     DiscoverySessionStatusUpdateRequest,
@@ -25,6 +27,7 @@ from app.modules.discovery.services.discovery_service import (
     ApplicationNotFoundError,
     DiscoveryService,
     DiscoverySessionNotFoundError,
+    InvalidDiscoveryPhaseAdvanceError,
     InvalidDiscoverySessionStatusTransitionError,
 )
 
@@ -108,6 +111,47 @@ def update_discovery_session_status(
     except DiscoverySessionNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except InvalidDiscoverySessionStatusTransitionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return to_discovery_session_response(session)
+
+
+@router.get("/{session_id}/phases", response_model=list[DiscoveryPhaseHistoryResponse])
+def list_discovery_phase_history(
+    session_id: UUID, db: DbSession
+) -> list[DiscoveryPhaseHistoryResponse]:
+    service = _get_service(db)
+    try:
+        history = service.list_phase_history(session_id)
+    except DiscoverySessionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    return [
+        DiscoveryPhaseHistoryResponse(
+            id=entry.id,
+            session_id=entry.session_id,
+            phase_number=entry.phase_number,
+            phase_name=entry.phase_name,
+            entered_at=entry.entered_at,
+            notes=entry.notes,
+        )
+        for entry in history
+    ]
+
+
+@router.post("/{session_id}/phases/advance", response_model=DiscoverySessionResponse)
+def advance_discovery_phase(
+    session_id: UUID,
+    payload: DiscoveryPhaseAdvanceRequest,
+    db: DbSession,
+) -> DiscoverySessionResponse:
+    service = _get_service(db)
+    try:
+        session = service.advance_phase(session_id, notes=payload.notes)
+    except DiscoverySessionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidDiscoveryPhaseAdvanceError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),

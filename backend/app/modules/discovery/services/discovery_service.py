@@ -30,6 +30,10 @@ class InvalidDiscoverySessionStatusTransitionError(Exception):
     """Raised when a discovery session status transition is not allowed."""
 
 
+class InvalidDiscoveryPhaseAdvanceError(Exception):
+    """Raised when a discovery phase cannot be advanced."""
+
+
 class DiscoveryService:
     """Discovery session CRUD orchestration."""
 
@@ -174,6 +178,42 @@ class DiscoveryService:
         if result is None:
             raise DiscoverySessionNotFoundError("Discovery session not found")
         return result
+
+    def list_phase_history(self, session_id: UUID) -> list[DiscoveryPhaseHistory]:
+        if self._repository.get(session_id) is None:
+            raise DiscoverySessionNotFoundError("Discovery session not found")
+        return list(self._repository.list_phase_history(session_id))
+
+    def advance_phase(self, session_id: UUID, *, notes: str | None = None) -> DiscoverySession:
+        current = self._repository.get(session_id)
+        if current is None:
+            raise DiscoverySessionNotFoundError("Discovery session not found")
+        if current.status != DiscoverySessionStatus.ACTIVE:
+            raise InvalidDiscoveryPhaseAdvanceError(
+                "Phase advance is only allowed when session status is Active"
+            )
+
+        current_phase = current.current_phase
+        if current_phase is None:
+            raise InvalidDiscoveryPhaseAdvanceError("Discovery session has no phase history")
+        if current_phase.phase_number >= int(DiscoveryPhaseNumber.APPLICATION_EVOLUTION):
+            raise InvalidDiscoveryPhaseAdvanceError("Cannot advance past phase 10")
+
+        next_phase_number = current_phase.phase_number + 1
+        self._repository.append_phase_history(
+            DiscoveryPhaseHistory(
+                id=uuid4(),
+                session_id=session_id,
+                phase_number=next_phase_number,
+                phase_name=phase_name_for_number(next_phase_number),
+                entered_at=datetime.now(UTC),
+                notes=notes,
+            )
+        )
+        refreshed = self._repository.get(session_id)
+        if refreshed is None:
+            raise DiscoverySessionNotFoundError("Discovery session not found")
+        return refreshed
 
 
 VALID_STATUS_TRANSITIONS: dict[DiscoverySessionStatus, set[DiscoverySessionStatus]] = {

@@ -278,3 +278,35 @@ def test_patch_status_archived_is_terminal(client: TestClient) -> None:
         json={"status": "Active"},
     )
     assert blocked.status_code == 422
+
+
+def test_advance_phase_moves_to_next_phase(client: TestClient) -> None:
+    application_id = _create_application(client)
+    session_id = _create_session(client, application_id)
+
+    advanced = client.post(
+        f"/api/v1/discovery-sessions/{session_id}/phases/advance",
+        json={"notes": "Users identified"},
+    )
+    assert advanced.status_code == 200
+    body = advanced.json()
+    assert body["current_phase"] == {"phase_number": 2, "phase_name": "User Discovery"}
+
+    history = client.get(f"/api/v1/discovery-sessions/{session_id}/phases")
+    assert history.status_code == 200
+    phases = history.json()
+    assert len(phases) == 2
+    assert phases[1]["phase_number"] == 2
+    assert phases[1]["notes"] == "Users identified"
+
+
+def test_advance_phase_rejected_when_paused(client: TestClient) -> None:
+    application_id = _create_application(client)
+    session_id = _create_session(client, application_id)
+    client.patch(
+        f"/api/v1/discovery-sessions/{session_id}/status",
+        json={"status": "Paused"},
+    )
+
+    response = client.post(f"/api/v1/discovery-sessions/{session_id}/phases/advance", json={})
+    assert response.status_code == 422
