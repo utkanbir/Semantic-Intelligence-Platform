@@ -10,6 +10,7 @@ from app.modules.applications.repositories.interfaces import ApplicationReposito
 from app.modules.assets.repositories.interfaces import AssetRecordRepository
 from app.modules.products.domain.enums import PublishedDataProductStatus
 from app.modules.products.domain.models import PublishedDataProduct
+from app.modules.products.ports.interfaces import TraceRecorder
 from app.modules.products.repositories.interfaces import PublishedDataProductRepository
 
 UNSET = object()
@@ -51,6 +52,19 @@ class InvalidPublishedDataProductVersionForkError(Exception):
     """Raised when a product version fork is not allowed."""
 
 
+class _NoOpTraceRecorder:
+    """Default recorder when audit_trace wiring is not provided."""
+
+    def record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+    ) -> None:
+        return None
+
+
 class ProductsService:
     """Published data product CRUD orchestration."""
 
@@ -59,10 +73,12 @@ class ProductsService:
         repository: PublishedDataProductRepository,
         application_repository: ApplicationRepository,
         asset_record_repository: AssetRecordRepository,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
         self._asset_record_repository = asset_record_repository
+        self._trace_recorder = trace_recorder or _NoOpTraceRecorder()
 
     def create_product(
         self,
@@ -98,7 +114,13 @@ class ProductsService:
             product_definition=definition,
             source_asset_record_ids=source_ids,
         )
-        return self._repository.create(product)
+        created = self._repository.create(product)
+        self._trace_recorder.record_transaction(
+            transaction_type="product.created",
+            resource_type="PublishedDataProduct",
+            resource_id=str(created.id),
+        )
+        return created
 
     def list_products(
         self,
