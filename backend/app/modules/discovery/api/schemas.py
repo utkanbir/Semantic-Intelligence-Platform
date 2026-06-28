@@ -73,6 +73,12 @@ class DiscoverySessionStatusUpdateRequest(BaseModel):
     status: DiscoverySessionStatus
 
 
+class DiscoveryPhaseAdvanceRequest(BaseModel):
+    """Optional notes when advancing to the next discovery phase."""
+
+    notes: str | None = Field(default=None, max_length=2000)
+
+
 def to_discovery_session_response(session: DiscoverySession) -> DiscoverySessionResponse:
     """Map domain model to API response schema."""
     current_phase = session.current_phase
