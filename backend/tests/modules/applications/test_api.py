@@ -29,7 +29,6 @@ def client() -> Generator[TestClient, None, None]:
         class_=Session,
     )
     Base.metadata.create_all(bind=engine)
-
     def override_get_db() -> Generator[Session, None, None]:
         db = testing_session_local()
         try:
@@ -57,6 +56,7 @@ def test_create_application_provisions_blank_workspace(client: TestClient) -> No
     assert response.status_code == 201
     body = response.json()
     assert body["key"] == "acme-assessment"
+    assert body["status"] == "provisioned"
     assert body["workspace"]["status"] == "provisioned"
     assert body["workspace"]["postgres_schema"] == "sip_acme_assessment"
     assert body["workspace"]["minio_namespace"] == "sip-acme-assessment"
@@ -113,6 +113,7 @@ def test_list_get_update_delete_application(client: TestClient) -> None:
     got = client.get(f"/api/v1/applications/{application_id}")
     assert got.status_code == 200
     assert got.json()["name"] == "Alpha App"
+    assert got.json()["status"] == "provisioned"
 
     updated = client.put(
         f"/api/v1/applications/{application_id}",
@@ -122,6 +123,7 @@ def test_list_get_update_delete_application(client: TestClient) -> None:
     updated_body = updated.json()
     assert updated_body["key"] == "alpha-next"
     assert updated_body["name"] == "Alpha Next"
+    assert updated_body["status"] == "provisioned"
     assert updated_body["description"] == "v2"
     assert updated_body["workspace"]["postgres_schema"] == "sip_alpha_next"
     assert updated_body["workspace"]["agent_namespace"] == "sip.alpha-next.agents"
@@ -131,3 +133,58 @@ def test_list_get_update_delete_application(client: TestClient) -> None:
 
     missing = client.get(f"/api/v1/applications/{application_id}")
     assert missing.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("target_status", "expected_status_code"),
+    [
+        ("created", 422),
+        ("provisioned", 422),
+        ("active", 200),
+        ("evolving", 422),
+        ("retired", 422),
+    ],
+)
+def test_patch_status_transitions_from_provisioned(
+    client: TestClient, target_status: str, expected_status_code: int
+) -> None:
+    created = client.post(
+        "/api/v1/applications",
+        json={"key": "status-app", "name": "Status App"},
+    )
+    assert created.status_code == 201
+    application_id = created.json()["id"]
+
+    response = client.patch(
+        f"/api/v1/applications/{application_id}/status",
+        json={"status": target_status},
+    )
+    assert response.status_code == expected_status_code
+    if expected_status_code == 200:
+        assert response.json()["status"] == target_status
+    else:
+        assert "Invalid status transition" in response.json()["detail"]
+
+
+def test_patch_status_allows_linear_lifecycle_until_retired(client: TestClient) -> None:
+    created = client.post(
+        "/api/v1/applications",
+        json={"key": "lifecycle-app", "name": "Lifecycle App"},
+    )
+    assert created.status_code == 201
+    application_id = created.json()["id"]
+
+    for target_status in ("active", "evolving", "retired"):
+        transitioned = client.patch(
+            f"/api/v1/applications/{application_id}/status",
+            json={"status": target_status},
+        )
+        assert transitioned.status_code == 200
+        assert transitioned.json()["status"] == target_status
+
+    invalid_after_retired = client.patch(
+        f"/api/v1/applications/{application_id}/status",
+        json={"status": "active"},
+    )
+    assert invalid_after_retired.status_code == 422
+    assert "Invalid status transition" in invalid_after_retired.json()["detail"]

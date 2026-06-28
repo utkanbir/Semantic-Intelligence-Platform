@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID, uuid4
 
+from app.modules.applications.domain.enums import ApplicationStatus
 from app.modules.applications.domain.models import Application, ApplicationWorkspace
 from app.modules.applications.repositories.interfaces import (
     ApplicationRepository,
@@ -21,6 +22,10 @@ class ApplicationNotFoundError(Exception):
 
 class ApplicationConflictError(Exception):
     """Raised when an application key or namespace slug conflicts with an existing one."""
+
+
+class InvalidApplicationStatusTransitionError(Exception):
+    """Raised when an application status transition is not allowed."""
 
 
 class ApplicationsService:
@@ -42,6 +47,7 @@ class ApplicationsService:
             id=app_id,
             key=key,
             name=name,
+            status=ApplicationStatus.PROVISIONED,
             description=description,
             workspace=ApplicationWorkspace(
                 id=workspace_id,
@@ -59,9 +65,10 @@ class ApplicationsService:
             ),
         )
         try:
-            return self._repository.create(application)
+            created_application = self._repository.create(application)
         except DuplicateApplicationKeyError as error:
             raise ApplicationConflictError("Application key already exists") from error
+        return created_application
 
     def list_applications(self) -> list[Application]:
         return list(self._repository.list())
@@ -116,6 +123,7 @@ class ApplicationsService:
             id=current.id,
             key=next_key,
             name=next_name,
+            status=current.status,
             description=next_description,
             created_at=current.created_at,
             updated_at=current.updated_at,
@@ -135,6 +143,30 @@ class ApplicationsService:
         if not deleted:
             raise ApplicationNotFoundError("Application not found")
 
+    def update_status(self, application_id: UUID, *, status: ApplicationStatus) -> Application:
+        current = self._repository.get(application_id)
+        if current is None:
+            raise ApplicationNotFoundError("Application not found")
+        if not _is_valid_status_transition(current.status, status):
+            raise InvalidApplicationStatusTransitionError(
+                f"Invalid status transition: {current.status.value} -> {status.value}"
+            )
+
+        candidate = Application(
+            id=current.id,
+            key=current.key,
+            name=current.name,
+            status=status,
+            description=current.description,
+            created_at=current.created_at,
+            updated_at=current.updated_at,
+            workspace=current.workspace,
+        )
+        updated = self._repository.update(candidate)
+        if updated is None:
+            raise ApplicationNotFoundError("Application not found")
+        return updated
+
     def _ensure_namespace_available(
         self,
         postgres_schema: str,
@@ -147,3 +179,16 @@ class ApplicationsService:
         if exclude_application_id is not None and existing.id == exclude_application_id:
             return
         raise ApplicationConflictError("Application namespace slug already exists")
+
+
+VALID_TRANSITIONS: dict[ApplicationStatus, set[ApplicationStatus]] = {
+    ApplicationStatus.CREATED: {ApplicationStatus.PROVISIONED},
+    ApplicationStatus.PROVISIONED: {ApplicationStatus.ACTIVE},
+    ApplicationStatus.ACTIVE: {ApplicationStatus.EVOLVING},
+    ApplicationStatus.EVOLVING: {ApplicationStatus.RETIRED},
+    ApplicationStatus.RETIRED: set(),
+}
+
+
+def _is_valid_status_transition(current: ApplicationStatus, target: ApplicationStatus) -> bool:
+    return target in VALID_TRANSITIONS[current]
