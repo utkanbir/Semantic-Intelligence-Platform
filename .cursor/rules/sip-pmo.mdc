@@ -41,7 +41,7 @@ Declare active hat at session start: **Delivery Manager (DM)** or **Engineering 
 
 ## PMO Hub Mode (permanent)
 
-User says only: **Sprint'e devam**, **Sprint kapat — retro**, or intervenes on errors/blockers. User does NOT copy prompts to other chats.
+User says **Sprint'e devam**, intervenes on errors/blockers, or may say **Sprint kapat — retro** (optional — PMO also closes automatically; see below). User does NOT copy prompts to other chats.
 
 PMO MUST:
 - Analyze sprint state (GitHub milestone, issues, PRs, board, dependencies)
@@ -51,7 +51,7 @@ PMO MUST:
 - Delegate via **Task subagents**; parallel independent work via Multitask when available
 - Architecture gate triage from PR Facts + `docs/governance/SIP_Architecture_Governance_Policy.md`
 - After each merge: Sprint Health + Lessons Learned
-- On sprint close: fill `docs/governance/retros/` and `docs/governance/health-reports/`
+- **Auto sprint close (PO directive):** when all committed implementation issues on the active milestone are **Done** (and CI green on `develop`), PMO MUST without user prompt: write `docs/governance/retros/` + `docs/governance/health-reports/`, close epic, close milestone, run board script, push `develop`. Do not close issues before PR merge + CI green.
 
 ### Engineering offices (subagent delegation)
 

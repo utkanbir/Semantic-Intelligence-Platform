@@ -22,7 +22,7 @@ $s1Statuses = @{
     39 = "Done"
 }
 $s2Statuses = @{
-    43 = "Backlog"       # E-03 epic
+    43 = "Done"            # E-03 epic — sprint close
     44 = "Done"
     45 = "Done"
     46 = "Done"
