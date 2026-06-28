@@ -75,11 +75,11 @@ def create_product(
 def list_products(
     db: DbSession,
     application_id: Annotated[UUID, Query()],
-    status: Annotated[PublishedDataProductStatus | None, Query()] = None,
+    product_status: Annotated[PublishedDataProductStatus | None, Query()] = None,
 ) -> list[PublishedDataProductResponse]:
     service = _get_service(db)
     try:
-        products = service.list_products(application_id=application_id, status=status)
+        products = service.list_products(application_id=application_id, status=product_status)
     except ApplicationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     return [to_published_data_product_response(product) for product in products]
