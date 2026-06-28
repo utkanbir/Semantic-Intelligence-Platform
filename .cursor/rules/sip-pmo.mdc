@@ -46,12 +46,14 @@ User says **Sprint'e devam**, intervenes on errors/blockers, or may say **Sprint
 PMO MUST:
 - Analyze sprint state (GitHub milestone, issues, PRs, board, dependencies)
 - Select next issue(s) — user does not pick issue numbers
-- Update GitHub project **Workflow Status** on every lifecycle transition (Ready → In Progress → In Review → Done)
-- After each merge: run **board verification** (retro §9 checklist); use `scripts/fix-project-board.ps1` when `gh` has `project` scope
+- Update GitHub project **Workflow Status** on every lifecycle transition — see **Live board visibility** below; never batch-only at sprint close
+- When picking an issue: run `scripts/set-board-status.ps1 -Status "In Progress"` **before** delegating
+- After each merge: verify GitHub Action moved card to **Done**; if not, run `set-board-status.ps1 -Status Done`
 - Delegate via **Task subagents**; parallel independent work via Multitask when available
 - Architecture gate triage from PR Facts + `docs/governance/SIP_Architecture_Governance_Policy.md`
 - After each merge: Sprint Health + Lessons Learned
-- **Auto sprint close (PO directive):** when all committed implementation issues on the active milestone are **Done** (and CI green on `develop`), PMO MUST without user prompt: write `docs/governance/retros/` + `docs/governance/health-reports/`, close epic, close milestone, run board script, push `develop`. Do not close issues before PR merge + CI green.
+- **Auto sprint close (PO directive):** when all committed implementation issues on the active milestone are **Done** (and CI green on `develop`), PMO MUST without user prompt: write retro + health report, close epic/milestone, reconcile board (`fix-project-board.ps1` if drift), push `develop`. Do not close issues before PR merge + CI green.
+- **Live board (PO directive Sprint 2):** PMO MUST set **In Progress** when picking work; rely on GitHub Action for **In Review** / **Done** on PR open/merge. Sprint close must not be the first time cards move off Backlog.
 
 ### Engineering offices (subagent delegation)
 
@@ -84,12 +86,33 @@ GitHub never allows self-approval of own PRs. For single-maintainer repos:
 - Keep **CI status checks** required (`Backend CI`, `Kustomize CI`).
 - PMO documents the chosen policy in playbook Section 6.
 
-### GitHub Project board hygiene (Sprint 0 retro)
+### GitHub Project board hygiene (Sprint 0 retro + Sprint 2 PO feedback)
+
+**Problem:** Batch-updating the board only at sprint close hides all work in **Done**; PO cannot see **In Progress / In Review** during the sprint.
+
+**Primary mechanism (real-time):**
+
+| Event | Workflow Status | Who |
+|-------|-----------------|-----|
+| Issue created with milestone | **Ready** (+ add to project) | GitHub Action `project-board-sync.yml` |
+| PMO picks issue / work starts | **In Progress** | PMO — **mandatory** before delegating |
+| PR opened | **In Review** | GitHub Action (PR title must be `[#NNN] ...`) |
+| PR merged to `develop` | **Done** | GitHub Action |
+| Optional QA pass before close | **QA** | PMO if QA column used |
+
+**PMO MUST run after picking an issue (before subagent starts):**
+
+```powershell
+powershell -File scripts/set-board-status.ps1 -IssueNumber <N> -Status "In Progress" -AddToProject
+```
+
+**PMO MUST NOT** defer all board updates to sprint close. `fix-project-board.ps1` is **reconciliation only** (drift repair at merge verification or sprint close).
 
 - **Issue closed ≠ card moved.** Always set **Workflow Status** on merge.
 - **`gh` requires `project` scope:** `gh auth refresh -h github.com -s read:project,project`
 - **Verification:** `docs/governance/retros/Sprint_0_Project_Foundation_retro.md` §9
-- **Script:** `scripts/fix-project-board.ps1` (extend issue lists per sprint)
+- **Scripts:** `scripts/set-board-status.ps1` (per transition), `scripts/board_sync.py` (core), `scripts/fix-project-board.ps1` (batch reconcile)
+- **Automation:** `.github/workflows/project-board-sync.yml` on PR open/merge and new milestone issues
 
 ### Frontend rules fallback
 
