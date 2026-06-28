@@ -10,12 +10,15 @@ $projectNumber = 3
 $repo = "utkanbir/Semantic-Intelligence-Platform"
 
 $s0DoneIssues = @(1, 3, 5, 12, 13, 14)
-$s1AddIssues = @(29, 30, 31, 35)
+$s1AddIssues = @(29, 30, 31, 35, 37, 38, 39)
 $s1Statuses = @{
-    29 = "Backlog"       # E-02 epic
-    30 = "Done"          # S1-01 merged
-    31 = "Done"          # S1-02 merged
-    35 = "Done"          # S1-03 merged
+    29 = "Done"            # E-02 epic — sprint close
+    30 = "Done"
+    31 = "Done"
+    35 = "Done"
+    37 = "Done"
+    38 = "Done"
+    39 = "Done"
 }
 
 $query = @'
