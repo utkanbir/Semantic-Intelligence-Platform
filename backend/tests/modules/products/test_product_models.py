@@ -1,7 +1,6 @@
 """Tests for product domain + ORM models."""
 
 import app.modules.applications.repositories.orm_models  # noqa: F401
-
 from app.modules.products.repositories.orm_models import PublishedDataProduct
 
 
