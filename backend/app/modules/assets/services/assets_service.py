@@ -29,6 +29,10 @@ class DuplicateAssetRecordConflictError(Exception):
     """Raised when a duplicate asset record is created."""
 
 
+class InvalidAssetRecordStatusTransitionError(Exception):
+    """Raised when an asset record status transition is not allowed."""
+
+
 class AssetsService:
     """Asset registry CRUD orchestration."""
 
@@ -131,3 +135,48 @@ class AssetsService:
         if result is None:
             raise AssetRecordNotFoundError("Asset record not found")
         return result
+
+    def update_status(
+        self, asset_record_id: UUID, *, status: AssetRecordStatus
+    ) -> AssetRecord:
+        current = self._repository.get(asset_record_id)
+        if current is None:
+            raise AssetRecordNotFoundError("Asset record not found")
+        if not _is_valid_status_transition(current.status, status):
+            raise InvalidAssetRecordStatusTransitionError(
+                f"Invalid status transition: {current.status.value} -> {status.value}"
+            )
+
+        updated = AssetRecord(
+            id=current.id,
+            application_id=current.application_id,
+            asset_type=current.asset_type,
+            resource_type=current.resource_type,
+            resource_id=current.resource_id,
+            status=status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            metadata=current.metadata,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise AssetRecordNotFoundError("Asset record not found")
+        return result
+
+
+VALID_STATUS_TRANSITIONS: dict[AssetRecordStatus, set[AssetRecordStatus]] = {
+    AssetRecordStatus.DRAFT: {AssetRecordStatus.ACTIVE},
+    AssetRecordStatus.ACTIVE: {AssetRecordStatus.PUBLISHED, AssetRecordStatus.DRAFT},
+    AssetRecordStatus.PUBLISHED: {AssetRecordStatus.DEPRECATED},
+    AssetRecordStatus.DEPRECATED: {AssetRecordStatus.RETIRED, AssetRecordStatus.ACTIVE},
+    AssetRecordStatus.RETIRED: set(),
+}
+
+
+def _is_valid_status_transition(
+    current: AssetRecordStatus, target: AssetRecordStatus
+) -> bool:
+    return target in VALID_STATUS_TRANSITIONS[current]
