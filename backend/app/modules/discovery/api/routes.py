@@ -119,7 +119,9 @@ def update_discovery_session_status(
 
 
 @router.get("/{session_id}/phases", response_model=list[DiscoveryPhaseHistoryResponse])
-def list_discovery_phase_history(session_id: UUID, db: DbSession) -> list[DiscoveryPhaseHistoryResponse]:
+def list_discovery_phase_history(
+    session_id: UUID, db: DbSession
+) -> list[DiscoveryPhaseHistoryResponse]:
     service = _get_service(db)
     try:
         history = service.list_phase_history(session_id)
