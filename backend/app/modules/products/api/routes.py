@@ -18,6 +18,7 @@ from app.modules.products.api.schemas import (
     PublishedDataProductResponse,
     PublishedDataProductStatusUpdateRequest,
     PublishedDataProductUpdateRequest,
+    PublishedDataProductVersionCreateRequest,
     to_published_data_product_response,
 )
 from app.modules.products.domain.enums import PublishedDataProductStatus
@@ -31,6 +32,7 @@ from app.modules.products.services.products_service import (
     ImmutablePublishedDataProductError,
     InvalidAssetRecordReferenceError,
     InvalidPublishedDataProductStatusTransitionError,
+    InvalidPublishedDataProductVersionForkError,
     ProductsService,
     PublishedDataProductNotFoundError,
 )
@@ -138,6 +140,40 @@ def update_product_status(
     except PublishedDataProductNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except InvalidPublishedDataProductStatusTransitionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return to_published_data_product_response(product)
+
+
+@router.post(
+    "/{product_id}/versions",
+    response_model=PublishedDataProductResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_product_version(
+    product_id: UUID,
+    payload: PublishedDataProductVersionCreateRequest,
+    db: DbSession,
+) -> PublishedDataProductResponse:
+    service = _get_service(db)
+    try:
+        product = service.create_version(
+            product_id,
+            product_definition=payload.product_definition,
+            source_asset_record_ids=payload.source_asset_record_ids,
+        )
+    except PublishedDataProductNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidPublishedDataProductVersionForkError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except AssetRecordNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidAssetRecordReferenceError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),

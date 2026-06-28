@@ -58,6 +58,13 @@ class PublishedDataProductStatusUpdateRequest(BaseModel):
     status: PublishedDataProductStatus
 
 
+class PublishedDataProductVersionCreateRequest(BaseModel):
+    """Published data product version fork request."""
+
+    product_definition: dict[str, Any] | None = None
+    source_asset_record_ids: list[str] | None = None
+
+
 def to_published_data_product_response(
     product: PublishedDataProduct,
 ) -> PublishedDataProductResponse:

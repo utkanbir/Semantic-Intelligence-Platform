@@ -47,6 +47,10 @@ class InvalidPublishedDataProductStatusTransitionError(Exception):
     """Raised when a product status transition is not allowed."""
 
 
+class InvalidPublishedDataProductVersionForkError(Exception):
+    """Raised when a product version fork is not allowed."""
+
+
 class ProductsService:
     """Published data product CRUD orchestration."""
 
@@ -208,6 +212,54 @@ class ProductsService:
         if result is None:
             raise PublishedDataProductNotFoundError("Published data product not found")
         return result
+
+    def create_version(
+        self,
+        product_id: UUID,
+        *,
+        product_definition: dict[str, Any] | None = None,
+        source_asset_record_ids: list[str] | None = None,
+    ) -> PublishedDataProduct:
+        parent = self._repository.get(product_id)
+        if parent is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        if parent.status not in {
+            PublishedDataProductStatus.PUBLISHED,
+            PublishedDataProductStatus.VERSIONED,
+        }:
+            raise InvalidPublishedDataProductVersionForkError(
+                "Version fork requires parent status Published or Versioned"
+            )
+
+        definition = (
+            dict(parent.product_definition)
+            if product_definition is None
+            else product_definition
+        )
+        sources = (
+            list(parent.source_asset_record_ids)
+            if source_asset_record_ids is None
+            else source_asset_record_ids
+        )
+        self._validate_source_asset_records(parent.application_id, sources)
+
+        now = datetime.now(UTC)
+        child = PublishedDataProduct(
+            id=uuid4(),
+            application_id=parent.application_id,
+            version_number=parent.version_number + 1,
+            previous_version_id=parent.id,
+            status=PublishedDataProductStatus.DRAFT,
+            title=parent.title,
+            description=parent.description,
+            created_by=parent.created_by,
+            created_at=now,
+            updated_at=now,
+            version_created_at=now,
+            product_definition=definition,
+            source_asset_record_ids=sources,
+        )
+        return self._repository.create(child)
 
     def _validate_source_asset_records(
         self, application_id: UUID, source_asset_record_ids: list[str]
