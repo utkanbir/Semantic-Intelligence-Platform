@@ -39,6 +39,10 @@ class ImmutableBlueprintError(Exception):
     """Raised when mutating a locked blueprint."""
 
 
+class InvalidBlueprintStatusTransitionError(Exception):
+    """Raised when a blueprint status transition is not allowed."""
+
+
 class BlueprintsService:
     """Blueprint CRUD orchestration."""
 
@@ -129,3 +133,49 @@ class BlueprintsService:
         if result is None:
             raise BlueprintNotFoundError("Blueprint not found")
         return result
+
+    def update_status(self, blueprint_id: UUID, *, status: BlueprintStatus) -> Blueprint:
+        current = self._repository.get(blueprint_id)
+        if current is None:
+            raise BlueprintNotFoundError("Blueprint not found")
+        if not _is_valid_status_transition(current.status, status):
+            raise InvalidBlueprintStatusTransitionError(
+                f"Invalid status transition: {current.status.value} -> {status.value}"
+            )
+
+        approved_at = current.approved_at
+        if status == BlueprintStatus.APPROVED and approved_at is None:
+            approved_at = datetime.now(UTC)
+
+        updated = Blueprint(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=status,
+            title=current.title,
+            goal=current.goal,
+            outcome=current.outcome,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            approved_at=approved_at,
+            version_created_at=current.version_created_at,
+            blueprint_snapshot=current.blueprint_snapshot,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise BlueprintNotFoundError("Blueprint not found")
+        return result
+
+
+VALID_STATUS_TRANSITIONS: dict[BlueprintStatus, set[BlueprintStatus]] = {
+    BlueprintStatus.DRAFT: {BlueprintStatus.REVIEW},
+    BlueprintStatus.REVIEW: {BlueprintStatus.APPROVED, BlueprintStatus.DRAFT},
+    BlueprintStatus.APPROVED: {BlueprintStatus.VERSIONED},
+    BlueprintStatus.VERSIONED: {BlueprintStatus.RETIRED},
+    BlueprintStatus.RETIRED: set(),
+}
+
+
+def _is_valid_status_transition(current: BlueprintStatus, target: BlueprintStatus) -> bool:
+    return target in VALID_STATUS_TRANSITIONS[current]
