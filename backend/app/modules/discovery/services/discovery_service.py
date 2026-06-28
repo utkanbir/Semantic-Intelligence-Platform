@@ -13,6 +13,7 @@ from app.modules.discovery.domain.enums import (
     phase_name_for_number,
 )
 from app.modules.discovery.domain.models import DiscoveryPhaseHistory, DiscoverySession
+from app.modules.discovery.ports.interfaces import TraceRecorder
 from app.modules.discovery.repositories.interfaces import DiscoveryRepository
 
 UNSET = object()
@@ -34,6 +35,19 @@ class InvalidDiscoveryPhaseAdvanceError(Exception):
     """Raised when a discovery phase cannot be advanced."""
 
 
+class _NoOpTraceRecorder:
+    """Default recorder when audit_trace wiring is not provided."""
+
+    def record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+    ) -> None:
+        return None
+
+
 class DiscoveryService:
     """Discovery session CRUD orchestration."""
 
@@ -41,9 +55,11 @@ class DiscoveryService:
         self,
         repository: DiscoveryRepository,
         application_repository: ApplicationRepository,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
+        self._trace_recorder = trace_recorder or _NoOpTraceRecorder()
 
     def create_session(
         self,
@@ -77,7 +93,13 @@ class DiscoveryService:
                 )
             ],
         )
-        return self._repository.create(discovery_session)
+        created = self._repository.create(discovery_session)
+        self._trace_recorder.record_transaction(
+            transaction_type="discovery.session.created",
+            resource_type="DiscoverySession",
+            resource_id=str(created.id),
+        )
+        return created
 
     def list_sessions(self, *, application_id: UUID) -> list[DiscoverySession]:
         if self._application_repository.get(application_id) is None:
