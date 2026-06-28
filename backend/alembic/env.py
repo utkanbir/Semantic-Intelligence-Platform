@@ -10,6 +10,7 @@ from sqlalchemy import engine_from_config, pool
 
 import app.modules.applications.repositories.orm_models  # noqa: F401
 import app.modules.audit_trace.repositories.orm_models  # noqa: F401
+import app.modules.blueprints.repositories.orm_models  # noqa: F401
 import app.modules.discovery.repositories.orm_models  # noqa: F401
 from app.infrastructure.database import metadata
 
