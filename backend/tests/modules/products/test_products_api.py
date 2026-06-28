@@ -248,3 +248,75 @@ def test_patch_status_full_lifecycle_to_retired(client: TestClient) -> None:
         json={"status": "Draft"},
     )
     assert blocked.status_code == 422
+
+
+def _advance_to_published(client: TestClient, product_id: str) -> None:
+    for next_status in ("Certified", "Published"):
+        response = client.patch(
+            f"/api/v1/products/{product_id}/status",
+            json={"status": next_status},
+        )
+        assert response.status_code == 200
+
+
+def test_create_version_from_published_copies_definition(client: TestClient) -> None:
+    application_id = _create_application(client)
+    product_id = _create_product(client, application_id)
+    client.patch(
+        f"/api/v1/products/{product_id}",
+        json={"product_definition": {"schema_version": "1", "fields": [{"name": "id"}]}},
+    )
+    _advance_to_published(client, product_id)
+
+    parent_before = client.get(f"/api/v1/products/{product_id}").json()
+
+    version = client.post(f"/api/v1/products/{product_id}/versions", json={})
+    assert version.status_code == 201
+    body = version.json()
+    assert body["id"] != product_id
+    assert body["status"] == "Draft"
+    assert body["version_number"] == 2
+    assert body["previous_version_id"] == product_id
+    assert body["version_created_at"] is not None
+    assert body["product_definition"] == {"schema_version": "1", "fields": [{"name": "id"}]}
+
+    parent_after = client.get(f"/api/v1/products/{product_id}").json()
+    assert parent_after == parent_before
+
+
+def test_create_version_with_custom_definition(client: TestClient) -> None:
+    application_id = _create_application(client)
+    product_id = _create_product(client, application_id)
+    _advance_to_published(client, product_id)
+
+    version = client.post(
+        f"/api/v1/products/{product_id}/versions",
+        json={"product_definition": {"schema_version": "2", "fields": [{"name": "name"}]}},
+    )
+    assert version.status_code == 201
+    assert version.json()["product_definition"] == {
+        "schema_version": "2",
+        "fields": [{"name": "name"}],
+    }
+
+
+def test_create_version_from_versioned_parent(client: TestClient) -> None:
+    application_id = _create_application(client)
+    product_id = _create_product(client, application_id)
+    for next_status in ("Certified", "Published", "Versioned"):
+        client.patch(
+            f"/api/v1/products/{product_id}/status",
+            json={"status": next_status},
+        )
+
+    version = client.post(f"/api/v1/products/{product_id}/versions", json={})
+    assert version.status_code == 201
+    assert version.json()["version_number"] == 2
+
+
+def test_create_version_rejects_draft_parent(client: TestClient) -> None:
+    application_id = _create_application(client)
+    product_id = _create_product(client, application_id)
+
+    response = client.post(f"/api/v1/products/{product_id}/versions", json={})
+    assert response.status_code == 422
