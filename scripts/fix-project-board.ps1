@@ -13,6 +13,7 @@ $repo = "utkanbir/Semantic-Intelligence-Platform"
 $s0DoneIssues = @(1, 3, 5, 12, 13, 14)
 $s1AddIssues = @(29, 30, 31, 35, 37, 38, 39)
 $s2AddIssues = @(43, 44, 45, 46, 47, 48, 49)
+$s3AddIssues = @(56, 57, 58, 59, 60, 61, 62)
 $s1Statuses = @{
     29 = "Done"
     30 = "Done"
@@ -30,6 +31,15 @@ $s2Statuses = @{
     47 = "Done"
     48 = "Done"
     49 = "Done"
+}
+$s3Statuses = @{
+    56 = "Backlog"       # E-04 epic
+    57 = "In Progress"   # S3-01 contract
+    58 = "Ready"
+    59 = "Ready"
+    60 = "Ready"
+    61 = "Ready"
+    62 = "Ready"
 }
 
 $query = @'
@@ -148,6 +158,27 @@ foreach ($num in $s2AddIssues) {
 foreach ($num in $s2AddIssues) {
     if ($itemByIssue.ContainsKey($num)) {
         $status = $s2Statuses[$num]
+        Write-Host "Issue #$num -> $status"
+        Set-ProjectStatus -ItemId $itemByIssue[$num] -StatusName $status
+    }
+}
+
+foreach ($num in $s3AddIssues) {
+    if (-not $itemByIssue.ContainsKey($num)) {
+        Write-Host "Adding issue #$num to project..."
+        $url = "https://github.com/$repo/issues/$num"
+        gh project item-add $projectNumber --owner $owner --url $url | Out-Null
+        Start-Sleep -Seconds 1
+        $json = gh api graphql -f query=$query -f login=$owner -F number=$projectNumber | ConvertFrom-Json
+        foreach ($item in $json.data.user.projectV2.items.nodes) {
+            if ($item.content.number -eq $num) { $itemByIssue[$num] = $item.id }
+        }
+    }
+}
+
+foreach ($num in $s3AddIssues) {
+    if ($itemByIssue.ContainsKey($num)) {
+        $status = $s3Statuses[$num]
         Write-Host "Issue #$num -> $status"
         Set-ProjectStatus -ItemId $itemByIssue[$num] -StatusName $status
     }
