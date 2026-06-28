@@ -43,6 +43,10 @@ class InvalidAssetRecordReferenceError(Exception):
     """Raised when a referenced asset record belongs to another application."""
 
 
+class InvalidPublishedDataProductStatusTransitionError(Exception):
+    """Raised when a product status transition is not allowed."""
+
+
 class ProductsService:
     """Published data product CRUD orchestration."""
 
@@ -164,6 +168,47 @@ class ProductsService:
             raise PublishedDataProductNotFoundError("Published data product not found")
         return result
 
+    def update_status(
+        self, product_id: UUID, *, status: PublishedDataProductStatus
+    ) -> PublishedDataProduct:
+        current = self._repository.get(product_id)
+        if current is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        if not _is_valid_status_transition(current.status, status):
+            raise InvalidPublishedDataProductStatusTransitionError(
+                f"Invalid status transition: {current.status.value} -> {status.value}"
+            )
+
+        certified_at = current.certified_at
+        if status == PublishedDataProductStatus.CERTIFIED and certified_at is None:
+            certified_at = datetime.now(UTC)
+
+        published_at = current.published_at
+        if status == PublishedDataProductStatus.PUBLISHED and published_at is None:
+            published_at = datetime.now(UTC)
+
+        updated = PublishedDataProduct(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            certified_at=certified_at,
+            published_at=published_at,
+            version_created_at=current.version_created_at,
+            product_definition=current.product_definition,
+            source_asset_record_ids=current.source_asset_record_ids,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        return result
+
     def _validate_source_asset_records(
         self, application_id: UUID, source_asset_record_ids: list[str]
     ) -> None:
@@ -180,3 +225,21 @@ class ProductsService:
                 raise InvalidAssetRecordReferenceError(
                     "Asset record belongs to a different application"
                 )
+
+
+VALID_STATUS_TRANSITIONS: dict[PublishedDataProductStatus, set[PublishedDataProductStatus]] = {
+    PublishedDataProductStatus.DRAFT: {PublishedDataProductStatus.CERTIFIED},
+    PublishedDataProductStatus.CERTIFIED: {
+        PublishedDataProductStatus.PUBLISHED,
+        PublishedDataProductStatus.DRAFT,
+    },
+    PublishedDataProductStatus.PUBLISHED: {PublishedDataProductStatus.VERSIONED},
+    PublishedDataProductStatus.VERSIONED: {PublishedDataProductStatus.RETIRED},
+    PublishedDataProductStatus.RETIRED: set(),
+}
+
+
+def _is_valid_status_transition(
+    current: PublishedDataProductStatus, target: PublishedDataProductStatus
+) -> bool:
+    return target in VALID_STATUS_TRANSITIONS[current]

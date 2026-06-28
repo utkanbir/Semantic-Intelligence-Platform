@@ -177,3 +177,74 @@ def test_update_product_returns_422_for_foreign_asset(client: TestClient) -> Non
         json={"source_asset_record_ids": [foreign_asset_id]},
     )
     assert patch_response.status_code == 422
+
+
+def _create_product(client: TestClient, application_id: str) -> str:
+    response = client.post(
+        "/api/v1/products",
+        json={"application_id": application_id, "title": "Lifecycle Product"},
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def test_patch_status_draft_to_certified_to_published(client: TestClient) -> None:
+    application_id = _create_application(client)
+    product_id = _create_product(client, application_id)
+
+    certified = client.patch(
+        f"/api/v1/products/{product_id}/status",
+        json={"status": "Certified"},
+    )
+    assert certified.status_code == 200
+    assert certified.json()["status"] == "Certified"
+    assert certified.json()["certified_at"] is not None
+
+    published = client.patch(
+        f"/api/v1/products/{product_id}/status",
+        json={"status": "Published"},
+    )
+    assert published.status_code == 200
+    assert published.json()["status"] == "Published"
+    assert published.json()["published_at"] is not None
+
+
+def test_patch_status_certified_back_to_draft(client: TestClient) -> None:
+    application_id = _create_application(client)
+    product_id = _create_product(client, application_id)
+    client.patch(f"/api/v1/products/{product_id}/status", json={"status": "Certified"})
+
+    draft = client.patch(
+        f"/api/v1/products/{product_id}/status",
+        json={"status": "Draft"},
+    )
+    assert draft.status_code == 200
+    assert draft.json()["status"] == "Draft"
+
+
+def test_patch_status_invalid_transition_returns_422(client: TestClient) -> None:
+    application_id = _create_application(client)
+    product_id = _create_product(client, application_id)
+
+    response = client.patch(
+        f"/api/v1/products/{product_id}/status",
+        json={"status": "Published"},
+    )
+    assert response.status_code == 422
+
+
+def test_patch_status_full_lifecycle_to_retired(client: TestClient) -> None:
+    application_id = _create_application(client)
+    product_id = _create_product(client, application_id)
+    for next_status in ("Certified", "Published", "Versioned", "Retired"):
+        response = client.patch(
+            f"/api/v1/products/{product_id}/status",
+            json={"status": next_status},
+        )
+        assert response.status_code == 200
+
+    blocked = client.patch(
+        f"/api/v1/products/{product_id}/status",
+        json={"status": "Draft"},
+    )
+    assert blocked.status_code == 422
