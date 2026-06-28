@@ -391,6 +391,19 @@ At every sprint close, PMO MUST tell the Product Owner (and any end-user audienc
 
 Record in the sprint retro as **§10 End-user release notes** (even when empty). Do not invent user-facing features from internal API work.
 
+### Technical deliverables summary (mandatory at sprint close)
+
+At every sprint close, PMO MUST list **what was created for technical readers** (PO, architect, integrators) in the sprint retro as **§11 Technical deliverables**. Use **"Yok"** for any category with no new items — do not omit the category.
+
+| # | Category | Include |
+|---|----------|---------|
+| 1 | **REST / API** | New or changed endpoints (`METHOD /api/v1/...`), MCP tools if any |
+| 2 | **Data model** | New domain aggregates, enums, Alembic migrations / tables |
+| 3 | **Reports** | New operational or governance reports (retro, health report, exports — not end-user UI) |
+| 4 | **Infrastructure** | Kubernetes, Compose, CI workflows, secrets, adapters, new ports |
+
+Keep entries factual (path, table name, PR). Internal-only API counts here; it does not count as end-user release (§10).
+
 ### Recommended MVP build sequence
 
 Align early sprints with Implementation Guide §17:

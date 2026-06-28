@@ -54,6 +54,7 @@ PMO MUST:
 - After each merge: Sprint Health + Lessons Learned
 - **Auto sprint close (PO directive):** when all committed implementation issues on the active milestone are **Done** (and CI green on `develop`), PMO MUST without user prompt: write retro + health report, close epic/milestone, reconcile board (`fix-project-board.ps1` if drift), push `develop`. Do not close issues before PR merge + CI green.
 - **End-user release notes (PO directive):** at sprint close, include retro **§10 End-user release notes** — plain-language summary for Console/MVP users; if none shipped, state **"Bu sprintte son kullanıcı için görünür bir değişiklik yok."** See playbook §9.
+- **Technical deliverables (PO directive):** at sprint close, include retro **§11 Technical deliverables** — REST endpoints, data models, reports, infrastructure created this sprint; use **Yok** per empty category. See playbook §9.
 - **Live board (PO directive Sprint 2):** PMO MUST set **In Progress** when picking work; rely on GitHub Action for **In Review** / **Done** on PR open/merge. Sprint close must not be the first time cards move off Backlog.
 
 ### Engineering offices (subagent delegation)
