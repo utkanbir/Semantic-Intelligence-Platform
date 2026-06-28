@@ -15,6 +15,7 @@ from app.modules.applications.repositories.sqlalchemy_repository import (
 from app.modules.assets.api.schemas import (
     AssetRecordCreateRequest,
     AssetRecordResponse,
+    AssetRecordStatusUpdateRequest,
     AssetRecordUpdateRequest,
     to_asset_record_response,
 )
@@ -28,6 +29,7 @@ from app.modules.assets.services.assets_service import (
     AssetRecordNotFoundError,
     AssetsService,
     DuplicateAssetRecordConflictError,
+    InvalidAssetRecordStatusTransitionError,
 )
 
 router = APIRouter()
@@ -104,4 +106,21 @@ def update_asset_record(
         )
     except AssetRecordNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    return to_asset_record_response(asset_record)
+
+
+@router.patch("/{asset_record_id}/status", response_model=AssetRecordResponse)
+def update_asset_record_status(
+    asset_record_id: UUID, payload: AssetRecordStatusUpdateRequest, db: DbSession
+) -> AssetRecordResponse:
+    service = _get_service(db)
+    try:
+        asset_record = service.update_status(asset_record_id, status=payload.status)
+    except AssetRecordNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidAssetRecordStatusTransitionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     return to_asset_record_response(asset_record)
