@@ -32,6 +32,9 @@ class ApplicationRepository(Protocol):
     def get_by_key(self, key: str) -> Application | None:
         """Return one application by key, if present."""
 
+    def get_by_postgres_schema(self, postgres_schema: str) -> Application | None:
+        """Return application owning a workspace postgres_schema, if present."""
+
     def update(self, application: Application) -> Application | None:
         """Persist modifications for an existing application."""
 

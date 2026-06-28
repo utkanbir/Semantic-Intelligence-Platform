@@ -117,6 +117,16 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
         application_orm = self._session.scalars(statement).first()
         return _to_domain_application(application_orm) if application_orm else None
 
+    def get_by_postgres_schema(self, postgres_schema: str) -> Application | None:
+        statement = (
+            select(ApplicationORM)
+            .join(ApplicationWorkspaceORM)
+            .options(selectinload(ApplicationORM.workspace))
+            .where(ApplicationWorkspaceORM.postgres_schema == postgres_schema)
+        )
+        application_orm = self._session.scalars(statement).first()
+        return _to_domain_application(application_orm) if application_orm else None
+
     def update(self, application: Application) -> Application | None:
         statement = (
             select(ApplicationORM)

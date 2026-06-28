@@ -80,6 +80,23 @@ def test_create_application_returns_409_for_duplicate_key(client: TestClient) ->
     assert second.json()["detail"] == "Application key already exists"
 
 
+def test_create_application_returns_409_for_slug_namespace_collision(
+    client: TestClient,
+) -> None:
+    first = client.post(
+        "/api/v1/applications",
+        json={"key": "foo-bar", "name": "Foo Bar"},
+    )
+    second = client.post(
+        "/api/v1/applications",
+        json={"key": "foo_bar", "name": "Foo Bar Underscore"},
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 409
+    assert second.json()["detail"] == "Application namespace slug already exists"
+
+
 def test_list_get_update_delete_application(client: TestClient) -> None:
     created = client.post(
         "/api/v1/applications",

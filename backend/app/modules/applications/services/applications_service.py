@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import cast
 from uuid import UUID, uuid4
 
 from app.modules.applications.domain.models import Application, ApplicationWorkspace
@@ -19,7 +20,7 @@ class ApplicationNotFoundError(Exception):
 
 
 class ApplicationConflictError(Exception):
-    """Raised when an application key conflicts with an existing one."""
+    """Raised when an application key or namespace slug conflicts with an existing one."""
 
 
 class ApplicationsService:
@@ -29,9 +30,13 @@ class ApplicationsService:
         self._repository = repository
 
     def create_application(self, *, key: str, name: str, description: str | None) -> Application:
+        if self._repository.get_by_key(key) is not None:
+            raise ApplicationConflictError("Application key already exists")
+
         app_id = uuid4()
         workspace_id = uuid4()
         namespaces = build_namespace_fields(key)
+        self._ensure_namespace_available(namespaces.postgres_schema)
 
         application = Application(
             id=app_id,
@@ -81,8 +86,8 @@ class ApplicationsService:
 
         next_key = key if key is not None else current.key
         next_name = name if name is not None else current.name
-        next_description: str | None = (
-            current.description if description is UNSET else description
+        next_description = (
+            current.description if description is UNSET else cast(str | None, description)
         )
 
         workspace = current.workspace
@@ -90,7 +95,13 @@ class ApplicationsService:
             raise ValueError("Application workspace is required")
 
         if next_key != current.key:
+            if self._repository.get_by_key(next_key) is not None:
+                raise ApplicationConflictError("Application key already exists")
             namespaces = build_namespace_fields(next_key)
+            self._ensure_namespace_available(
+                namespaces.postgres_schema,
+                exclude_application_id=current.id,
+            )
             workspace.postgres_schema = namespaces.postgres_schema
             workspace.minio_namespace = namespaces.minio_namespace
             workspace.fuseki_dataset = namespaces.fuseki_dataset
@@ -123,3 +134,16 @@ class ApplicationsService:
         deleted = self._repository.delete(application_id)
         if not deleted:
             raise ApplicationNotFoundError("Application not found")
+
+    def _ensure_namespace_available(
+        self,
+        postgres_schema: str,
+        *,
+        exclude_application_id: UUID | None = None,
+    ) -> None:
+        existing = self._repository.get_by_postgres_schema(postgres_schema)
+        if existing is None:
+            return
+        if exclude_application_id is not None and existing.id == exclude_application_id:
+            return
+        raise ApplicationConflictError("Application namespace slug already exists")
