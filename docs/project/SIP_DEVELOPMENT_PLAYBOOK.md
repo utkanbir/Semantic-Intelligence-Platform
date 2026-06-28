@@ -351,12 +351,16 @@ The [SIP MVP Delivery](https://github.com/users/utkanbir/projects/3) board must 
 
 **Reconciliation:** `scripts/fix-project-board.ps1` — drift repair at sprint close only; not the primary update path.
 
-**GitHub Action token (required):** Default `GITHUB_TOKEN` cannot write to user Projects v2. Add repo secret **`PROJECT_SYNC_TOKEN`**:
+**GitHub Action token (required):** Default `GITHUB_TOKEN` cannot write to user Projects v2. Add repo secret **`PROJECT_SYNC_TOKEN`**.
 
-1. GitHub → **Settings → Developer settings → Fine-grained personal access tokens**
-2. Repository access: `Semantic-Intelligence-Platform` only
-3. Permissions: **Issues** (Read and write), **Pull requests** (Read), **Metadata** (Read); under **Account permissions → Projects** (Read and write)
-4. Store in repo: `gh secret set PROJECT_SYNC_TOKEN -R utkanbir/Semantic-Intelligence-Platform` (paste token when prompted)
+**Recommended: Classic PAT** (fine-grained tokens often fail on user Project #3 with `Resource not accessible by personal access token`):
+
+1. GitHub → profile menu → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)** → **Generate new token (classic)**
+2. Scopes: **`repo`**, **`read:project`**, **`project`**
+3. Store in repo: `gh secret set PROJECT_SYNC_TOKEN -R utkanbir/Semantic-Intelligence-Platform`
+4. Verify: `GH_TOKEN=<token> python scripts/verify_project_sync_token.py` → must print `OK: token can access project #3`
+
+**Alternative (fine-grained):** Resource owner = your user account; repository = `Semantic-Intelligence-Platform`; **Account permissions → Projects** Read and write; repository Issues/Pull requests as above. Re-run verify script — if it fails, use Classic PAT instead.
 
 Maintainer local CLI: `gh auth refresh -h github.com -s read:project,project`
 
