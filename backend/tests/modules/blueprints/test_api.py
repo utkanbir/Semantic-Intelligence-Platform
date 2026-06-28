@@ -129,3 +129,80 @@ def test_update_blueprint(client: TestClient) -> None:
     assert body["title"] == "After"
     assert body["goal"] == "Updated goal"
     assert body["blueprint_snapshot"]["personas"] == ["analyst"]
+
+
+def _create_blueprint(client: TestClient, application_id: str) -> str:
+    response = client.post(
+        "/api/v1/blueprints",
+        json={"application_id": application_id, "title": "Lifecycle test"},
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def test_patch_status_draft_to_review_to_approved(client: TestClient) -> None:
+    application_id = _create_application(client)
+    blueprint_id = _create_blueprint(client, application_id)
+
+    review = client.patch(
+        f"/api/v1/blueprints/{blueprint_id}/status",
+        json={"status": "Review"},
+    )
+    assert review.status_code == 200
+    assert review.json()["status"] == "Review"
+
+    approved = client.patch(
+        f"/api/v1/blueprints/{blueprint_id}/status",
+        json={"status": "Approved"},
+    )
+    assert approved.status_code == 200
+    body = approved.json()
+    assert body["status"] == "Approved"
+    assert body["approved_at"] is not None
+
+
+def test_patch_status_review_back_to_draft(client: TestClient) -> None:
+    application_id = _create_application(client)
+    blueprint_id = _create_blueprint(client, application_id)
+    client.patch(f"/api/v1/blueprints/{blueprint_id}/status", json={"status": "Review"})
+
+    draft = client.patch(
+        f"/api/v1/blueprints/{blueprint_id}/status",
+        json={"status": "Draft"},
+    )
+    assert draft.status_code == 200
+    assert draft.json()["status"] == "Draft"
+
+
+def test_patch_status_invalid_transition_returns_422(client: TestClient) -> None:
+    application_id = _create_application(client)
+    blueprint_id = _create_blueprint(client, application_id)
+
+    response = client.patch(
+        f"/api/v1/blueprints/{blueprint_id}/status",
+        json={"status": "Approved"},
+    )
+    assert response.status_code == 422
+
+
+def test_patch_status_versioned_to_retired(client: TestClient) -> None:
+    application_id = _create_application(client)
+    blueprint_id = _create_blueprint(client, application_id)
+    for status in ("Review", "Approved", "Versioned"):
+        client.patch(
+            f"/api/v1/blueprints/{blueprint_id}/status",
+            json={"status": status},
+        )
+
+    retired = client.patch(
+        f"/api/v1/blueprints/{blueprint_id}/status",
+        json={"status": "Retired"},
+    )
+    assert retired.status_code == 200
+    assert retired.json()["status"] == "Retired"
+
+    blocked = client.patch(
+        f"/api/v1/blueprints/{blueprint_id}/status",
+        json={"status": "Draft"},
+    )
+    assert blocked.status_code == 422
