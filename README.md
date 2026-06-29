@@ -112,8 +112,9 @@ SIP MVP is under active sprint delivery on the `develop` integration branch.
 | Governance (Sprint 9) | ✅ Closed |
 | Assessment MVP E2E (Sprint 10) | ✅ Closed |
 | Platform Console (Sprint 11) | ✅ Closed |
+| Console Deploy & Release (Sprint 12) | ✅ Closed |
 
-**Current:** 188 pytest · 10 frontend vitest · Alembic `20260629_0015` · Console at `frontend/` (local dev)
+**Current:** 188 pytest · 14 frontend vitest · Console on K8s (`console.sip.local`) · Alembic `20260629_0015`
 
 ---
 

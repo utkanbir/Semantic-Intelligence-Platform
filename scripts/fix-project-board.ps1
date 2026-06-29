@@ -129,12 +129,12 @@ $s11Statuses = @{
     163 = "Done"
 }
 $s12Statuses = @{
-    169 = "Ready"
+    169 = "Done"       # E-14 epic
     170 = "Done"
     171 = "Done"
     172 = "Done"
     173 = "Done"
-    174 = "Ready"
+    174 = "Done"
 }
 
 $query = @'
@@ -390,5 +390,7 @@ Set-SprintBoard -IssueNumbers $s9AddIssues -StatusMap $s9Statuses
 Set-SprintBoard -IssueNumbers $s10AddIssues -StatusMap $s10Statuses
 
 Set-SprintBoard -IssueNumbers $s11AddIssues -StatusMap $s11Statuses
+
+Set-SprintBoard -IssueNumbers $s12AddIssues -StatusMap $s12Statuses
 
 Write-Host "Board update complete."
