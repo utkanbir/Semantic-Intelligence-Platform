@@ -9,3 +9,9 @@ resources:
 labels:
   - pairs:
       environment: dev
+
+# S12-04: pin console image to avoid stale :dev cache (TD-016 pattern)
+images:
+  - name: sip-console:dev
+    newName: sip-console
+    newTag: s12
