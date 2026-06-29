@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import { listApplications, type ApplicationResponse } from "../api/applications";
 
@@ -94,9 +95,21 @@ export function ApplicationsPage() {
               {state.applications.map((application) => (
                 <tr key={application.id}>
                   <td>
-                    <code className="applications-table__key">{application.key}</code>
+                    <Link
+                      to={`/applications/${application.id}`}
+                      className="applications-table__link"
+                    >
+                      <code className="applications-table__key">{application.key}</code>
+                    </Link>
                   </td>
-                  <td>{application.name}</td>
+                  <td>
+                    <Link
+                      to={`/applications/${application.id}`}
+                      className="applications-table__link"
+                    >
+                      {application.name}
+                    </Link>
+                  </td>
                   <td>
                     <span
                       className={`applications-table__status applications-table__status--${application.status}`}
