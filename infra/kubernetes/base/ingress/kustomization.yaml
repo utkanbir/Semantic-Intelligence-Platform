@@ -4,3 +4,4 @@ kind: Kustomization
 # Ingress for api.sip.local and console.sip.local — S0-07
 resources:
   - api-ingress.yaml
+  - console-ingress.yaml
