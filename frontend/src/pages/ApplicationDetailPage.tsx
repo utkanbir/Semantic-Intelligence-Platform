@@ -6,8 +6,10 @@ import {
   type ApplicationResponse,
 } from "../api/applications";
 import { ApplicationShell } from "../components/ApplicationShell";
+import { AgentsPage } from "./AgentsPage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
+import { ProductsPage } from "./ProductsPage";
 
 type PageState =
   | { kind: "loading" }
@@ -91,15 +93,6 @@ function OverviewSection({ application }: { application: ApplicationResponse }) 
   );
 }
 
-function ComingSoonSection({ section }: { section: string }) {
-  return (
-    <section className="application-placeholder" aria-labelledby="placeholder-heading">
-      <h2 id="placeholder-heading">{section}</h2>
-      <p className="application-placeholder__message">Coming soon</p>
-    </section>
-  );
-}
-
 export function ApplicationDetailPage() {
   const { applicationId } = useParams<{ applicationId: string }>();
   const [state, setState] = useState<PageState>({ kind: "loading" });
@@ -167,9 +160,9 @@ export function ApplicationDetailPage() {
         />
         <Route
           path="products"
-          element={<ComingSoonSection section="Products" />}
+          element={<ProductsPage applicationId={application.id} />}
         />
-        <Route path="agents" element={<ComingSoonSection section="Agents" />} />
+        <Route path="agents" element={<AgentsPage applicationId={application.id} />} />
       </Routes>
     </ApplicationShell>
   );
