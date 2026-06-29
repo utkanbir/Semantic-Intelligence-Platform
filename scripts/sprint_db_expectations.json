@@ -1,0 +1,145 @@
+{
+  "$schema_note": "PMO: add an entry when a sprint lands new Alembic revisions. new_tables = tables created in that sprint only.",
+  "default_namespace": "sip-dev",
+  "default_postgres_pod": "sip-postgres-0",
+  "default_database": "sip_db",
+  "default_db_user": "sip_user",
+  "sprints": {
+    "0": {
+      "label": "Project Foundation",
+      "alembic_head": "20260626_0001",
+      "new_tables": [],
+      "cumulative_tables": ["alembic_version"]
+    },
+    "1": {
+      "label": "Applications",
+      "alembic_head": "20260628_0003",
+      "new_tables": ["applications", "application_workspaces"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces"
+      ]
+    },
+    "2": {
+      "label": "Discovery",
+      "alembic_head": "20260628_0005",
+      "new_tables": ["semantic_transactions", "discovery_sessions", "discovery_phase_history"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history"
+      ]
+    },
+    "3": {
+      "label": "Blueprints",
+      "alembic_head": "20260628_0006",
+      "new_tables": ["blueprints"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints"
+      ]
+    },
+    "4": {
+      "label": "Assets & Audit Trace",
+      "alembic_head": "20260628_0008",
+      "new_tables": ["asset_records", "trace_steps"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps"
+      ]
+    },
+    "5": {
+      "label": "Products",
+      "alembic_head": "20260628_0009",
+      "new_tables": ["published_data_products"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products"
+      ]
+    },
+    "6": {
+      "label": "Agent Definitions",
+      "alembic_head": "20260629_0010",
+      "new_tables": ["agent_definitions"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions"
+      ]
+    },
+    "7": {
+      "label": "Ontology & Knowledge Graph",
+      "alembic_head": "20260629_0012",
+      "new_tables": ["ontology_definitions", "knowledge_graph_registries"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries"
+      ]
+    },
+    "8": {
+      "label": "Adapters & Agent Runtime",
+      "alembic_head": "20260629_0014",
+      "new_tables": ["technology_adapters", "agent_runs"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries",
+        "technology_adapters",
+        "agent_runs"
+      ]
+    }
+  }
+}

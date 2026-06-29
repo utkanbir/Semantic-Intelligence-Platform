@@ -136,6 +136,16 @@ alembic downgrade -1   # verify rollback
 
 Replace credentials to match `infra/kubernetes/base/postgres/secret.template.yaml`.
 
+### Sprint-close DB verification
+
+After `alembic upgrade head` on the cluster, PMO must confirm schema parity:
+
+```powershell
+powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
+```
+
+Expectations per sprint: `scripts/sprint_db_expectations.json`. Exit 1 blocks milestone close.
+
 ### Directory layout
 
 ```
