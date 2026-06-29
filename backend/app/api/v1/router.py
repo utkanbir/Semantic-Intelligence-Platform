@@ -24,6 +24,7 @@ Guidelines:
 from fastapi import APIRouter
 
 from app.api.v1.health import router as health_router
+from app.modules.agents.api.routes import router as agents_router
 from app.modules.applications.api.routes import router as applications_router
 from app.modules.assets.api.routes import router as assets_router
 from app.modules.audit_trace.api.routes import router as audit_trace_router
@@ -47,3 +48,4 @@ api_v1_router.include_router(
     tags=["audit-traces"],
 )
 api_v1_router.include_router(products_router, prefix="/products", tags=["products"])
+api_v1_router.include_router(agents_router, prefix="/agents", tags=["agents"])
