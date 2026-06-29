@@ -182,3 +182,34 @@ Operasyonel / export raporu: **Yok**.
 | Kubernetes / Compose | **Yok** — yeni manifest veya servis yok |
 | CI / GitHub | Board sync green; PR #96–#101 merged |
 | Test suite | **130** pytest (`develop`) |
+
+---
+
+## 12. Database schema
+
+### Migrations this sprint
+
+| Revision | PR | Değişiklik |
+|----------|-----|------------|
+| `20260628_0009` | #97 | **`published_data_products`** — version lineage, lifecycle alanları, `product_definition` / `source_asset_record_ids` (JSONB), FK → `applications`, self-FK `previous_version_id` |
+
+### Cumulative schema (Sprint 5 sonu)
+
+**Alembic head:** `20260628_0009`
+
+**Tablolar:** `alembic_version`, `applications`, `application_workspaces`, `semantic_transactions`, `trace_steps`, `discovery_sessions`, `discovery_phase_history`, `blueprints`, `asset_records`, `published_data_products`
+
+### Relations
+
+```mermaid
+erDiagram
+    applications ||--o| application_workspaces : has
+    applications ||--o{ discovery_sessions : owns
+    applications ||--o{ blueprints : owns
+    applications ||--o{ asset_records : owns
+    applications ||--o{ published_data_products : owns
+    discovery_sessions ||--o{ discovery_phase_history : phases
+    semantic_transactions ||--o{ trace_steps : steps
+    blueprints ||--o{ blueprints : previous_version
+    published_data_products ||--o{ published_data_products : previous_version
+```
