@@ -40,4 +40,6 @@ When a sprint adds Alembic revisions, before PMO closes the milestone:
 3. PMO runs `scripts/verify-sprint-db.ps1 -Sprint <N>` — exit 0 required.
 4. Update `scripts/sprint_db_expectations.json` if not already done in the same PR batch.
 
-Do not mark sprint infrastructure complete in retro §11 until verify passes.
+Do not mark sprint infrastructure complete in retro §11 until verify-sprint-close passes.
+
+PMO must not hand off to PO until `scripts/verify-sprint-close.ps1 -Sprint <N>` exits 0.

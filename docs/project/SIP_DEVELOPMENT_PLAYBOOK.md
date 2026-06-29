@@ -438,25 +438,46 @@ powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
 
 **Manifest:** `scripts/sprint_db_expectations.json` — PMO adds sprint entry when landing new migrations.
 
-**Sprint-close order:** CI green → cluster DB verify pass → **board verify pass** → retro §10–§12 → milestone close → board reconcile (if needed).
+### Sprint close gates and PO handoff (mandatory)
 
-### Project board verification (mandatory at sprint close)
+**PMO must not deliver a sprint to the PO** until all gates pass. Partial delivery (code merged but cluster/board drift) is **unacceptable**.
 
-Before closing the milestone, PMO MUST verify every issue on the sprint milestone is on **SIP MVP Delivery** (project #3) with the correct **Workflow Status** (usually **Done** for closed sprints):
+Single entry point:
 
 ```powershell
+powershell -File scripts/verify-sprint-close.ps1 -Sprint <N>
+```
+
+Runs cluster DB verify + project board verify. **Exit 1 blocks:** retro finalization, milestone close, and any PO message claiming sprint complete.
+
+**Sprint-close order (strict):**
+
+1. CI green on `develop`
+2. **`verify-sprint-close.ps1` exit 0** (repair loops until pass — PMO owns this, not PO)
+3. Retro §10–§12 + architecture health report (§12 = full table list + cluster head after verify)
+4. Close epic + milestone on GitHub
+5. PO summary includes gate pass proof
+
+Individual gates (called by verify-sprint-close):
+
+```powershell
+powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
 powershell -File scripts/verify-sprint-board.ps1 -Sprint <N>
 ```
+
+**Manifest:** `scripts/sprint_board_expectations.json` — PMO adds sprint issue list when milestone is created.
+
+### Project board verification (details)
 
 | Check | Failure means |
 |-------|----------------|
 | Issue on project board | Missing card — **blocker** |
-| Workflow Status set | "No status" column — **blocker** (common after `item-add` without status update) |
+| Workflow Status set | No status column — **blocker** |
 | Status = **Done** (at sprint close) | Drift — repair before milestone close |
 
-**On failure:** run `scripts/set-board-status.ps1 -IssueNumber <N> -Status Done -AddToProject` per issue, or `scripts/fix-project-board.ps1` for batch repair; re-run verify until exit 0.
+**On failure:** `set-board-status.ps1` or `fix-project-board.ps1`, then re-run `verify-sprint-close.ps1`.
 
-**Manifest:** `scripts/sprint_board_expectations.json` — PMO adds sprint issue list when milestone is created.
+**Manifest:** `scripts/sprint_board_expectations.json`
 
 ### Recommended MVP build sequence
 
