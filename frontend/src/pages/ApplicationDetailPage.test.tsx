@@ -5,6 +5,7 @@ import {
   getApplication,
   type ApplicationResponse,
 } from "../api/applications";
+import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
 import { ApplicationDetailPage } from "./ApplicationDetailPage";
 
@@ -14,6 +15,10 @@ vi.mock("../api/applications", () => ({
 
 vi.mock("../api/discovery", () => ({
   listDiscoverySessions: vi.fn(),
+}));
+
+vi.mock("../api/blueprints", () => ({
+  listBlueprints: vi.fn(),
 }));
 
 const mockApplication: ApplicationResponse = {
@@ -61,6 +66,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(getApplication).mockResolvedValue(mockApplication);
     vi.mocked(listDiscoverySessions).mockReset();
     vi.mocked(listDiscoverySessions).mockResolvedValue([]);
+    vi.mocked(listBlueprints).mockReset();
+    vi.mocked(listBlueprints).mockResolvedValue([]);
   });
 
   it("loads application and shows overview by default", async () => {
@@ -119,6 +126,41 @@ describe("ApplicationDetailPage", () => {
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
+  it("navigates to blueprints list", async () => {
+    vi.mocked(listBlueprints).mockResolvedValue([
+      {
+        id: "bp-1",
+        application_id: "app-1",
+        version_number: 2,
+        status: "Approved",
+        title: "Blueprint A",
+        goal: null,
+        outcome: null,
+        created_by: "carol@example.com",
+        created_at: "2025-06-02T10:00:00Z",
+        approved_at: "2025-06-03T10:00:00Z",
+        version_created_at: null,
+        blueprint_snapshot: {},
+      },
+    ]);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Blueprint" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Blueprint A")).toBeInTheDocument();
+    });
+
+    expect(listBlueprints).toHaveBeenCalledWith("app-1");
+    expect(screen.getByRole("heading", { name: "Blueprint" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
   it("navigates to placeholder sections", async () => {
     renderDetailPage();
 
@@ -141,9 +183,9 @@ describe("ApplicationDetailPage", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("link", { name: "Blueprint" }));
+    fireEvent.click(screen.getByRole("link", { name: "Products" }));
 
-    expect(screen.getByRole("link", { name: "Blueprint" })).toHaveClass(
+    expect(screen.getByRole("link", { name: "Products" })).toHaveClass(
       "application-shell__nav-link--active",
     );
     expect(screen.getByRole("link", { name: "Overview" })).not.toHaveClass(
