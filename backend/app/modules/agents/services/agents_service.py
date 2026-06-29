@@ -103,7 +103,10 @@ class AgentsService:
         self._validate_bound_products(application_id, product_ids)
 
         now = datetime.now(UTC)
-        definition = dict(DEFAULT_AGENT_DEFINITION) if agent_definition is None else agent_definition
+        if agent_definition is None:
+            definition = dict(DEFAULT_AGENT_DEFINITION)
+        else:
+            definition = agent_definition
         agent = AgentDefinition(
             id=uuid4(),
             application_id=application_id,
