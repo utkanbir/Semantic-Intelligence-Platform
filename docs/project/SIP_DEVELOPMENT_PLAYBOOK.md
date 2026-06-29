@@ -408,6 +408,18 @@ At every sprint close, PMO MUST list **what was created for technical readers** 
 
 Keep entries factual (path, table name, PR). Internal-only API counts here; it does not count as end-user release (§10).
 
+### Database schema report (mandatory at sprint close)
+
+At every sprint close, PMO MUST document relational DB changes in the sprint retro as **§12 Database schema**. Use **"Yok"** only if the sprint added no Alembic revision.
+
+| # | Include |
+|---|---------|
+| 1 | **Migrations this sprint** — revision id(s), linked PR/issue, `upgrade()` summary (new tables, new columns, indexes, constraints) |
+| 2 | **Cumulative schema** — all `public` tables after sprint; current Alembic head revision |
+| 3 | **Relations** — FK graph (parent → child), notable unique constraints; mermaid `erDiagram` or equivalent bullet list |
+
+Source of truth: `backend/alembic/versions/`. Cross-check with §11 data model bullets; §12 is the authoritative schema/relations view for DB readers.
+
 ### Recommended MVP build sequence
 
 Align early sprints with Implementation Guide §17:
