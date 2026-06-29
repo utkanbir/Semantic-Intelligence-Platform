@@ -148,6 +148,45 @@ foreach ($item in $project.items.nodes) {
 $statusFieldId = [string]$statusField.id
 $projectIdStr = [string]$projectId
 
+function Refresh-ItemByIssue {
+    $json = gh api graphql -f query=$query -f login=$owner -F number=$projectNumber | ConvertFrom-Json
+    $script:itemByIssue = @{}
+    foreach ($item in $json.data.user.projectV2.items.nodes) {
+        if ($item.content.number) { $script:itemByIssue[[int]$item.content.number] = $item.id }
+    }
+}
+
+function Add-IssueToProject {
+    param([int]$IssueNumber)
+    if ($itemByIssue.ContainsKey($IssueNumber)) { return }
+    Write-Host "Adding issue #$IssueNumber to project..."
+    $url = "https://github.com/$repo/issues/$IssueNumber"
+    gh project item-add $projectNumber --owner $owner --url $url | Out-Null
+    Start-Sleep -Seconds 1
+    Refresh-ItemByIssue
+}
+
+function Set-SprintBoard {
+    param(
+        [int[]]$IssueNumbers,
+        [hashtable]$StatusMap,
+        [string]$DefaultStatus = "Done"
+    )
+    foreach ($num in $IssueNumbers) {
+        Add-IssueToProject -IssueNumber $num
+    }
+    Refresh-ItemByIssue
+    foreach ($num in $IssueNumbers) {
+        if (-not $itemByIssue.ContainsKey($num)) {
+            Write-Warning "Issue #$num still not on board after add"
+            continue
+        }
+        $status = if ($StatusMap.ContainsKey($num)) { $StatusMap[$num] } else { $DefaultStatus }
+        Write-Host "Issue #$num -> $status"
+        Set-ProjectStatus -ItemId $itemByIssue[$num] -StatusName $status
+    }
+}
+
 function Set-ProjectStatus {
     param(
         [string]$ItemId,
@@ -306,46 +345,8 @@ foreach ($num in $s6AddIssues) {
     }
 }
 
-foreach ($num in $s7AddIssues) {
-    if (-not $itemByIssue.ContainsKey($num)) {
-        Write-Host "Adding issue #$num to project..."
-        $url = "https://github.com/$repo/issues/$num"
-        gh project item-add $projectNumber --owner $owner --url $url | Out-Null
-        Start-Sleep -Seconds 1
-        $json = gh api graphql -f query=$query -f login=$owner -F number=$projectNumber | ConvertFrom-Json
-        foreach ($item in $json.data.user.projectV2.items.nodes) {
-            if ($item.content.number -eq $num) { $itemByIssue[$num] = $item.id }
-        }
-    }
-}
+Set-SprintBoard -IssueNumbers $s7AddIssues -StatusMap $s7Statuses
 
-foreach ($num in $s7AddIssues) {
-    if ($itemByIssue.ContainsKey($num)) {
-        $status = $s7Statuses[$num]
-        Write-Host "Issue #$num -> $status"
-        Set-ProjectStatus -ItemId $itemByIssue[$num] -StatusName $status
-    }
-}
-
-foreach ($num in $s8AddIssues) {
-    if (-not $itemByIssue.ContainsKey($num)) {
-        Write-Host "Adding issue #$num to project..."
-        $url = "https://github.com/$repo/issues/$num"
-        gh project item-add $projectNumber --owner $owner --url $url | Out-Null
-        Start-Sleep -Seconds 1
-        $json = gh api graphql -f query=$query -f login=$owner -F number=$projectNumber | ConvertFrom-Json
-        foreach ($item in $json.data.user.projectV2.items.nodes) {
-            if ($item.content.number -eq $num) { $itemByIssue[$num] = $item.id }
-        }
-    }
-}
-
-foreach ($num in $s8AddIssues) {
-    if ($itemByIssue.ContainsKey($num)) {
-        $status = $s8Statuses[$num]
-        Write-Host "Issue #$num -> $status"
-        Set-ProjectStatus -ItemId $itemByIssue[$num] -StatusName $status
-    }
-}
+Set-SprintBoard -IssueNumbers $s8AddIssues -StatusMap $s8Statuses
 
 Write-Host "Board update complete."
