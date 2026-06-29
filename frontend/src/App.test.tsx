@@ -7,19 +7,36 @@ describe("App", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          status: "ok",
-          service: "sip-backend",
-          environment: "test",
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
-    );
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/health")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              status: "ok",
+              service: "sip-backend",
+              environment: "test",
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
+        );
+      }
+
+      if (url.includes("/applications")) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+    });
   });
 
   afterEach(() => {
@@ -35,6 +52,7 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Applications" })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText("Backend connected")).toBeInTheDocument();
+      expect(screen.getByText("No applications yet.")).toBeInTheDocument();
     });
   });
 });
