@@ -41,6 +41,10 @@
     "9": {
       "label": "Governance",
       "issues": [139, 140, 141, 142, 143, 144]
+    },
+    "10": {
+      "label": "Assessment MVP E2E",
+      "issues": [147, 148, 149, 150, 151, 152]
     }
   }
 }
