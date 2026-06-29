@@ -358,7 +358,9 @@ The [SIP MVP Delivery](https://github.com/users/utkanbir/projects/3) board must 
 1. GitHub → profile menu → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)** → **Generate new token (classic)**
 2. Scopes: **`repo`**, **`read:project`**, **`project`**
 3. Store in repo: `gh secret set PROJECT_SYNC_TOKEN -R utkanbir/Semantic-Intelligence-Platform`
-4. Verify: `GH_TOKEN=<token> python scripts/verify_project_sync_token.py` → must print `OK: token can access project #3`
+4. Verify: `GH_TOKEN=<token> python scripts/verify_project_sync_token.py` → must print `OK: token can access project #3` **and** `OK: token can resolve issue node IDs`
+
+**Implementation note:** `scripts/board_sync.py` uses GraphQL `addProjectV2ItemById` (not `gh project item-add`). The CLI command can return misleading `unknown owner type` in Actions while GraphQL mutations succeed with the same PAT (see cli/cli#8885).
 
 **Alternative (fine-grained):** Resource owner = your user account; repository = `Semantic-Intelligence-Platform`; **Account permissions → Projects** Read and write; repository Issues/Pull requests as above. Re-run verify script — if it fails, use Classic PAT instead.
 
