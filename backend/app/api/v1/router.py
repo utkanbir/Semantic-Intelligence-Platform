@@ -24,14 +24,42 @@ Guidelines:
 from fastapi import APIRouter
 
 from app.api.v1.health import router as health_router
+from app.modules.adapters.api.routes import router as adapters_router
+from app.modules.agent_runtime.api.routes import router as agent_runs_router
+from app.modules.agents.api.routes import router as agents_router
+from app.modules.applications.api.routes import router as applications_router
+from app.modules.assets.api.routes import router as assets_router
+from app.modules.audit_trace.api.routes import router as audit_trace_router
+from app.modules.blueprints.api.routes import router as blueprints_router
+from app.modules.discovery.api.routes import router as discovery_router
+from app.modules.governance.api.routes import router as policies_router
+from app.modules.knowledge_graph.api.routes import router as knowledge_graphs_router
+from app.modules.ontology.api.routes import router as ontologies_router
+from app.modules.products.api.routes import router as products_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health_router, prefix="/health", tags=["health"])
-
-# Future module routers (uncomment when module routes are implemented):
-#
-# from app.modules.applications.api.routes import router as applications_router
-# api_v1_router.include_router(applications_router, prefix="/applications", tags=["applications"])
-#
-# from app.modules.discovery.api.routes import router as discovery_router
-# api_v1_router.include_router(discovery_router, prefix="/discovery-sessions", tags=["discovery"])
+api_v1_router.include_router(applications_router, prefix="/applications", tags=["applications"])
+api_v1_router.include_router(
+    discovery_router,
+    prefix="/discovery-sessions",
+    tags=["discovery"],
+)
+api_v1_router.include_router(blueprints_router, prefix="/blueprints", tags=["blueprints"])
+api_v1_router.include_router(assets_router, prefix="/assets", tags=["assets"])
+api_v1_router.include_router(
+    audit_trace_router,
+    prefix="/audit-traces",
+    tags=["audit-traces"],
+)
+api_v1_router.include_router(products_router, prefix="/products", tags=["products"])
+api_v1_router.include_router(agents_router, prefix="/agents", tags=["agents"])
+api_v1_router.include_router(ontologies_router, prefix="/ontologies", tags=["ontologies"])
+api_v1_router.include_router(
+    knowledge_graphs_router,
+    prefix="/knowledge-graphs",
+    tags=["knowledge-graphs"],
+)
+api_v1_router.include_router(adapters_router, prefix="/adapters", tags=["adapters"])
+api_v1_router.include_router(agent_runs_router, prefix="/agent-runs", tags=["agent-runs"])
+api_v1_router.include_router(policies_router, prefix="/policies", tags=["governance"])

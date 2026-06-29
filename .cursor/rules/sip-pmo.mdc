@@ -41,16 +41,44 @@ Declare active hat at session start: **Delivery Manager (DM)** or **Engineering 
 
 ## PMO Hub Mode (permanent)
 
-User says only: **Sprint'e devam**, **Sprint kapat — retro**, or intervenes on errors/blockers. User does NOT copy prompts to other chats.
+User says **Sprint'e devam**, intervenes on errors/blockers, or may say **Sprint kapat — retro** (optional — PMO also closes automatically; see below). User does NOT copy prompts to other chats.
 
 PMO MUST:
 - Analyze sprint state (GitHub milestone, issues, PRs, board, dependencies)
 - Select next issue(s) — user does not pick issue numbers
-- Update GitHub project Workflow Status in Agent mode
+- Update GitHub project **Workflow Status** on every lifecycle transition — see **Live board visibility** below; never batch-only at sprint close
+- When picking an issue: run `scripts/set-board-status.ps1 -Status "In Progress"` **before** delegating
+- After each merge: verify GitHub Action moved card to **Done**; if not, run `set-board-status.ps1 -Status Done`
 - Delegate via **Task subagents**; parallel independent work via Multitask when available
 - Architecture gate triage from PR Facts + `docs/governance/SIP_Architecture_Governance_Policy.md`
 - After each merge: Sprint Health + Lessons Learned
-- On sprint close: fill `docs/governance/retros/` and `docs/governance/health-reports/`
+
+### Sprint handoff to PO (non-negotiable — PO directive)
+
+**PMO MUST NOT hand work to the PO** (no "sprint tamamlandı", "sprint closed", "teslim", milestone closed, or retro published as final) **until every mandatory close gate passes.**
+
+Run the single gate script:
+
+```powershell
+powershell -File scripts/verify-sprint-close.ps1 -Sprint <N>
+```
+
+| Gate | Script (via verify-sprint-close) | Fail = |
+|------|----------------------------------|--------|
+| Cluster DB | `verify-sprint-db.ps1` | Repair migrations/image on `sip-dev`, re-run |
+| Project board | `verify-sprint-board.ps1` | Repair Workflow Status, re-run |
+
+**On any exit 1:** fix the failure yourself (DevOps subagent for cluster DB; `set-board-status.ps1` / `fix-project-board.ps1` for board). **Do not ask the PO to accept partial delivery.** Re-run until exit 0.
+
+**PO-facing sprint summary MUST include** the literal line `verify-sprint-close.ps1 -Sprint <N>` **passed** (or paste gate output). Omitting gate proof is a process violation.
+
+- **Auto sprint close (PO directive):** when all committed implementation issues on the active milestone are **Done** (and CI green on `develop`), PMO MUST without user prompt: run **`verify-sprint-close.ps1` until exit 0** → write retro + health report (§10–§12 with **full** cumulative DB list, not "prior N tables") → close epic/milestone → push `develop`. **Never** close milestone or publish retro before gates pass. Do not close GitHub issues before PR merge + CI green.
+- **End-user release notes (PO directive):** at sprint close, include retro **§10 End-user release notes** — plain-language summary for Console/MVP users; if none shipped, state **"Bu sprintte son kullanıcı için görünür bir değişiklik yok."** See playbook §9.
+- **Technical deliverables (PO directive):** at sprint close, include retro **§11 Technical deliverables** — REST endpoints, data models, reports, infrastructure created this sprint; use **Yok** per empty category. See playbook §9.
+- **Database schema report (PO directive):** at sprint close, include retro **§12 Database schema** — Alembic migrations added this sprint (revision id, tables/columns), cumulative table inventory, and FK/relation diagram or bullet list; use **Yok** if no migration landed. See playbook §9.
+- **Cluster DB verification (PO directive):** enforced by `verify-sprint-close.ps1` → `verify-sprint-db.ps1`. **Exit 1 = no PO handoff.** Missing sprint tables or alembic head mismatch on `sip-dev` is an error; DevOps applies `alembic upgrade head` + backend image rollout, then re-run until pass. Do not claim §12 cluster parity without a green verify.
+- **Board verification (PO directive):** enforced by `verify-sprint-close.ps1` → `verify-sprint-board.ps1`. **Exit 1 = no PO handoff.** Any sprint issue missing from project, with no Workflow Status, or not **Done** is an error; repair with `set-board-status.ps1` or `fix-project-board.ps1`, then re-run until pass.
+- **Live board (PO directive Sprint 2):** PMO MUST set **In Progress** when picking work; rely on GitHub Action for **In Review** / **Done** on PR open/merge. Sprint close must not be the first time cards move off Backlog.
 
 ### Engineering offices (subagent delegation)
 
@@ -58,7 +86,7 @@ PMO MUST:
 |--------|-------|-------|----------|
 | Backend | API, domain, DB | `backend/**` | generalPurpose / shell |
 | Frontend | Platform Console | `frontend/**` | generalPurpose |
-| DevOps | K8s, Kustomize, CI | `infra/**`, `.github/**` | generalPurpose / shell |
+| DevOps | K8s, Kustomize, CI | `infra/**`, `.github/**` | generalPurpose / shell — **must load `sip-devops.mdc`** |
 | QA | Checklists only | read-only | explore / readonly |
 | Architect | Gate Yes PRs | analysis only | readonly or escalate to user |
 
@@ -68,6 +96,48 @@ Every subagent prompt: Issue #, branch, acceptance criteria, architecture refs, 
 - Frontend: MUST NOT edit `backend/**` or `infra/**`; API on develop or issue contract
 - DevOps: MUST NOT edit backend business logic or `frontend/**`
 - Do not mix offices in one subagent unless user approves
+
+### DevOps subagent rules (Sprint 0 retro)
+
+Every DevOps subagent prompt MUST include: **Apply `.cursor/rules/sip-devops.mdc`. Scope: `infra/**` and `.github/**` only.**
+
+PMO MUST NOT implement `infra/**` or `.github/workflows/**` when DevOps delegation is available — spawn a DevOps subagent with the rule above instead of relying on `sip-pmo.mdc` inheritance.
+
+### Solo maintainer merge policy (Sprint 0 retro)
+
+GitHub never allows self-approval of own PRs. For single-maintainer repos:
+
+- Set **required approving review count = 0** on `develop` (and `main`), **or** add a second collaborator for reviews.
+- Keep **CI status checks** required (`Backend CI`, `Kustomize CI`).
+- PMO documents the chosen policy in playbook Section 6.
+
+### GitHub Project board hygiene (Sprint 0 retro + Sprint 2 PO feedback)
+
+**Problem:** Batch-updating the board only at sprint close hides all work in **Done**; PO cannot see **In Progress / In Review** during the sprint.
+
+**Primary mechanism (real-time):**
+
+| Event | Workflow Status | Who |
+|-------|-----------------|-----|
+| Issue created with milestone | **Ready** (+ add to project) | GitHub Action `project-board-sync.yml` |
+| PMO picks issue / work starts | **In Progress** | PMO — **mandatory** before delegating |
+| PR opened | **In Review** | GitHub Action (PR title must be `[#NNN] ...`) |
+| PR merged to `develop` | **Done** | GitHub Action |
+| Optional QA pass before close | **QA** | PMO if QA column used |
+
+**PMO MUST run after picking an issue (before subagent starts):**
+
+```powershell
+powershell -File scripts/set-board-status.ps1 -IssueNumber <N> -Status "In Progress" -AddToProject
+```
+
+**PMO MUST NOT** defer all board updates to sprint close. `fix-project-board.ps1` is **reconciliation only** (drift repair at merge verification or sprint close).
+
+- **Issue closed ≠ card moved.** Always set **Workflow Status** on merge.
+- **`gh` requires `project` scope:** `gh auth refresh -h github.com -s read:project,project`
+- **Verification:** `docs/governance/retros/Sprint_0_Project_Foundation_retro.md` §9
+- **Scripts:** `scripts/set-board-status.ps1` (per transition), `scripts/board_sync.py` (core), `scripts/fix-project-board.ps1` (batch reconcile), `scripts/verify-sprint-close.ps1` (**mandatory PO handoff gate**), `scripts/verify-sprint-db.ps1`, `scripts/verify-sprint-board.ps1`
+- **Automation:** `.github/workflows/project-board-sync.yml` on PR open/merge and new milestone issues — requires repo secret **`PROJECT_SYNC_TOKEN`** (see playbook §8); default `GITHUB_TOKEN` is insufficient for Projects v2
 
 ### Frontend rules fallback
 

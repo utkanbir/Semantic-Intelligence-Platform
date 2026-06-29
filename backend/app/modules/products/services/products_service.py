@@ -1,1 +1,319 @@
 """Application services for the products module."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any, cast
+from uuid import UUID, uuid4
+
+from app.modules.applications.repositories.interfaces import ApplicationRepository
+from app.modules.assets.repositories.interfaces import AssetRecordRepository
+from app.modules.products.domain.enums import PublishedDataProductStatus
+from app.modules.products.domain.models import PublishedDataProduct
+from app.modules.products.ports.interfaces import TraceRecorder
+from app.modules.products.repositories.interfaces import PublishedDataProductRepository
+
+UNSET = object()
+
+DEFAULT_PRODUCT_DEFINITION: dict[str, Any] = {
+    "schema_version": "1",
+    "fields": [],
+    "quality_rules": [],
+    "access_policy": {},
+    "metadata": {},
+}
+
+
+class ApplicationNotFoundError(Exception):
+    """Raised when the parent application does not exist."""
+
+
+class PublishedDataProductNotFoundError(Exception):
+    """Raised when a published data product cannot be found."""
+
+
+class ImmutablePublishedDataProductError(Exception):
+    """Raised when mutating a locked published data product."""
+
+
+class AssetRecordNotFoundError(Exception):
+    """Raised when a referenced asset record does not exist."""
+
+
+class InvalidAssetRecordReferenceError(Exception):
+    """Raised when a referenced asset record belongs to another application."""
+
+
+class InvalidPublishedDataProductStatusTransitionError(Exception):
+    """Raised when a product status transition is not allowed."""
+
+
+class InvalidPublishedDataProductVersionForkError(Exception):
+    """Raised when a product version fork is not allowed."""
+
+
+class _NoOpTraceRecorder:
+    """Default recorder when audit_trace wiring is not provided."""
+
+    def record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+    ) -> None:
+        return None
+
+
+class ProductsService:
+    """Published data product CRUD orchestration."""
+
+    def __init__(
+        self,
+        repository: PublishedDataProductRepository,
+        application_repository: ApplicationRepository,
+        asset_record_repository: AssetRecordRepository,
+        trace_recorder: TraceRecorder | None = None,
+    ) -> None:
+        self._repository = repository
+        self._application_repository = application_repository
+        self._asset_record_repository = asset_record_repository
+        self._trace_recorder = trace_recorder or _NoOpTraceRecorder()
+
+    def create_product(
+        self,
+        *,
+        application_id: UUID,
+        title: str,
+        created_by: str | None = None,
+        description: str | None = None,
+        product_definition: dict[str, Any] | None = None,
+        source_asset_record_ids: list[str] | None = None,
+    ) -> PublishedDataProduct:
+        if self._application_repository.get(application_id) is None:
+            raise ApplicationNotFoundError("Application not found")
+
+        source_ids = source_asset_record_ids or []
+        self._validate_source_asset_records(application_id, source_ids)
+
+        now = datetime.now(UTC)
+        if product_definition is not None:
+            definition = product_definition
+        else:
+            definition = dict(DEFAULT_PRODUCT_DEFINITION)
+        product = PublishedDataProduct(
+            id=uuid4(),
+            application_id=application_id,
+            version_number=1,
+            status=PublishedDataProductStatus.DRAFT,
+            title=title,
+            description=description,
+            created_by=created_by or "",
+            created_at=now,
+            updated_at=now,
+            product_definition=definition,
+            source_asset_record_ids=source_ids,
+        )
+        created = self._repository.create(product)
+        self._trace_recorder.record_transaction(
+            transaction_type="product.created",
+            resource_type="PublishedDataProduct",
+            resource_id=str(created.id),
+        )
+        return created
+
+    def list_products(
+        self,
+        *,
+        application_id: UUID,
+        status: PublishedDataProductStatus | None = None,
+    ) -> list[PublishedDataProduct]:
+        if self._application_repository.get(application_id) is None:
+            raise ApplicationNotFoundError("Application not found")
+        status_value = status.value if status is not None else None
+        return list(self._repository.list_by_application(application_id, status=status_value))
+
+    def get_product(self, product_id: UUID) -> PublishedDataProduct:
+        product = self._repository.get(product_id)
+        if product is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        return product
+
+    def update_product(
+        self,
+        product_id: UUID,
+        *,
+        title: str | None = None,
+        description: str | None | object = UNSET,
+        product_definition: dict[str, Any] | None | object = UNSET,
+        source_asset_record_ids: list[str] | None | object = UNSET,
+    ) -> PublishedDataProduct:
+        current = self._repository.get(product_id)
+        if current is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        if current.status in {
+            PublishedDataProductStatus.VERSIONED,
+            PublishedDataProductStatus.RETIRED,
+        }:
+            raise ImmutablePublishedDataProductError(
+                "Published data product definition is immutable in current status"
+            )
+
+        resolved_sources = (
+            current.source_asset_record_ids
+            if source_asset_record_ids is UNSET
+            else cast(list[str], source_asset_record_ids)
+        )
+        self._validate_source_asset_records(current.application_id, resolved_sources)
+
+        updated = PublishedDataProduct(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=current.status,
+            title=title if title is not None else current.title,
+            description=(
+                current.description if description is UNSET else cast(str | None, description)
+            ),
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            certified_at=current.certified_at,
+            published_at=current.published_at,
+            version_created_at=current.version_created_at,
+            product_definition=(
+                current.product_definition
+                if product_definition is UNSET
+                else cast(dict[str, Any], product_definition)
+            ),
+            source_asset_record_ids=resolved_sources,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        return result
+
+    def update_status(
+        self, product_id: UUID, *, status: PublishedDataProductStatus
+    ) -> PublishedDataProduct:
+        current = self._repository.get(product_id)
+        if current is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        if not _is_valid_status_transition(current.status, status):
+            raise InvalidPublishedDataProductStatusTransitionError(
+                f"Invalid status transition: {current.status.value} -> {status.value}"
+            )
+
+        certified_at = current.certified_at
+        if status == PublishedDataProductStatus.CERTIFIED and certified_at is None:
+            certified_at = datetime.now(UTC)
+
+        published_at = current.published_at
+        if status == PublishedDataProductStatus.PUBLISHED and published_at is None:
+            published_at = datetime.now(UTC)
+
+        updated = PublishedDataProduct(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            certified_at=certified_at,
+            published_at=published_at,
+            version_created_at=current.version_created_at,
+            product_definition=current.product_definition,
+            source_asset_record_ids=current.source_asset_record_ids,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        return result
+
+    def create_version(
+        self,
+        product_id: UUID,
+        *,
+        product_definition: dict[str, Any] | None = None,
+        source_asset_record_ids: list[str] | None = None,
+    ) -> PublishedDataProduct:
+        parent = self._repository.get(product_id)
+        if parent is None:
+            raise PublishedDataProductNotFoundError("Published data product not found")
+        if parent.status not in {
+            PublishedDataProductStatus.PUBLISHED,
+            PublishedDataProductStatus.VERSIONED,
+        }:
+            raise InvalidPublishedDataProductVersionForkError(
+                "Version fork requires parent status Published or Versioned"
+            )
+
+        definition = (
+            dict(parent.product_definition)
+            if product_definition is None
+            else product_definition
+        )
+        sources = (
+            list(parent.source_asset_record_ids)
+            if source_asset_record_ids is None
+            else source_asset_record_ids
+        )
+        self._validate_source_asset_records(parent.application_id, sources)
+
+        now = datetime.now(UTC)
+        child = PublishedDataProduct(
+            id=uuid4(),
+            application_id=parent.application_id,
+            version_number=parent.version_number + 1,
+            previous_version_id=parent.id,
+            status=PublishedDataProductStatus.DRAFT,
+            title=parent.title,
+            description=parent.description,
+            created_by=parent.created_by,
+            created_at=now,
+            updated_at=now,
+            version_created_at=now,
+            product_definition=definition,
+            source_asset_record_ids=sources,
+        )
+        return self._repository.create(child)
+
+    def _validate_source_asset_records(
+        self, application_id: UUID, source_asset_record_ids: list[str]
+    ) -> None:
+        for asset_record_id in source_asset_record_ids:
+            try:
+                asset_uuid = UUID(asset_record_id)
+            except ValueError as error:
+                raise AssetRecordNotFoundError("Asset record not found") from error
+
+            asset_record = self._asset_record_repository.get(asset_uuid)
+            if asset_record is None:
+                raise AssetRecordNotFoundError("Asset record not found")
+            if asset_record.application_id != application_id:
+                raise InvalidAssetRecordReferenceError(
+                    "Asset record belongs to a different application"
+                )
+
+
+VALID_STATUS_TRANSITIONS: dict[PublishedDataProductStatus, set[PublishedDataProductStatus]] = {
+    PublishedDataProductStatus.DRAFT: {PublishedDataProductStatus.CERTIFIED},
+    PublishedDataProductStatus.CERTIFIED: {
+        PublishedDataProductStatus.PUBLISHED,
+        PublishedDataProductStatus.DRAFT,
+    },
+    PublishedDataProductStatus.PUBLISHED: {PublishedDataProductStatus.VERSIONED},
+    PublishedDataProductStatus.VERSIONED: {PublishedDataProductStatus.RETIRED},
+    PublishedDataProductStatus.RETIRED: set(),
+}
+
+
+def _is_valid_status_transition(
+    current: PublishedDataProductStatus, target: PublishedDataProductStatus
+) -> bool:
+    return target in VALID_STATUS_TRANSITIONS[current]

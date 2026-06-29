@@ -20,9 +20,9 @@ Optional Docker Compose (PostgreSQL-only) under `infra/compose/` is **non-author
 |------|---------|--------|
 | **Kubernetes cluster** | Runtime | Docker Desktop Kubernetes, minikube, kind, or equivalent |
 | **kubectl** | Apply manifests | Must match cluster context |
-| **Docker** | Build `sip-backend:dev` image | Required for in-cluster backend |
+| **Docker** | Build `sip-backend:dev` and `sip-console:s12` images | Required for in-cluster workloads |
 | **Python 3.11+** | Backend dev / Alembic | See `backend/README.md` |
-| **Ingress controller** (optional) | `api.sip.local` routing | nginx Ingress Controller or Docker Desktop built-in |
+| **Ingress controller** (optional) | `api.sip.local`, `console.sip.local` routing | nginx Ingress Controller or Docker Desktop built-in |
 
 Verify cluster access:
 
@@ -33,9 +33,10 @@ kubectl get nodes
 
 ### Namespace: `sip-dev`
 
-The dev overlay (`infra/kubernetes/overlays/dev`) sets `namespace: sip-dev`. All Sprint 0 workloads deploy there:
+The dev overlay (`infra/kubernetes/overlays/dev`) sets `namespace: sip-dev`. Workloads deploy there:
 
 - `sip-backend` — FastAPI (Deployment + Service)
+- `sip-console` — Platform Console / React (Deployment + Service + Ingress `console.sip.local`)
 - `sip-postgres` — PostgreSQL (StatefulSet + PVC)
 - `sip-api` — Ingress for `api.sip.local`
 
@@ -50,8 +51,9 @@ kubectl kustomize infra/kubernetes/overlays/dev
 From the **repository root**:
 
 ```bash
-# 1. Build backend image (loaded into cluster Docker context)
+# 1. Build images (loaded into cluster Docker context)
 docker build -t sip-backend:dev backend
+docker build -t sip-console:s12 frontend
 
 # 2. Deploy stack to sip-dev
 kubectl apply -k infra/kubernetes/overlays/dev
@@ -70,10 +72,10 @@ minikube image load sip-backend:dev
 
 Per [ADR-001](../docs/adr/ADR-001-cloud-native-deployment-strategy.md):
 
-| Host | Purpose | Sprint 0 status |
-|------|---------|-----------------|
+| Host | Purpose | Status |
+|------|---------|--------|
 | `api.sip.local` | Backend API (`/api/v1/*`) | **Configured** — `infra/kubernetes/base/ingress/api-ingress.yaml` |
-| `console.sip.local` | Platform Console (React) | **Reserved** — frontend Deployment not in Sprint 0 |
+| `console.sip.local` | Platform Console (React) | **Configured** — `infra/kubernetes/base/ingress/console-ingress.yaml` |
 
 Add to your hosts file for local ingress testing:
 
@@ -112,6 +114,38 @@ curl http://127.0.0.1:8080/api/v1/health/ready
 curl http://127.0.0.1:8080/api/v1/health/live
 ```
 
+### Platform Console access (S12-04)
+
+The dev overlay pins `sip-console:s12` (see `infra/kubernetes/overlays/dev/kustomization.yaml` `images` section). Rebuild and re-apply after frontend changes:
+
+```bash
+docker build -t sip-console:s12 frontend
+kubectl apply -k infra/kubernetes/overlays/dev
+kubectl -n sip-dev rollout status deployment/sip-console
+```
+
+**Option A — Ingress** (ingress controller running; add `console.sip.local` to hosts file — see [Ingress hosts](#ingress-hosts)):
+
+```bash
+curl -I -H "Host: console.sip.local" http://127.0.0.1/
+```
+
+Open in browser: `http://console.sip.local`
+
+**Option B — Port-forward** (no ingress required):
+
+```bash
+kubectl -n sip-dev port-forward svc/sip-console 8080:80
+```
+
+Open in browser: `http://127.0.0.1:8080`
+
+The console calls the backend API at `api.sip.local` (ingress) or via a separate backend port-forward on another local port (e.g. `8081`):
+
+```bash
+kubectl -n sip-dev port-forward svc/sip-backend 8081:80
+```
+
 ### Database and Alembic
 
 PostgreSQL in-cluster Service DNS:
@@ -136,6 +170,16 @@ alembic downgrade -1   # verify rollback
 
 Replace credentials to match `infra/kubernetes/base/postgres/secret.template.yaml`.
 
+### Sprint-close DB verification
+
+After `alembic upgrade head` on the cluster, PMO must confirm schema parity:
+
+```powershell
+powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
+```
+
+Expectations per sprint: `scripts/sprint_db_expectations.json`. Exit 1 blocks milestone close.
+
 ### Directory layout
 
 ```
@@ -149,7 +193,7 @@ infra/
 └── README.md          # This guide
 ```
 
-Placeholder workloads under `base/` (not deployed in Sprint 0): `minio/`, `qdrant/`, `fuseki/`, `openmetadata/`, `frontend/`.
+Placeholder workloads under `base/` (not yet deployed): `minio/`, `qdrant/`, `fuseki/`, `openmetadata/`.
 
 ---
 

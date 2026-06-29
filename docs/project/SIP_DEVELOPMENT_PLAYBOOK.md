@@ -243,6 +243,20 @@ When a feature spans backend and frontend:
 
 Direct pushes to `main` and `develop` are prohibited.
 
+### Solo maintainer merge policy (Sprint 0 retro)
+
+When the repository has a **single maintainer with write access**:
+
+| Topic | Policy |
+|-------|--------|
+| Self-approval | **Not possible** on GitHub — the PR author cannot Approve their own PR |
+| Review requirement | Set branch protection **required reviews = 0** on `develop` and `main`, then merge via PR without Approve |
+| Alternative | Add a second GitHub account as collaborator solely for PR review |
+| CI | Keep `Backend CI` and `Kustomize CI` as required status checks |
+| Auto-merge | Enable in repo Settings if desired after reviews are configured |
+
+Re-enable **required reviews = 1** when a second human reviewer joins the team.
+
 ### What not to commit
 
 - Credentials and `.env` files with secrets
@@ -324,6 +338,34 @@ Every implementation issue must include:
 - PR body: acceptance criteria checklist, architecture refs, test plan
 - Close issues via PR keywords when appropriate
 
+### Live board visibility (mandatory)
+
+The [SIP MVP Delivery](https://github.com/users/utkanbir/projects/3) board must reflect **current** work during the sprint — not only at sprint close.
+
+| When | Column | How |
+|------|--------|-----|
+| Issue added to sprint milestone | **Ready** | Auto: `project-board-sync.yml` on issue open/milestoned |
+| Work starts | **In Progress** | PMO: `scripts/set-board-status.ps1 -IssueNumber N -Status "In Progress"` |
+| PR opened | **In Review** | Auto: `project-board-sync.yml` (requires `[#N]` in PR title) |
+| PR merged to `develop` | **Done** | Auto: `project-board-sync.yml` |
+
+**Reconciliation:** `scripts/fix-project-board.ps1` — drift repair at sprint close only; not the primary update path.
+
+**GitHub Action token (required):** Default `GITHUB_TOKEN` cannot write to user Projects v2. Add repo secret **`PROJECT_SYNC_TOKEN`**.
+
+**Recommended: Classic PAT** (fine-grained tokens often fail on user Project #3 with `Resource not accessible by personal access token`):
+
+1. GitHub → profile menu → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)** → **Generate new token (classic)**
+2. Scopes: **`repo`**, **`read:project`**, **`project`**
+3. Store in repo: `gh secret set PROJECT_SYNC_TOKEN -R utkanbir/Semantic-Intelligence-Platform`
+4. Verify: `GH_TOKEN=<token> python scripts/verify_project_sync_token.py` → must print `OK: token can access project #3` **and** `OK: token can resolve issue node IDs`
+
+**Implementation note:** `scripts/board_sync.py` uses GraphQL `addProjectV2ItemById` (not `gh project item-add`). The CLI command can return misleading `unknown owner type` in Actions while GraphQL mutations succeed with the same PAT (see cli/cli#8885).
+
+**Alternative (fine-grained):** Resource owner = your user account; repository = `Semantic-Intelligence-Platform`; **Account permissions → Projects** Read and write; repository Issues/Pull requests as above. Re-run verify script — if it fails, use Classic PAT instead.
+
+Maintainer local CLI: `gh auth refresh -h github.com -s read:project,project`
+
 ---
 
 ## 9. Sprint Lifecycle
@@ -343,6 +385,101 @@ Every implementation issue must include:
 | **Sprint Review** | Demo against MVP flow or sprint goals |
 | **Retrospective** | Process improvements; playbook/governance updates if approved |
 | **Architecture Health Check** | Sprint-end boundary, debt, ADR, gate effectiveness review (see `docs/governance/health-reports/`) |
+
+### End-user release notes (mandatory at sprint close)
+
+At every sprint close, PMO MUST tell the Product Owner (and any end-user audience) **what changed for end users** — people using the Platform Console or Assessment MVP, not engineers.
+
+| Outcome | What to report |
+|---------|----------------|
+| Console screens, user-visible flows, or externally reachable MVP behavior shipped | Bullet list in plain language (Turkish or English per PO preference) |
+| Sprint was backend-only, infra, contracts, or internal API with no Console / no public surface | **"Bu sprintte son kullanıcı için görünür bir değişiklik yok."** |
+
+Record in the sprint retro as **§10 End-user release notes** (even when empty). Do not invent user-facing features from internal API work.
+
+### Technical deliverables summary (mandatory at sprint close)
+
+At every sprint close, PMO MUST list **what was created for technical readers** (PO, architect, integrators) in the sprint retro as **§11 Technical deliverables**. Use **"Yok"** for any category with no new items — do not omit the category.
+
+| # | Category | Include |
+|---|----------|---------|
+| 1 | **REST / API** | New or changed endpoints (`METHOD /api/v1/...`), MCP tools if any |
+| 2 | **Data model** | New domain aggregates, enums, Alembic migrations / tables |
+| 3 | **Reports** | New operational or governance reports (retro, health report, exports — not end-user UI) |
+| 4 | **Infrastructure** | Kubernetes, Compose, CI workflows, secrets, adapters, new ports |
+
+Keep entries factual (path, table name, PR). Internal-only API counts here; it does not count as end-user release (§10).
+
+### Database schema report (mandatory at sprint close)
+
+At every sprint close, PMO MUST document relational DB changes in the sprint retro as **§12 Database schema**. Use **"Yok"** only if the sprint added no Alembic revision.
+
+| # | Include |
+|---|---------|
+| 1 | **Migrations this sprint** — revision id(s), linked PR/issue, `upgrade()` summary (new tables, new columns, indexes, constraints) |
+| 2 | **Cumulative schema** — all `public` tables after sprint; current Alembic head revision |
+| 3 | **Relations** — FK graph (parent → child), notable unique constraints; mermaid `erDiagram` or equivalent bullet list |
+
+Source of truth: `backend/alembic/versions/`. Cross-check with §11 data model bullets; §12 is the authoritative schema/relations view for DB readers.
+
+### Cluster DB verification (mandatory at sprint close)
+
+Before closing the milestone or finalizing retro §12, PMO MUST verify the **`sip-dev` cluster database** matches the sprint — not only `develop` migrations.
+
+```powershell
+powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
+```
+
+| Check | Failure means |
+|-------|----------------|
+| `alembic_version` = expected head for sprint N | Migrations not applied on cluster — **blocker** |
+| Sprint **new tables** exist in `public` | Same — retro §12 must not be signed off |
+| **Cumulative** tables exist | Partial schema drift |
+
+**On failure:** DevOps runs `alembic upgrade head` against cluster Postgres (see `infra/README.md`), rolls out versioned backend image (`sip-backend:sN`), re-runs verify until exit 0.
+
+**Manifest:** `scripts/sprint_db_expectations.json` — PMO adds sprint entry when landing new migrations.
+
+### Sprint close gates and PO handoff (mandatory)
+
+**PMO must not deliver a sprint to the PO** until all gates pass. Partial delivery (code merged but cluster/board drift) is **unacceptable**.
+
+Single entry point:
+
+```powershell
+powershell -File scripts/verify-sprint-close.ps1 -Sprint <N>
+```
+
+Runs cluster DB verify + project board verify. **Exit 1 blocks:** retro finalization, milestone close, and any PO message claiming sprint complete.
+
+**Sprint-close order (strict):**
+
+1. CI green on `develop`
+2. **`verify-sprint-close.ps1` exit 0** (repair loops until pass — PMO owns this, not PO)
+3. Retro §10–§12 + architecture health report (§12 = full table list + cluster head after verify)
+4. Close epic + milestone on GitHub
+5. PO summary includes gate pass proof
+
+Individual gates (called by verify-sprint-close):
+
+```powershell
+powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
+powershell -File scripts/verify-sprint-board.ps1 -Sprint <N>
+```
+
+**Manifest:** `scripts/sprint_board_expectations.json` — PMO adds sprint issue list when milestone is created.
+
+### Project board verification (details)
+
+| Check | Failure means |
+|-------|----------------|
+| Issue on project board | Missing card — **blocker** |
+| Workflow Status set | No status column — **blocker** |
+| Status = **Done** (at sprint close) | Drift — repair before milestone close |
+
+**On failure:** `set-board-status.ps1` or `fix-project-board.ps1`, then re-run `verify-sprint-close.ps1`.
+
+**Manifest:** `scripts/sprint_board_expectations.json`
 
 ### Recommended MVP build sequence
 
