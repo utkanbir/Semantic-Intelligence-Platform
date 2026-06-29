@@ -19,6 +19,7 @@ $s5AddIssues = @(89, 90, 95, 91, 92, 93, 94)
 $s6AddIssues = @(102, 103, 104, 105, 106, 107, 108)
 $s7AddIssues = @(112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122)
 $s8AddIssues = @(127, 128, 129, 130, 131, 132, 133, 134, 135, 136)
+$s9AddIssues = @(139, 140, 141, 142, 143, 144)
 $s1Statuses = @{
     29 = "Done"
     30 = "Done"
@@ -99,6 +100,14 @@ $s8Statuses = @{
     134 = "Done"
     135 = "Done"
     136 = "Done"
+}
+$s9Statuses = @{
+    139 = "Done"       # E-10 epic
+    140 = "Done"
+    141 = "Done"
+    142 = "Done"
+    143 = "Done"
+    144 = "Done"
 }
 
 $query = @'
@@ -348,5 +357,7 @@ foreach ($num in $s6AddIssues) {
 Set-SprintBoard -IssueNumbers $s7AddIssues -StatusMap $s7Statuses
 
 Set-SprintBoard -IssueNumbers $s8AddIssues -StatusMap $s8Statuses
+
+Set-SprintBoard -IssueNumbers $s9AddIssues -StatusMap $s9Statuses
 
 Write-Host "Board update complete."
