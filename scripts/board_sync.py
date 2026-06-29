@@ -25,7 +25,7 @@ REPO = "utkanbir/Semantic-Intelligence-Platform"
 VALID_STATUSES = frozenset({"Backlog", "Ready", "In Progress", "In Review", "QA", "Done"})
 
 PROJECT_QUERY = """
-query($login: String!, $number: Int!) {
+query($login: String!, $number: Int!, $after: String) {
   user(login: $login) {
     projectV2(number: $number) {
       id
@@ -38,7 +38,11 @@ query($login: String!, $number: Int!) {
           }
         }
       }
-      items(first: 100) {
+      items(first: 100, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         nodes {
           id
           content {
@@ -112,27 +116,39 @@ def _graphql(query: str, **variables: str | int) -> dict:
 
 
 def _load_project() -> tuple[str, dict[str, str], dict[int, str], str]:
-    data = _graphql(PROJECT_QUERY, login=OWNER, number=PROJECT_NUMBER)
-    project = data["user"]["projectV2"]
-    project_id = project["id"]
-
-    status_field = next(
-        (field for field in project["fields"]["nodes"] if field.get("name") == "Workflow Status"),
-        None,
-    )
-    if not status_field:
-        raise RuntimeError("Workflow Status field not found on project")
-
-    status_map = {opt["name"]: opt["id"] for opt in status_field["options"]}
-    field_id = status_field["id"]
-
+    project_id: str | None = None
+    status_map: dict[str, str] = {}
+    field_id: str | None = None
     item_by_issue: dict[int, str] = {}
-    for item in project["items"]["nodes"]:
-        content = item.get("content") or {}
-        number = content.get("number")
-        if number is not None:
-            item_by_issue[int(number)] = item["id"]
+    after: str | None = None
 
+    while True:
+        data = _graphql(PROJECT_QUERY, login=OWNER, number=PROJECT_NUMBER, after=after or "")
+        project = data["user"]["projectV2"]
+        if project_id is None:
+            project_id = project["id"]
+            status_field = next(
+                (field for field in project["fields"]["nodes"] if field.get("name") == "Workflow Status"),
+                None,
+            )
+            if not status_field:
+                raise RuntimeError("Workflow Status field not found on project")
+            status_map = {opt["name"]: opt["id"] for opt in status_field["options"]}
+            field_id = status_field["id"]
+
+        items = project["items"]
+        for item in items["nodes"]:
+            content = item.get("content") or {}
+            number = content.get("number")
+            if number is not None:
+                item_by_issue[int(number)] = item["id"]
+
+        page_info = items["pageInfo"]
+        if not page_info.get("hasNextPage"):
+            break
+        after = page_info.get("endCursor")
+
+    assert project_id is not None and field_id is not None
     return project_id, status_map, item_by_issue, field_id
 
 
@@ -149,15 +165,13 @@ def _get_issue_node_id(issue_number: int) -> str:
     return issue["id"]
 
 
-def _add_issue_to_project(issue_number: int, project_id: str) -> None:
-    """Add issue to project via GraphQL (same transport as status updates).
-
-    Avoids `gh project item-add`, which returns misleading "unknown owner type"
-    in CI when the PAT lacks scopes that the read-only project query still satisfies.
-    """
+def _add_issue_to_project(issue_number: int, project_id: str) -> str:
+    """Add issue to project via GraphQL; return new project item id."""
     content_id = _get_issue_node_id(issue_number)
-    _graphql(ADD_ITEM_MUTATION, projectId=project_id, contentId=content_id)
+    data = _graphql(ADD_ITEM_MUTATION, projectId=project_id, contentId=content_id)
+    item_id = data["addProjectV2ItemById"]["item"]["id"]
     time.sleep(1)
+    return item_id
 
 
 def set_issue_status(*, issue_number: int, status: str, add_to_project: bool = False) -> None:
@@ -174,14 +188,7 @@ def set_issue_status(*, issue_number: int, status: str, add_to_project: bool = F
                 f"Issue #{issue_number} is not on project {PROJECT_NUMBER}. "
                 "Use --add-to-project to add it first."
             )
-        _add_issue_to_project(issue_number, project_id)
-        item_id = None
-        for _ in range(3):
-            _, _, item_by_issue, _ = _load_project()
-            item_id = item_by_issue.get(issue_number)
-            if item_id:
-                break
-            time.sleep(2)
+        item_id = _add_issue_to_project(issue_number, project_id)
     else:
         item_id = item_by_issue.get(issue_number)
 
