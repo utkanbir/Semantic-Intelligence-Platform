@@ -30,3 +30,14 @@ Infrastructure PRs often trigger architecture gate (namespace, security baseline
 - `docs/adr/ADR-001-cloud-native-deployment-strategy.md`
 - `infra/README.md`
 - `docs/governance/SIP_Decision_Authority_and_Lifecycle.md`
+
+## Sprint-close cluster DB (mandatory with PMO)
+
+When a sprint adds Alembic revisions, before PMO closes the milestone:
+
+1. Port-forward Postgres if needed; `python -m alembic upgrade head` from `backend/` against `sip-dev` DB.
+2. Build and roll out versioned image `sip-backend:s<N>` (avoid stale `sip-backend:dev` cache — TD-016).
+3. PMO runs `scripts/verify-sprint-db.ps1 -Sprint <N>` — exit 0 required.
+4. Update `scripts/sprint_db_expectations.json` if not already done in the same PR batch.
+
+Do not mark sprint infrastructure complete in retro §11 until verify passes.

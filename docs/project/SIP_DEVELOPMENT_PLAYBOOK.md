@@ -420,6 +420,26 @@ At every sprint close, PMO MUST document relational DB changes in the sprint ret
 
 Source of truth: `backend/alembic/versions/`. Cross-check with §11 data model bullets; §12 is the authoritative schema/relations view for DB readers.
 
+### Cluster DB verification (mandatory at sprint close)
+
+Before closing the milestone or finalizing retro §12, PMO MUST verify the **`sip-dev` cluster database** matches the sprint — not only `develop` migrations.
+
+```powershell
+powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
+```
+
+| Check | Failure means |
+|-------|----------------|
+| `alembic_version` = expected head for sprint N | Migrations not applied on cluster — **blocker** |
+| Sprint **new tables** exist in `public` | Same — retro §12 must not be signed off |
+| **Cumulative** tables exist | Partial schema drift |
+
+**On failure:** DevOps runs `alembic upgrade head` against cluster Postgres (see `infra/README.md`), rolls out versioned backend image (`sip-backend:sN`), re-runs verify until exit 0.
+
+**Manifest:** `scripts/sprint_db_expectations.json` — PMO adds sprint entry when landing new migrations.
+
+**Sprint-close order:** CI green → cluster DB verify pass → retro §10–§12 → milestone close → board reconcile.
+
 ### Recommended MVP build sequence
 
 Align early sprints with Implementation Guide §17:
