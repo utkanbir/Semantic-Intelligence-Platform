@@ -6,6 +6,7 @@ import {
   type ApplicationResponse,
 } from "../api/applications";
 import { ApplicationShell } from "../components/ApplicationShell";
+import { DiscoveryPage } from "./DiscoveryPage";
 
 type PageState =
   | { kind: "loading" }
@@ -157,7 +158,7 @@ export function ApplicationDetailPage() {
         <Route index element={<OverviewSection application={application} />} />
         <Route
           path="discovery"
-          element={<ComingSoonSection section="Discovery" />}
+          element={<DiscoveryPage applicationId={application.id} />}
         />
         <Route
           path="blueprint"
