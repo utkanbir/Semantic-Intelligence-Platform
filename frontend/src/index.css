@@ -217,3 +217,196 @@ body {
   color: #6b6b80;
   background: #eceef2;
 }
+
+.applications-table__link {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.applications-table__link:hover {
+  color: #2d4a7c;
+  text-decoration: underline;
+}
+
+.applications-table__link:hover .applications-table__key {
+  background: #e4e8f0;
+}
+
+.application-detail__status {
+  margin: 0;
+  color: #4a4a68;
+}
+
+.application-detail__error {
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #e8b4b4;
+  background: #fff5f5;
+  color: #8b3a3a;
+}
+
+.application-shell__header {
+  margin-bottom: 1.5rem;
+}
+
+.application-shell__identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.application-shell__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.application-shell__key {
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.8125rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  background: #f0f2f6;
+}
+
+.application-shell__status {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.application-shell__status--created,
+.application-shell__status--provisioned {
+  color: #4a4a68;
+  background: #eef0f4;
+}
+
+.application-shell__status--active {
+  color: #1f5c38;
+  background: #d8f3e4;
+}
+
+.application-shell__status--evolving {
+  color: #5c4a1f;
+  background: #f3ecd8;
+}
+
+.application-shell__status--retired {
+  color: #6b6b80;
+  background: #eceef2;
+}
+
+.application-shell__body {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.application-shell__nav {
+  flex-shrink: 0;
+  width: 11rem;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.5rem;
+}
+
+.application-shell__nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.application-shell__nav-link {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  color: #4a4a68;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.application-shell__nav-link:hover {
+  color: #1a1a2e;
+  background: #f0f2f6;
+}
+
+.application-shell__nav-link--active {
+  color: #1a1a2e;
+  background: #e8ebf2;
+}
+
+.application-shell__content {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fff;
+  padding: 1.25rem 1.5rem;
+}
+
+.application-overview h2,
+.application-placeholder h2 {
+  margin: 0 0 1rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.application-overview__subheading {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #4a4a68;
+}
+
+.application-overview__details {
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.application-overview__details--workspace {
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 1rem;
+}
+
+.application-overview__row {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.application-overview__row dt {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b6b80;
+}
+
+.application-overview__row dd {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.application-overview__row dd code {
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.8125rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  background: #f0f2f6;
+}
+
+.application-placeholder__message {
+  margin: 0;
+  color: #6b6b80;
+  font-size: 0.9375rem;
+}
