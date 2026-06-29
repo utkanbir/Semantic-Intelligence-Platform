@@ -32,6 +32,7 @@ from app.modules.assets.api.routes import router as assets_router
 from app.modules.audit_trace.api.routes import router as audit_trace_router
 from app.modules.blueprints.api.routes import router as blueprints_router
 from app.modules.discovery.api.routes import router as discovery_router
+from app.modules.governance.api.routes import router as policies_router
 from app.modules.knowledge_graph.api.routes import router as knowledge_graphs_router
 from app.modules.ontology.api.routes import router as ontologies_router
 from app.modules.products.api.routes import router as products_router
@@ -61,3 +62,4 @@ api_v1_router.include_router(
 )
 api_v1_router.include_router(adapters_router, prefix="/adapters", tags=["adapters"])
 api_v1_router.include_router(agent_runs_router, prefix="/agent-runs", tags=["agent-runs"])
+api_v1_router.include_router(policies_router, prefix="/policies", tags=["governance"])
