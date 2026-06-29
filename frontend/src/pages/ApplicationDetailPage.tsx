@@ -6,6 +6,7 @@ import {
   type ApplicationResponse,
 } from "../api/applications";
 import { ApplicationShell } from "../components/ApplicationShell";
+import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
 
 type PageState =
@@ -162,7 +163,7 @@ export function ApplicationDetailPage() {
         />
         <Route
           path="blueprint"
-          element={<ComingSoonSection section="Blueprint" />}
+          element={<BlueprintPage applicationId={application.id} />}
         />
         <Route
           path="products"
