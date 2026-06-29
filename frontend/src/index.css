@@ -106,19 +106,32 @@ body {
   width: 100%;
 }
 
-.home-page h1 {
+.applications-page h1 {
   margin: 0 0 0.5rem;
   font-size: 1.75rem;
   font-weight: 600;
 }
 
-.home-page__lead {
+.applications-page__lead {
   margin: 0 0 1.5rem;
   color: #4a4a68;
   max-width: 42rem;
 }
 
-.home-page__placeholder {
+.applications-page__status {
+  margin: 0;
+  color: #4a4a68;
+}
+
+.applications-page__error {
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #e8b4b4;
+  background: #fff5f5;
+  color: #8b3a3a;
+}
+
+.applications-page__empty {
   padding: 2rem;
   border: 1px dashed #c8ccd4;
   border-radius: 8px;
@@ -127,12 +140,80 @@ body {
   color: #4a4a68;
 }
 
-.home-page__placeholder p {
+.applications-page__empty p {
   margin: 0;
 }
 
-.home-page__hint {
+.applications-page__hint {
   margin-top: 0.5rem !important;
   font-size: 0.875rem;
   color: #6b6b80;
+}
+
+.applications-page__table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.applications-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.applications-table th,
+.applications-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e8ebf0;
+}
+
+.applications-table th {
+  font-weight: 600;
+  color: #4a4a68;
+  background: #f8f9fb;
+}
+
+.applications-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.applications-table__key {
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.8125rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  background: #f0f2f6;
+}
+
+.applications-table__status {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.applications-table__status--created,
+.applications-table__status--provisioned {
+  color: #4a4a68;
+  background: #eef0f4;
+}
+
+.applications-table__status--active {
+  color: #1f5c38;
+  background: #d8f3e4;
+}
+
+.applications-table__status--evolving {
+  color: #5c4a1f;
+  background: #f3ecd8;
+}
+
+.applications-table__status--retired {
+  color: #6b6b80;
+  background: #eceef2;
 }

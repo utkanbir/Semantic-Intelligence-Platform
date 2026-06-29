@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { NavLink } from "react-router-dom";
 import { getHealth } from "../api";
 
 interface AppShellProps {
@@ -57,9 +58,15 @@ export function AppShell({ children }: AppShellProps) {
             {connectionLabel(connectionStatus)}
           </span>
           <nav className="app-nav" aria-label="Primary">
-            <a href="/" className="app-nav__link app-nav__link--active" aria-current="page">
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                `app-nav__link${isActive ? " app-nav__link--active" : ""}`
+              }
+            >
               Applications
-            </a>
+            </NavLink>
           </nav>
         </div>
       </header>
