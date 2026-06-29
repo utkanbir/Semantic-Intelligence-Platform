@@ -48,7 +48,9 @@
 | Item | Status |
 |------|--------|
 | `ingressClassName: nginx` on SIP ingress | **Met** — `7066a1e` |
-| `sip-console:s13` on `sip-dev` | **Met** |
+| `sip-console:s14` on `sip-dev` | **Met** |
+| `sip-backend:s14` on `sip-dev` | **Met** — post-close; agents API live |
+| `postgresql+psycopg://` in backend secret | **Met** — aligns with SQLAlchemy driver |
 | nginx ingress controller documented | **Met** — `infra/README.md` |
 
 ---

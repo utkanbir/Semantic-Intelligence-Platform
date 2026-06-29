@@ -25,7 +25,8 @@
 
 - **All Console module tabs live** — Discovery, Blueprint, Products, Agents wired to `/api/v1`.
 - **Ingress fix** — `ingressClassName: nginx` + controller install enables `console.sip.local` on Docker Desktop K8s.
-- **`sip-console:s13`** deployed to `sip-dev` with full module screens.
+- **`sip-console:s14`** deployed to `sip-dev` with full module screens (rebuilt after stale `s13` digest).
+- **`sip-backend:s14`** pinned in dev overlay — Agents API required current backend image on cluster.
 - **25 frontend vitest** + **188 backend pytest**.
 
 ---
@@ -53,7 +54,7 @@
 | Blueprint list in Console | **Met** |
 | Products list in Console | **Met** |
 | Agents list in Console | **Met** |
-| `sip-console:s13` on cluster | **Met** |
+| `sip-console:s14` on cluster | **Met** |
 | Ingress `console.sip.local` documented | **Met** |
 | Sprint-close gates | **Met** |
 
@@ -95,7 +96,9 @@
 | Item | Commit / PR |
 |------|-------------|
 | `ingressClassName: nginx` | `7066a1e` |
-| `sip-console:s13` dev overlay | `9f751dd` |
+| `sip-console:s14` dev overlay | `9f751dd` + post-close `s14` rebuild |
+| `sip-backend:s14` dev overlay | post-close — agents `/api/v1/agents` on cluster |
+| `SIP_DATABASE_URL` `postgresql+psycopg://` in backend secret | post-close — fixes backend CrashLoop on s14 image |
 | Ingress controller install docs | `infra/README.md` |
 
 ### CI
