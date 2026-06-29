@@ -24,6 +24,8 @@ Guidelines:
 from fastapi import APIRouter
 
 from app.api.v1.health import router as health_router
+from app.modules.adapters.api.routes import router as adapters_router
+from app.modules.agent_runtime.api.routes import router as agent_runs_router
 from app.modules.agents.api.routes import router as agents_router
 from app.modules.applications.api.routes import router as applications_router
 from app.modules.assets.api.routes import router as assets_router
@@ -57,3 +59,5 @@ api_v1_router.include_router(
     prefix="/knowledge-graphs",
     tags=["knowledge-graphs"],
 )
+api_v1_router.include_router(adapters_router, prefix="/adapters", tags=["adapters"])
+api_v1_router.include_router(agent_runs_router, prefix="/agent-runs", tags=["agent-runs"])
