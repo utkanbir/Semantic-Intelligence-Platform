@@ -38,3 +38,7 @@ export interface ApplicationResponse {
 export function listApplications(): Promise<ApplicationResponse[]> {
   return apiFetch<ApplicationResponse[]>("/applications");
 }
+
+export function getApplication(id: string): Promise<ApplicationResponse> {
+  return apiFetch<ApplicationResponse>(`/applications/${id}`);
+}

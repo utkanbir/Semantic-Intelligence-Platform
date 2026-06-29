@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listApplications, type ApplicationResponse } from "../api/applications";
 import { ApplicationsPage } from "./ApplicationsPage";
@@ -46,7 +47,11 @@ describe("ApplicationsPage", () => {
         }),
     );
 
-    render(<ApplicationsPage />);
+    render(
+      <MemoryRouter>
+        <ApplicationsPage />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText("Loading applications…")).toBeInTheDocument();
 
@@ -57,5 +62,12 @@ describe("ApplicationsPage", () => {
     expect(screen.getByText("demo")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(listApplications).toHaveBeenCalledTimes(1);
+
+    const detailLink = screen.getByRole("link", { name: "Demo App" });
+    expect(detailLink).toHaveAttribute("href", "/applications/app-1");
+    expect(screen.getByRole("link", { name: "demo" })).toHaveAttribute(
+      "href",
+      "/applications/app-1",
+    );
   });
 });
