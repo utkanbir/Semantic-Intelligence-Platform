@@ -438,7 +438,25 @@ powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
 
 **Manifest:** `scripts/sprint_db_expectations.json` — PMO adds sprint entry when landing new migrations.
 
-**Sprint-close order:** CI green → cluster DB verify pass → retro §10–§12 → milestone close → board reconcile.
+**Sprint-close order:** CI green → cluster DB verify pass → **board verify pass** → retro §10–§12 → milestone close → board reconcile (if needed).
+
+### Project board verification (mandatory at sprint close)
+
+Before closing the milestone, PMO MUST verify every issue on the sprint milestone is on **SIP MVP Delivery** (project #3) with the correct **Workflow Status** (usually **Done** for closed sprints):
+
+```powershell
+powershell -File scripts/verify-sprint-board.ps1 -Sprint <N>
+```
+
+| Check | Failure means |
+|-------|----------------|
+| Issue on project board | Missing card — **blocker** |
+| Workflow Status set | "No status" column — **blocker** (common after `item-add` without status update) |
+| Status = **Done** (at sprint close) | Drift — repair before milestone close |
+
+**On failure:** run `scripts/set-board-status.ps1 -IssueNumber <N> -Status Done -AddToProject` per issue, or `scripts/fix-project-board.ps1` for batch repair; re-run verify until exit 0.
+
+**Manifest:** `scripts/sprint_board_expectations.json` — PMO adds sprint issue list when milestone is created.
 
 ### Recommended MVP build sequence
 
