@@ -3,6 +3,7 @@ kind: Ingress
 metadata:
   name: sip-api
 spec:
+  ingressClassName: nginx
   rules:
     - host: api.sip.local
       http:
