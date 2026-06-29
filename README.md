@@ -111,8 +111,9 @@ SIP MVP is under active sprint delivery on the `develop` integration branch.
 | Adapters & Agent Runtime (Sprint 8) | ✅ Closed |
 | Governance (Sprint 9) | ✅ Closed |
 | Assessment MVP E2E (Sprint 10) | ✅ Closed |
+| Platform Console (Sprint 11) | ✅ Closed |
 
-**Current:** 188 pytest · Alembic head `20260629_0015` · 12 E2E tests in `tests/e2e/`
+**Current:** 188 pytest · 10 frontend vitest · Alembic `20260629_0015` · Console at `frontend/` (local dev)
 
 ---
 
