@@ -122,10 +122,10 @@ curl http://127.0.0.1:8080/api/v1/health/live
 
 ### Platform Console access (S12-04)
 
-The dev overlay pins `sip-console:s13` (see `infra/kubernetes/overlays/dev/kustomization.yaml` `images` section). Rebuild and re-apply after frontend changes:
+The dev overlay pins `sip-console:s14` (see `infra/kubernetes/overlays/dev/kustomization.yaml` `images` section). Rebuild and re-apply after frontend changes:
 
 ```bash
-docker build -t sip-console:s13 frontend
+docker build -t sip-console:s14 frontend
 kubectl apply -k infra/kubernetes/overlays/dev
 kubectl -n sip-dev rollout status deployment/sip-console
 ```

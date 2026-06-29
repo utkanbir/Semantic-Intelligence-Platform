@@ -14,4 +14,4 @@ labels:
 images:
   - name: sip-console:dev
     newName: sip-console
-    newTag: s13
+    newTag: s14
