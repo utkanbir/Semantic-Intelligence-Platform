@@ -21,6 +21,7 @@ $s7AddIssues = @(112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122)
 $s8AddIssues = @(127, 128, 129, 130, 131, 132, 133, 134, 135, 136)
 $s9AddIssues = @(139, 140, 141, 142, 143, 144)
 $s10AddIssues = @(147, 148, 149, 150, 151, 152)
+$s11AddIssues = @(158, 159, 160, 161, 162, 163)
 $s1Statuses = @{
     29 = "Done"
     30 = "Done"
@@ -117,6 +118,14 @@ $s10Statuses = @{
     150 = "Done"
     151 = "Done"
     152 = "Done"
+}
+$s11Statuses = @{
+    158 = "Ready"      # E-13 epic
+    159 = "Done"
+    160 = "Ready"
+    161 = "Ready"
+    162 = "Ready"
+    163 = "Ready"
 }
 
 $query = @'
@@ -370,5 +379,7 @@ Set-SprintBoard -IssueNumbers $s8AddIssues -StatusMap $s8Statuses
 Set-SprintBoard -IssueNumbers $s9AddIssues -StatusMap $s9Statuses
 
 Set-SprintBoard -IssueNumbers $s10AddIssues -StatusMap $s10Statuses
+
+Set-SprintBoard -IssueNumbers $s11AddIssues -StatusMap $s11Statuses
 
 Write-Host "Board update complete."
