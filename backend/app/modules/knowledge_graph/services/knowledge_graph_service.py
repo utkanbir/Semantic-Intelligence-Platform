@@ -93,10 +93,9 @@ class KnowledgeGraphService:
         self._validate_bound_ontologies(application_id, ontology_ids)
 
         now = datetime.now(UTC)
-        if graph_metadata is None:
-            metadata = dict(DEFAULT_GRAPH_METADATA)
-        else:
-            metadata = graph_metadata
+        metadata = (
+            dict(DEFAULT_GRAPH_METADATA) if graph_metadata is None else graph_metadata
+        )
         registry = KnowledgeGraphRegistry(
             id=uuid4(),
             application_id=application_id,
