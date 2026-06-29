@@ -5,10 +5,15 @@ import {
   getApplication,
   type ApplicationResponse,
 } from "../api/applications";
+import { listDiscoverySessions } from "../api/discovery";
 import { ApplicationDetailPage } from "./ApplicationDetailPage";
 
 vi.mock("../api/applications", () => ({
   getApplication: vi.fn(),
+}));
+
+vi.mock("../api/discovery", () => ({
+  listDiscoverySessions: vi.fn(),
 }));
 
 const mockApplication: ApplicationResponse = {
@@ -54,6 +59,8 @@ describe("ApplicationDetailPage", () => {
   beforeEach(() => {
     vi.mocked(getApplication).mockReset();
     vi.mocked(getApplication).mockResolvedValue(mockApplication);
+    vi.mocked(listDiscoverySessions).mockReset();
+    vi.mocked(listDiscoverySessions).mockResolvedValue([]);
   });
 
   it("loads application and shows overview by default", async () => {
@@ -72,7 +79,29 @@ describe("ApplicationDetailPage", () => {
     expect(screen.getAllByText("app-demo").length).toBeGreaterThan(0);
   });
 
-  it("navigates to placeholder sections", async () => {
+  it("navigates to discovery sessions list", async () => {
+    vi.mocked(listDiscoverySessions).mockResolvedValue([
+      {
+        id: "session-1",
+        application_id: "app-1",
+        status: "Active",
+        title: "Session A",
+        started_by: "bob@example.com",
+        started_at: "2025-06-01T10:00:00Z",
+        completed_at: null,
+        intent_summary: null,
+        discovery_notes: null,
+        recommendations: [],
+        generated_blueprint_id: null,
+        conversation_history: [],
+        current_phase: {
+          phase_number: 1,
+          phase_name: "Intent Discovery",
+        },
+        phase_history: [],
+      },
+    ]);
+
     renderDetailPage();
 
     await waitFor(() => {
@@ -81,13 +110,26 @@ describe("ApplicationDetailPage", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "Discovery" }));
 
+    await waitFor(() => {
+      expect(screen.getByText("Session A")).toBeInTheDocument();
+    });
+
+    expect(listDiscoverySessions).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Discovery" })).toBeInTheDocument();
-    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("navigates to placeholder sections", async () => {
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole("link", { name: "Agents" }));
 
     expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
-    expect(screen.getAllByText("Coming soon")).toHaveLength(1);
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
   });
 
   it("highlights active section in navigation", async () => {
