@@ -120,12 +120,12 @@ $s10Statuses = @{
     152 = "Done"
 }
 $s11Statuses = @{
-    158 = "Ready"      # E-13 epic
+    158 = "Done"       # E-13 epic
     159 = "Done"
-    160 = "Ready"
-    161 = "Ready"
-    162 = "Ready"
-    163 = "Ready"
+    160 = "Done"
+    161 = "Done"
+    162 = "Done"
+    163 = "Done"
 }
 
 $query = @'
