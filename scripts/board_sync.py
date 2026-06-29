@@ -66,6 +66,26 @@ mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
 }
 """
 
+ISSUE_NODE_QUERY = """
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      id
+    }
+  }
+}
+"""
+
+ADD_ITEM_MUTATION = """
+mutation($projectId: ID!, $contentId: ID!) {
+  addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+    item { id }
+  }
+}
+"""
+
+_REPO_OWNER, _REPO_NAME = REPO.split("/", 1)
+
 
 def _run_gh(args: list[str]) -> str:
     result = subprocess.run(
@@ -116,19 +136,27 @@ def _load_project() -> tuple[str, dict[str, str], dict[int, str], str]:
     return project_id, status_map, item_by_issue, field_id
 
 
-def _add_issue_to_project(issue_number: int) -> None:
-    url = f"https://github.com/{REPO}/issues/{issue_number}"
-    _run_gh(
-        [
-            "project",
-            "item-add",
-            str(PROJECT_NUMBER),
-            "--owner",
-            OWNER,
-            "--url",
-            url,
-        ]
+def _get_issue_node_id(issue_number: int) -> str:
+    data = _graphql(
+        ISSUE_NODE_QUERY,
+        owner=_REPO_OWNER,
+        name=_REPO_NAME,
+        number=issue_number,
     )
+    issue = data["repository"]["issue"]
+    if not issue or not issue.get("id"):
+        raise RuntimeError(f"Issue #{issue_number} not found in {_REPO_NAME}")
+    return issue["id"]
+
+
+def _add_issue_to_project(issue_number: int, project_id: str) -> None:
+    """Add issue to project via GraphQL (same transport as status updates).
+
+    Avoids `gh project item-add`, which returns misleading "unknown owner type"
+    in CI when the PAT lacks scopes that the read-only project query still satisfies.
+    """
+    content_id = _get_issue_node_id(issue_number)
+    _graphql(ADD_ITEM_MUTATION, projectId=project_id, contentId=content_id)
     time.sleep(1)
 
 
@@ -146,7 +174,7 @@ def set_issue_status(*, issue_number: int, status: str, add_to_project: bool = F
                 f"Issue #{issue_number} is not on project {PROJECT_NUMBER}. "
                 "Use --add-to-project to add it first."
             )
-        _add_issue_to_project(issue_number)
+        _add_issue_to_project(issue_number, project_id)
         item_id = None
         for _ in range(3):
             _, _, item_by_issue, _ = _load_project()
