@@ -53,6 +53,10 @@
     "12": {
       "label": "Console Deploy & Release",
       "issues": [169, 170, 171, 172, 173, 174]
+    },
+    "13": {
+      "label": "Console Blueprint",
+      "issues": [179, 180, 182, 183]
     }
   }
 }
