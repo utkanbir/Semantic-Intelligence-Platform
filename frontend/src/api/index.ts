@@ -19,3 +19,13 @@ export {
   type BlueprintResponse,
   type BlueprintStatus,
 } from "./blueprints";
+export {
+  listProducts,
+  type PublishedDataProductResponse,
+  type PublishedDataProductStatus,
+} from "./products";
+export {
+  listAgents,
+  type AgentDefinitionResponse,
+  type AgentDefinitionStatus,
+} from "./agents";

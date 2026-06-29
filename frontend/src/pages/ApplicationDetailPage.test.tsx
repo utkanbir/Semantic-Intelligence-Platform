@@ -5,8 +5,10 @@ import {
   getApplication,
   type ApplicationResponse,
 } from "../api/applications";
+import { listAgents } from "../api/agents";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
+import { listProducts } from "../api/products";
 import { ApplicationDetailPage } from "./ApplicationDetailPage";
 
 vi.mock("../api/applications", () => ({
@@ -19,6 +21,14 @@ vi.mock("../api/discovery", () => ({
 
 vi.mock("../api/blueprints", () => ({
   listBlueprints: vi.fn(),
+}));
+
+vi.mock("../api/products", () => ({
+  listProducts: vi.fn(),
+}));
+
+vi.mock("../api/agents", () => ({
+  listAgents: vi.fn(),
 }));
 
 const mockApplication: ApplicationResponse = {
@@ -68,6 +78,10 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listDiscoverySessions).mockResolvedValue([]);
     vi.mocked(listBlueprints).mockReset();
     vi.mocked(listBlueprints).mockResolvedValue([]);
+    vi.mocked(listProducts).mockReset();
+    vi.mocked(listProducts).mockResolvedValue([]);
+    vi.mocked(listAgents).mockReset();
+    vi.mocked(listAgents).mockResolvedValue([]);
   });
 
   it("loads application and shows overview by default", async () => {
@@ -161,7 +175,64 @@ describe("ApplicationDetailPage", () => {
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
-  it("navigates to placeholder sections", async () => {
+  it("navigates to products list", async () => {
+    vi.mocked(listProducts).mockResolvedValue([
+      {
+        id: "prod-1",
+        application_id: "app-1",
+        version_number: 1,
+        previous_version_id: null,
+        status: "Published",
+        title: "Product A",
+        description: null,
+        created_by: "alice@example.com",
+        created_at: "2025-06-01T10:00:00Z",
+        updated_at: "2025-06-01T10:00:00Z",
+        certified_at: null,
+        published_at: "2025-06-02T10:00:00Z",
+        version_created_at: null,
+        product_definition: {},
+        source_asset_record_ids: [],
+      },
+    ]);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Products" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Product A")).toBeInTheDocument();
+    });
+
+    expect(listProducts).toHaveBeenCalledWith("app-1");
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("navigates to agents list", async () => {
+    vi.mocked(listAgents).mockResolvedValue([
+      {
+        id: "agent-1",
+        application_id: "app-1",
+        version_number: 1,
+        previous_version_id: null,
+        status: "Active",
+        title: "Agent A",
+        description: null,
+        created_by: "bob@example.com",
+        created_at: "2025-06-01T10:00:00Z",
+        updated_at: "2025-06-01T10:00:00Z",
+        approved_at: null,
+        activated_at: null,
+        version_created_at: null,
+        agent_definition: {},
+        bound_product_ids: [],
+      },
+    ]);
+
     renderDetailPage();
 
     await waitFor(() => {
@@ -170,8 +241,12 @@ describe("ApplicationDetailPage", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "Agents" }));
 
-    expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
-    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Agent A")).toBeInTheDocument();
+    });
+
+    expect(listAgents).toHaveBeenCalledWith("app-1");
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
   it("highlights active section in navigation", async () => {
