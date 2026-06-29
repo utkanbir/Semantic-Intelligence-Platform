@@ -7,3 +7,10 @@ export {
   type ApplicationStatus,
   type ApplicationWorkspaceResponse,
 } from "./applications";
+export {
+  listDiscoverySessions,
+  type CurrentPhaseResponse,
+  type DiscoveryPhaseHistoryResponse,
+  type DiscoverySessionResponse,
+  type DiscoverySessionStatus,
+} from "./discovery";
