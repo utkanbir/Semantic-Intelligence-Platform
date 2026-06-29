@@ -10,8 +10,8 @@ labels:
   - pairs:
       environment: dev
 
-# S12-04: pin console image to avoid stale :dev cache (TD-016 pattern)
+# S13: pin console image after Blueprint screen (TD-016 pattern)
 images:
   - name: sip-console:dev
     newName: sip-console
-    newTag: s12
+    newTag: s13
