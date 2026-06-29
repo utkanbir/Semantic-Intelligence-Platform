@@ -74,19 +74,29 @@
 | ontology | `/api/v1/ontologies` CRUD, `/status`, `/versions` | #124 |
 | knowledge_graph | `/api/v1/knowledge-graphs` CRUD, `/status` | #126 |
 
-### Contracts
+### 2) Data models
+
+| Model | Table | PR |
+|-------|-------|-----|
+| OntologyDefinition | `ontology_definitions` | #124 |
+| KnowledgeGraphRegistry | `knowledge_graph_registries` | #126 |
+
+### 3) Reports / contracts
 
 | Document | PR |
 |----------|-----|
 | `SIP_Ontology_Definition_Contract_v1.md` | #123 |
 | `SIP_Knowledge_Graph_Contract_v1.md` | #125 |
 
-### Infrastructure
+Operasyonel / export raporu: **Yok**.
+
+### 4) Infrastructure
 
 | Öğe | Detay |
 |-----|--------|
-| Test suite | **164** pytest |
-| CI | PR #123–#126 merged |
+| Kubernetes | **Gap at sprint close** — cluster remained `sip-backend:s6`, `alembic_version=0010`; migrations `0011`–`0012` not applied on `sip-dev` until post-retro reconcile |
+| CI / GitHub | PR #123–#126 merged; 164 pytest green |
+| Test suite | **164** pytest (`develop`) |
 
 ---
 
@@ -96,23 +106,36 @@
 
 | Revision | PR | Değişiklik |
 |----------|-----|------------|
-| `20260629_0011` | #124 | **`ontology_definitions`** |
-| `20260629_0012` | #126 | **`knowledge_graph_registries`** |
+| `20260629_0011` | #124 | **`ontology_definitions`** — version lineage, lifecycle alanları, `ontology_definition` (JSONB), FK → `applications`, self-FK `previous_version_id`, index `ix_ontology_definitions_application_id` |
+| `20260629_0012` | #126 | **`knowledge_graph_registries`** — lifecycle alanları, `graph_metadata` / `bound_ontology_ids` (JSONB), FK → `applications`, index `ix_knowledge_graph_registries_application_id` |
 
 ### Cumulative schema (Sprint 7 sonu)
 
 **Alembic head:** `20260629_0012`
 
-**Tablolar:** prior 11 domain tables + `ontology_definitions`, `knowledge_graph_registries`
+**Tablolar:** `alembic_version`, `applications`, `application_workspaces`, `semantic_transactions`, `trace_steps`, `discovery_sessions`, `discovery_phase_history`, `blueprints`, `asset_records`, `published_data_products`, `agent_definitions`, `ontology_definitions`, `knowledge_graph_registries`
+
+**Cluster (`sip-dev`) at sprint close:** `alembic_version = 20260629_0010` (only through Sprint 6). Tables `ontology_definitions` and `knowledge_graph_registries` existed in `develop` migrations but **not** in cluster until post-retro reconcile (2026-06-29: `alembic upgrade head` → `0012`).
 
 ### Relations
 
 ```mermaid
 erDiagram
+    applications ||--o| application_workspaces : has
+    applications ||--o{ discovery_sessions : owns
+    applications ||--o{ blueprints : owns
+    applications ||--o{ asset_records : owns
+    applications ||--o{ published_data_products : owns
+    applications ||--o{ agent_definitions : owns
     applications ||--o{ ontology_definitions : owns
     applications ||--o{ knowledge_graph_registries : owns
+    discovery_sessions ||--o{ discovery_phase_history : phases
+    semantic_transactions ||--o{ trace_steps : steps
+    blueprints ||--o{ blueprints : previous_version
+    published_data_products ||--o{ published_data_products : previous_version
+    agent_definitions ||--o{ agent_definitions : previous_version
     ontology_definitions ||--o{ ontology_definitions : previous_version
     knowledge_graph_registries }o..o{ ontology_definitions : bound_ontology_ids
 ```
 
-`bound_ontology_ids` — logical JSONB; validated at service layer.
+`bound_ontology_ids` is logical JSONB (no DB FK); validated at service layer.
