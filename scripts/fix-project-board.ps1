@@ -15,6 +15,7 @@ $s1AddIssues = @(29, 30, 31, 35, 37, 38, 39)
 $s2AddIssues = @(43, 44, 45, 46, 47, 48, 49)
 $s3AddIssues = @(56, 57, 58, 59, 60, 61, 62)
 $s4AddIssues = @(73, 75, 72, 76, 77, 78, 79, 80, 81)
+$s5AddIssues = @(89, 90, 95, 91, 92, 93, 94)
 $s1Statuses = @{
     29 = "Done"
     30 = "Done"
@@ -52,6 +53,15 @@ $s4Statuses = @{
     79 = "Done"
     80 = "Done"
     81 = "Done"
+}
+$s5Statuses = @{
+    89 = "Done"       # E-07 epic
+    90 = "Done"
+    95 = "Done"
+    91 = "Done"
+    92 = "Done"
+    93 = "Done"
+    94 = "Done"
 }
 
 $query = @'
@@ -212,6 +222,27 @@ foreach ($num in $s4AddIssues) {
 foreach ($num in $s4AddIssues) {
     if ($itemByIssue.ContainsKey($num)) {
         $status = $s4Statuses[$num]
+        Write-Host "Issue #$num -> $status"
+        Set-ProjectStatus -ItemId $itemByIssue[$num] -StatusName $status
+    }
+}
+
+foreach ($num in $s5AddIssues) {
+    if (-not $itemByIssue.ContainsKey($num)) {
+        Write-Host "Adding issue #$num to project..."
+        $url = "https://github.com/$repo/issues/$num"
+        gh project item-add $projectNumber --owner $owner --url $url | Out-Null
+        Start-Sleep -Seconds 1
+        $json = gh api graphql -f query=$query -f login=$owner -F number=$projectNumber | ConvertFrom-Json
+        foreach ($item in $json.data.user.projectV2.items.nodes) {
+            if ($item.content.number -eq $num) { $itemByIssue[$num] = $item.id }
+        }
+    }
+}
+
+foreach ($num in $s5AddIssues) {
+    if ($itemByIssue.ContainsKey($num)) {
+        $status = $s5Statuses[$num]
         Write-Host "Issue #$num -> $status"
         Set-ProjectStatus -ItemId $itemByIssue[$num] -StatusName $status
     }
