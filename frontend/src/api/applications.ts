@@ -35,8 +35,23 @@ export interface ApplicationResponse {
   workspace: ApplicationWorkspaceResponse;
 }
 
+export interface ApplicationCreateRequest {
+  key: string;
+  name: string;
+  description?: string;
+}
+
 export function listApplications(): Promise<ApplicationResponse[]> {
   return apiFetch<ApplicationResponse[]>("/applications");
+}
+
+export function createApplication(
+  body: ApplicationCreateRequest,
+): Promise<ApplicationResponse> {
+  return apiFetch<ApplicationResponse>("/applications", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export function getApplication(id: string): Promise<ApplicationResponse> {
