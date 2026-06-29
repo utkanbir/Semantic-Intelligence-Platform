@@ -24,10 +24,14 @@ OWNER = "utkanbir"
 PROJECT_NUMBER = 3
 
 PROJECT_ITEMS_QUERY = """
-query($login: String!, $number: Int!) {
+query($login: String!, $number: Int!, $after: String) {
   user(login: $login) {
     projectV2(number: $number) {
-      items(first: 100) {
+      items(first: 100, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         nodes {
           content {
             ... on Issue { number }
@@ -79,21 +83,30 @@ def _load_manifest() -> dict:
 
 
 def _workflow_status_by_issue() -> dict[int, str | None]:
-    data = _graphql(PROJECT_ITEMS_QUERY, login=OWNER, number=PROJECT_NUMBER)
-    items = data["user"]["projectV2"]["items"]["nodes"]
     result: dict[int, str | None] = {}
-    for item in items:
-        content = item.get("content") or {}
-        number = content.get("number")
-        if number is None:
-            continue
-        workflow_status: str | None = None
-        for field_value in item.get("fieldValues", {}).get("nodes", []):
-            field = field_value.get("field") or {}
-            if field.get("name") == "Workflow Status":
-                workflow_status = field_value.get("name")
-                break
-        result[int(number)] = workflow_status
+    after: str | None = None
+
+    while True:
+        data = _graphql(PROJECT_ITEMS_QUERY, login=OWNER, number=PROJECT_NUMBER, after=after or "")
+        items = data["user"]["projectV2"]["items"]
+        for item in items["nodes"]:
+            content = item.get("content") or {}
+            number = content.get("number")
+            if number is None:
+                continue
+            workflow_status: str | None = None
+            for field_value in item.get("fieldValues", {}).get("nodes", []):
+                field = field_value.get("field") or {}
+                if field.get("name") == "Workflow Status":
+                    workflow_status = field_value.get("name")
+                    break
+            result[int(number)] = workflow_status
+
+        page_info = items["pageInfo"]
+        if not page_info.get("hasNextPage"):
+            break
+        after = page_info.get("endCursor")
+
     return result
 
 
