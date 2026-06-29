@@ -22,6 +22,7 @@ $s8AddIssues = @(127, 128, 129, 130, 131, 132, 133, 134, 135, 136)
 $s9AddIssues = @(139, 140, 141, 142, 143, 144)
 $s10AddIssues = @(147, 148, 149, 150, 151, 152)
 $s11AddIssues = @(158, 159, 160, 161, 162, 163)
+$s12AddIssues = @(169, 170, 171, 172, 173, 174)
 $s1Statuses = @{
     29 = "Done"
     30 = "Done"
@@ -120,12 +121,20 @@ $s10Statuses = @{
     152 = "Done"
 }
 $s11Statuses = @{
-    158 = "Done"       # E-13 epic
+    158 = "Done"
     159 = "Done"
     160 = "Done"
     161 = "Done"
     162 = "Done"
     163 = "Done"
+}
+$s12Statuses = @{
+    169 = "Ready"
+    170 = "Done"
+    171 = "Done"
+    172 = "Done"
+    173 = "Done"
+    174 = "Ready"
 }
 
 $query = @'

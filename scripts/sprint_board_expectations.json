@@ -49,6 +49,10 @@
     "11": {
       "label": "Platform Console",
       "issues": [158, 159, 160, 161, 162, 163]
+    },
+    "12": {
+      "label": "Console Deploy & Release",
+      "issues": [169, 170, 171, 172, 173, 174]
     }
   }
 }
