@@ -83,3 +83,13 @@ export function updateProductStatus(
     body: JSON.stringify({ status }),
   });
 }
+
+/** D-003: agents may bind only Published or Versioned products. */
+export const CONSUMABLE_PRODUCT_STATUSES: PublishedDataProductStatus[] = [
+  "Published",
+  "Versioned",
+];
+
+export function isConsumableProduct(product: PublishedDataProductResponse): boolean {
+  return CONSUMABLE_PRODUCT_STATUSES.includes(product.status);
+}

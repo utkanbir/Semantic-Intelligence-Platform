@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDiscoverySession,
   listDiscoverySessions,
+  updateDiscoverySessionStatus,
   type DiscoverySessionResponse,
 } from "../api/discovery";
 import { DiscoveryPage } from "./DiscoveryPage";
@@ -10,6 +11,25 @@ import { DiscoveryPage } from "./DiscoveryPage";
 vi.mock("../api/discovery", () => ({
   listDiscoverySessions: vi.fn(),
   createDiscoverySession: vi.fn(),
+  updateDiscoverySessionStatus: vi.fn(),
+  getNextDiscoveryStatuses: vi.fn((status: string) => {
+    const map: Record<string, string[]> = {
+      Active: ["Paused", "Completed", "Archived"],
+      Paused: ["Active", "Completed", "Archived"],
+      Completed: ["Archived"],
+      Archived: [],
+    };
+    return map[status] ?? [];
+  }),
+  getDiscoveryStatusActionLabel: vi.fn((status: string) => {
+    const labels: Record<string, string> = {
+      Active: "Resume",
+      Paused: "Pause",
+      Completed: "Complete",
+      Archived: "Archive",
+    };
+    return labels[status] ?? status;
+  }),
 }));
 
 const mockSession: DiscoverySessionResponse = {
@@ -39,10 +59,16 @@ const newSession: DiscoverySessionResponse = {
   started_by: "bob@example.com",
 };
 
+const pausedSession: DiscoverySessionResponse = {
+  ...mockSession,
+  status: "Paused",
+};
+
 describe("DiscoveryPage", () => {
   beforeEach(() => {
     vi.mocked(listDiscoverySessions).mockReset();
     vi.mocked(createDiscoverySession).mockReset();
+    vi.mocked(updateDiscoverySessionStatus).mockReset();
   });
 
   it("renders loading then sessions table", async () => {
@@ -65,6 +91,7 @@ describe("DiscoveryPage", () => {
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("2. User Discovery")).toBeInTheDocument();
     expect(screen.getByText("alice@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
   });
 
   it("renders empty state with create form", async () => {
@@ -123,6 +150,48 @@ describe("DiscoveryPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     expect(screen.getByRole("heading", { name: "New discovery session" })).toBeInTheDocument();
+  });
+
+  it("pauses active session via lifecycle action", async () => {
+    vi.mocked(listDiscoverySessions)
+      .mockResolvedValueOnce([mockSession])
+      .mockResolvedValueOnce([pausedSession]);
+    vi.mocked(updateDiscoverySessionStatus).mockResolvedValue(pausedSession);
+
+    render(<DiscoveryPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+
+    await waitFor(() => {
+      expect(updateDiscoverySessionStatus).toHaveBeenCalledWith("session-1", "Paused");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Paused")).toBeInTheDocument();
+    });
+  });
+
+  it("shows action error when status update fails", async () => {
+    vi.mocked(listDiscoverySessions).mockResolvedValue([mockSession]);
+    vi.mocked(updateDiscoverySessionStatus).mockRejectedValue(
+      new Error("Invalid transition"),
+    );
+
+    render(<DiscoveryPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Invalid transition");
+    });
   });
 
   it("shows API error on create failure", async () => {

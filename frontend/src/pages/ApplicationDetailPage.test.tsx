@@ -15,13 +15,25 @@ vi.mock("../api/applications", () => ({
   getApplication: vi.fn(),
 }));
 
-vi.mock("../api/discovery", () => ({
-  listDiscoverySessions: vi.fn(),
-}));
+vi.mock("../api/discovery", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/discovery")>();
+  return {
+    ...actual,
+    listDiscoverySessions: vi.fn(),
+    createDiscoverySession: vi.fn(),
+    updateDiscoverySessionStatus: vi.fn(),
+  };
+});
 
-vi.mock("../api/blueprints", () => ({
-  listBlueprints: vi.fn(),
-}));
+vi.mock("../api/blueprints", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/blueprints")>();
+  return {
+    ...actual,
+    listBlueprints: vi.fn(),
+    createBlueprint: vi.fn(),
+    updateBlueprintStatus: vi.fn(),
+  };
+});
 
 vi.mock("../api/products", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/products")>();
@@ -39,6 +51,7 @@ vi.mock("../api/agents", async (importOriginal) => {
     ...actual,
     listAgents: vi.fn(),
     createAgent: vi.fn(),
+    updateAgent: vi.fn(),
     updateAgentStatus: vi.fn(),
   };
 });

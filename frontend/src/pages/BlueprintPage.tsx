@@ -2,8 +2,12 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api";
 import {
   createBlueprint,
+  getBlueprintStatusActionLabel,
+  getNextBlueprintStatuses,
   listBlueprints,
+  updateBlueprintStatus,
   type BlueprintResponse,
+  type BlueprintStatus,
 } from "../api/blueprints";
 
 type PageState =
@@ -202,6 +206,8 @@ interface BlueprintPageProps {
 export function BlueprintPage({ applicationId }: BlueprintPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingBlueprintId, setPendingBlueprintId] = useState<string | null>(null);
 
   const loadBlueprints = useCallback(() => {
     setState({ kind: "loading" });
@@ -254,6 +260,28 @@ export function BlueprintPage({ applicationId }: BlueprintPageProps) {
     void loadBlueprints();
   }
 
+  async function handleStatusTransition(
+    blueprintId: string,
+    nextStatus: BlueprintStatus,
+  ) {
+    setActionError(null);
+    setPendingBlueprintId(blueprintId);
+    try {
+      await updateBlueprintStatus(blueprintId, nextStatus);
+      await loadBlueprints();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update blueprint status";
+      setActionError(message);
+    } finally {
+      setPendingBlueprintId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.blueprints.length === 0;
   const hasBlueprints = state.kind === "success" && state.blueprints.length > 0;
 
@@ -290,6 +318,12 @@ export function BlueprintPage({ applicationId }: BlueprintPageProps) {
         </div>
       )}
 
+      {actionError && (
+        <div className="blueprint-page__error blueprint-page__action-error" role="alert">
+          {actionError}
+        </div>
+      )}
+
       {isEmpty && (
         <div className="blueprint-page__empty" role="status">
           <p>No blueprints yet.</p>
@@ -320,6 +354,7 @@ export function BlueprintPage({ applicationId }: BlueprintPageProps) {
                 <th scope="col">Status</th>
                 <th scope="col">Version</th>
                 <th scope="col">Created</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -333,6 +368,26 @@ export function BlueprintPage({ applicationId }: BlueprintPageProps) {
                   </td>
                   <td>{blueprint.version_number}</td>
                   <td>{formatDate(blueprint.created_at)}</td>
+                  <td>
+                    <div className="blueprint-table__actions">
+                      {getNextBlueprintStatuses(blueprint.status).map((nextStatus) => (
+                        <button
+                          key={nextStatus}
+                          type="button"
+                          className="blueprint-page__button blueprint-page__button--secondary blueprint-table__action"
+                          disabled={pendingBlueprintId === blueprint.id}
+                          onClick={() =>
+                            void handleStatusTransition(blueprint.id, nextStatus)
+                          }
+                        >
+                          {getBlueprintStatusActionLabel(nextStatus)}
+                        </button>
+                      ))}
+                      {getNextBlueprintStatuses(blueprint.status).length === 0 && (
+                        <span className="blueprint-table__no-actions">—</span>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

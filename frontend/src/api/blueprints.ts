@@ -44,3 +44,37 @@ export function createBlueprint(
     body: JSON.stringify(payload),
   });
 }
+
+const BLUEPRINT_NEXT_STATUSES: Record<BlueprintStatus, BlueprintStatus[]> = {
+  Draft: ["Review"],
+  Review: ["Approved", "Draft"],
+  Approved: ["Versioned"],
+  Versioned: ["Retired"],
+  Retired: [],
+};
+
+export function getNextBlueprintStatuses(status: BlueprintStatus): BlueprintStatus[] {
+  return BLUEPRINT_NEXT_STATUSES[status];
+}
+
+const BLUEPRINT_STATUS_ACTION_LABELS: Record<BlueprintStatus, string> = {
+  Draft: "Revert to Draft",
+  Review: "Submit for review",
+  Approved: "Approve",
+  Versioned: "Version",
+  Retired: "Retire",
+};
+
+export function getBlueprintStatusActionLabel(status: BlueprintStatus): string {
+  return BLUEPRINT_STATUS_ACTION_LABELS[status];
+}
+
+export function updateBlueprintStatus(
+  blueprintId: string,
+  status: BlueprintStatus,
+): Promise<BlueprintResponse> {
+  return apiFetch<BlueprintResponse>(`/blueprints/${blueprintId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}

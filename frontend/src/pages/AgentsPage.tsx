@@ -1,14 +1,20 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../api";
 import {
   createAgent,
   getAgentStatusActionLabel,
   getNextAgentStatuses,
   listAgents,
+  updateAgent,
   updateAgentStatus,
   type AgentDefinitionResponse,
   type AgentDefinitionStatus,
 } from "../api/agents";
+import {
+  isConsumableProduct,
+  listProducts,
+  type PublishedDataProductResponse,
+} from "../api/products";
 
 type PageState =
   | { kind: "loading" }
@@ -29,23 +35,109 @@ function statusClassName(status: AgentDefinitionResponse["status"]): string {
   return `agents-table__status agents-table__status--${status.toLowerCase()}`;
 }
 
+function canEditBindings(status: AgentDefinitionResponse["status"]): boolean {
+  return status === "Draft" || status === "Approved";
+}
+
+function formatBoundProducts(
+  agent: AgentDefinitionResponse,
+  productTitleById: Map<string, string>,
+): string {
+  if (agent.bound_product_ids.length === 0) {
+    return "None";
+  }
+  const titles = agent.bound_product_ids.map(
+    (id) => productTitleById.get(id) ?? id,
+  );
+  return `${agent.bound_product_ids.length}: ${titles.join(", ")}`;
+}
+
+interface ProductBindingsFieldProps {
+  idPrefix: string;
+  products: PublishedDataProductResponse[];
+  selectedIds: string[];
+  onChange: (selectedIds: string[]) => void;
+  disabled?: boolean;
+}
+
+function ProductBindingsField({
+  idPrefix,
+  products,
+  selectedIds,
+  onChange,
+  disabled = false,
+}: ProductBindingsFieldProps) {
+  if (products.length === 0) {
+    return (
+      <p className="agents-page__bindings-hint">
+        No Published or Versioned products available to bind.
+      </p>
+    );
+  }
+
+  function toggleProduct(productId: string) {
+    if (selectedIds.includes(productId)) {
+      onChange(selectedIds.filter((id) => id !== productId));
+    } else {
+      onChange([...selectedIds, productId]);
+    }
+  }
+
+  return (
+    <fieldset className="agents-page__bindings-fieldset" disabled={disabled}>
+      <legend>
+        Bound products <span className="agents-page__optional">(optional)</span>
+      </legend>
+      <ul className="agents-page__bindings-list">
+        {products.map((product) => {
+          const inputId = `${idPrefix}-product-${product.id}`;
+          return (
+            <li key={product.id}>
+              <label htmlFor={inputId} className="agents-page__bindings-option">
+                <input
+                  id={inputId}
+                  type="checkbox"
+                  checked={selectedIds.includes(product.id)}
+                  onChange={() => toggleProduct(product.id)}
+                />
+                <span>
+                  {product.title}{" "}
+                  <span className="agents-page__bindings-status">({product.status})</span>
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </fieldset>
+  );
+}
+
 interface CreateFormFields {
   title: string;
   description: string;
   created_by: string;
+  bound_product_ids: string[];
 }
 
 interface AgentCreateFormProps {
   applicationId: string;
+  bindableProducts: PublishedDataProductResponse[];
   onCreated: () => void;
   onCancel?: () => void;
 }
 
-function AgentCreateForm({ applicationId, onCreated, onCancel }: AgentCreateFormProps) {
+function AgentCreateForm({
+  applicationId,
+  bindableProducts,
+  onCreated,
+  onCancel,
+}: AgentCreateFormProps) {
   const [fields, setFields] = useState<CreateFormFields>({
     title: "",
     description: "",
     created_by: "",
+    bound_product_ids: [],
   });
   const [titleError, setTitleError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -72,6 +164,9 @@ function AgentCreateForm({ applicationId, onCreated, onCancel }: AgentCreateForm
         agent_definition: {},
         ...(description ? { description } : {}),
         ...(createdBy ? { created_by: createdBy } : {}),
+        ...(fields.bound_product_ids.length > 0
+          ? { bound_product_ids: fields.bound_product_ids }
+          : {}),
       });
       onCreated();
     } catch (error: unknown) {
@@ -147,6 +242,16 @@ function AgentCreateForm({ applicationId, onCreated, onCancel }: AgentCreateForm
         />
       </div>
 
+      <ProductBindingsField
+        idPrefix="agent-create"
+        products={bindableProducts}
+        selectedIds={fields.bound_product_ids}
+        onChange={(bound_product_ids) =>
+          setFields((current) => ({ ...current, bound_product_ids }))
+        }
+        disabled={submitting}
+      />
+
       {submitError && (
         <div className="agents-page__error" role="alert">
           {submitError}
@@ -176,15 +281,124 @@ function AgentCreateForm({ applicationId, onCreated, onCancel }: AgentCreateForm
   );
 }
 
+interface AgentBindingsDialogProps {
+  agent: AgentDefinitionResponse;
+  bindableProducts: PublishedDataProductResponse[];
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function AgentBindingsDialog({
+  agent,
+  bindableProducts,
+  onClose,
+  onSaved,
+}: AgentBindingsDialogProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>(agent.bound_product_ids);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSave() {
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      await updateAgent(agent.id, { bound_product_ids: selectedIds });
+      onSaved();
+      onClose();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update agent bindings";
+      setSubmitError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <dialog
+      className="agents-page__dialog"
+      open
+      aria-labelledby={`bindings-dialog-title-${agent.id}`}
+    >
+      <div className="agents-page__dialog-panel">
+        <h3 id={`bindings-dialog-title-${agent.id}`} className="agents-page__dialog-title">
+          Edit bindings — {agent.title}
+        </h3>
+        <p className="agents-page__dialog-lead">
+          Select Published or Versioned data products for this agent (D-003).
+        </p>
+        <ProductBindingsField
+          idPrefix={`bindings-${agent.id}`}
+          products={bindableProducts}
+          selectedIds={selectedIds}
+          onChange={setSelectedIds}
+          disabled={submitting}
+        />
+        {submitError && (
+          <div className="agents-page__error" role="alert">
+            {submitError}
+          </div>
+        )}
+        <div className="agents-page__form-actions">
+          <button
+            type="button"
+            className="agents-page__button agents-page__button--secondary"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="agents-page__button agents-page__button--primary"
+            onClick={() => void handleSave()}
+            disabled={submitting}
+          >
+            {submitting ? "Saving…" : "Save bindings"}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
 interface AgentsPageProps {
   applicationId: string;
 }
 
 export function AgentsPage({ applicationId }: AgentsPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
+  const [bindableProducts, setBindableProducts] = useState<PublishedDataProductResponse[]>([]);
+  const [allProducts, setAllProducts] = useState<PublishedDataProductResponse[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingAgentId, setPendingAgentId] = useState<string | null>(null);
+  const [editingAgent, setEditingAgent] = useState<AgentDefinitionResponse | null>(null);
+
+  const productTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const product of allProducts) {
+      map.set(product.id, product.title);
+    }
+    return map;
+  }, [allProducts]);
+
+  const loadProducts = useCallback(() => {
+    return listProducts(applicationId)
+      .then((products) => {
+        setAllProducts(products);
+        setBindableProducts(products.filter(isConsumableProduct));
+        return products;
+      })
+      .catch(() => {
+        setAllProducts([]);
+        setBindableProducts([]);
+      });
+  }, [applicationId]);
 
   const loadAgents = useCallback(() => {
     setState({ kind: "loading" });
@@ -209,6 +423,8 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
   useEffect(() => {
     let cancelled = false;
 
+    void loadProducts();
+
     listAgents(applicationId)
       .then((agents) => {
         if (!cancelled) {
@@ -230,10 +446,15 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [applicationId]);
+  }, [applicationId, loadProducts]);
 
   function handleCreated() {
     setShowCreateForm(false);
+    void loadAgents();
+    void loadProducts();
+  }
+
+  function handleBindingsSaved() {
     void loadAgents();
   }
 
@@ -304,7 +525,11 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
           <p className="agents-page__hint">
             Create your first agent definition to get started.
           </p>
-          <AgentCreateForm applicationId={applicationId} onCreated={handleCreated} />
+          <AgentCreateForm
+            applicationId={applicationId}
+            bindableProducts={bindableProducts}
+            onCreated={handleCreated}
+          />
         </div>
       )}
 
@@ -313,10 +538,20 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
           <h3 className="agents-page__create-title">New agent</h3>
           <AgentCreateForm
             applicationId={applicationId}
+            bindableProducts={bindableProducts}
             onCreated={handleCreated}
             onCancel={() => setShowCreateForm(false)}
           />
         </div>
+      )}
+
+      {editingAgent && (
+        <AgentBindingsDialog
+          agent={editingAgent}
+          bindableProducts={bindableProducts}
+          onClose={() => setEditingAgent(null)}
+          onSaved={handleBindingsSaved}
+        />
       )}
 
       {hasAgents && (
@@ -326,6 +561,7 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
               <tr>
                 <th scope="col">Title</th>
                 <th scope="col">Status</th>
+                <th scope="col">Bound products</th>
                 <th scope="col">Version</th>
                 <th scope="col">Created</th>
                 <th scope="col">Actions</th>
@@ -338,10 +574,23 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
                   <td>
                     <span className={statusClassName(agent.status)}>{agent.status}</span>
                   </td>
+                  <td className="agents-table__bindings">
+                    {formatBoundProducts(agent, productTitleById)}
+                  </td>
                   <td>{agent.version_number}</td>
                   <td>{formatDate(agent.created_at)}</td>
                   <td>
                     <div className="agents-table__actions">
+                      {canEditBindings(agent.status) && (
+                        <button
+                          type="button"
+                          className="agents-page__button agents-page__button--secondary agents-table__action"
+                          disabled={pendingAgentId === agent.id}
+                          onClick={() => setEditingAgent(agent)}
+                        >
+                          Edit bindings
+                        </button>
+                      )}
                       {getNextAgentStatuses(agent.status).map((nextStatus) => (
                         <button
                           key={nextStatus}
@@ -353,9 +602,10 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
                           {getAgentStatusActionLabel(nextStatus)}
                         </button>
                       ))}
-                      {getNextAgentStatuses(agent.status).length === 0 && (
-                        <span className="agents-table__no-actions">—</span>
-                      )}
+                      {getNextAgentStatuses(agent.status).length === 0 &&
+                        !canEditBindings(agent.status) && (
+                          <span className="agents-table__no-actions">—</span>
+                        )}
                     </div>
                   </td>
                 </tr>

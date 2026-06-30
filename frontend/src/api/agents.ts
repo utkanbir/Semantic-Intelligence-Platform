@@ -48,6 +48,23 @@ export function createAgent(
   });
 }
 
+export interface AgentDefinitionUpdateRequest {
+  title?: string;
+  description?: string | null;
+  agent_definition?: Record<string, unknown>;
+  bound_product_ids?: string[];
+}
+
+export function updateAgent(
+  agentId: string,
+  payload: AgentDefinitionUpdateRequest,
+): Promise<AgentDefinitionResponse> {
+  return apiFetch<AgentDefinitionResponse>(`/agents/${agentId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 const AGENT_NEXT_STATUSES: Record<AgentDefinitionStatus, AgentDefinitionStatus[]> = {
   Draft: ["Approved"],
   Approved: ["Active", "Draft"],

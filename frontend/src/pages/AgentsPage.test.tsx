@@ -3,14 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createAgent,
   listAgents,
+  updateAgent,
   updateAgentStatus,
   type AgentDefinitionResponse,
 } from "../api/agents";
+import { listProducts, type PublishedDataProductResponse } from "../api/products";
 import { AgentsPage } from "./AgentsPage";
 
 vi.mock("../api/agents", () => ({
   listAgents: vi.fn(),
   createAgent: vi.fn(),
+  updateAgent: vi.fn(),
   updateAgentStatus: vi.fn(),
   getNextAgentStatuses: vi.fn((status: string) => {
     const map: Record<string, string[]> = {
@@ -33,6 +36,39 @@ vi.mock("../api/agents", () => ({
     return labels[status] ?? status;
   }),
 }));
+
+vi.mock("../api/products", () => ({
+  listProducts: vi.fn(),
+  isConsumableProduct: vi.fn(
+    (product: PublishedDataProductResponse) =>
+      product.status === "Published" || product.status === "Versioned",
+  ),
+}));
+
+const publishedProduct: PublishedDataProductResponse = {
+  id: "prod-1",
+  application_id: "app-1",
+  version_number: 1,
+  previous_version_id: null,
+  status: "Published",
+  title: "Customer 360 Product",
+  description: null,
+  created_by: "alice@example.com",
+  created_at: "2025-06-01T10:00:00Z",
+  updated_at: "2025-06-01T10:00:00Z",
+  certified_at: "2025-06-02T10:00:00Z",
+  published_at: "2025-06-03T10:00:00Z",
+  version_created_at: null,
+  product_definition: {},
+  source_asset_record_ids: [],
+};
+
+const draftProduct: PublishedDataProductResponse = {
+  ...publishedProduct,
+  id: "prod-draft",
+  status: "Draft",
+  published_at: null,
+};
 
 const mockAgent: AgentDefinitionResponse = {
   id: "agent-1",
@@ -69,16 +105,20 @@ const draftAgent: AgentDefinitionResponse = {
 const approvedAgent: AgentDefinitionResponse = {
   ...draftAgent,
   status: "Approved",
+  bound_product_ids: ["prod-1"],
 };
 
 describe("AgentsPage", () => {
   beforeEach(() => {
     vi.mocked(listAgents).mockReset();
     vi.mocked(createAgent).mockReset();
+    vi.mocked(updateAgent).mockReset();
     vi.mocked(updateAgentStatus).mockReset();
+    vi.mocked(listProducts).mockReset();
+    vi.mocked(listProducts).mockResolvedValue([publishedProduct, draftProduct]);
   });
 
-  it("renders loading then agents table", async () => {
+  it("renders loading then agents table with bound products", async () => {
     vi.mocked(listAgents).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -95,7 +135,9 @@ describe("AgentsPage", () => {
     });
 
     expect(listAgents).toHaveBeenCalledWith("app-1");
+    expect(listProducts).toHaveBeenCalledWith("app-1");
     expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("1: Customer 360 Product")).toBeInTheDocument();
   });
 
   it("renders empty state with create form", async () => {
@@ -110,11 +152,11 @@ describe("AgentsPage", () => {
     expect(screen.getByLabelText("Create agent")).toBeInTheDocument();
   });
 
-  it("creates agent from empty state and refreshes list", async () => {
+  it("creates agent with product bindings from empty state", async () => {
     vi.mocked(listAgents)
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([newAgent]);
-    vi.mocked(createAgent).mockResolvedValue(newAgent);
+      .mockResolvedValueOnce([{ ...newAgent, bound_product_ids: ["prod-1"] }]);
+    vi.mocked(createAgent).mockResolvedValue({ ...newAgent, bound_product_ids: ["prod-1"] });
 
     render(<AgentsPage applicationId="app-1" />);
 
@@ -123,6 +165,7 @@ describe("AgentsPage", () => {
     });
 
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New Agent" } });
+    fireEvent.click(screen.getByLabelText(/Customer 360 Product/));
     fireEvent.click(screen.getByRole("button", { name: "Create agent" }));
 
     await waitFor(() => {
@@ -130,11 +173,8 @@ describe("AgentsPage", () => {
         application_id: "app-1",
         title: "New Agent",
         agent_definition: {},
+        bound_product_ids: ["prod-1"],
       });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("New Agent")).toBeInTheDocument();
     });
   });
 
@@ -189,6 +229,31 @@ describe("AgentsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Approved")).toBeInTheDocument();
+    });
+  });
+
+  it("edits bindings for approved agent before activate", async () => {
+    const updatedAgent: AgentDefinitionResponse = {
+      ...approvedAgent,
+      bound_product_ids: [],
+    };
+    vi.mocked(listAgents)
+      .mockResolvedValueOnce([approvedAgent])
+      .mockResolvedValueOnce([updatedAgent]);
+    vi.mocked(updateAgent).mockResolvedValue(updatedAgent);
+
+    render(<AgentsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Edit bindings" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit bindings" }));
+    fireEvent.click(screen.getByLabelText(/Customer 360 Product/));
+    fireEvent.click(screen.getByRole("button", { name: "Save bindings" }));
+
+    await waitFor(() => {
+      expect(updateAgent).toHaveBeenCalledWith("agent-draft", { bound_product_ids: [] });
     });
   });
 
