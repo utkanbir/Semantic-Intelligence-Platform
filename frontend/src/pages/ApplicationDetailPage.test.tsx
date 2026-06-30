@@ -23,13 +23,25 @@ vi.mock("../api/blueprints", () => ({
   listBlueprints: vi.fn(),
 }));
 
-vi.mock("../api/products", () => ({
-  listProducts: vi.fn(),
-}));
+vi.mock("../api/products", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/products")>();
+  return {
+    ...actual,
+    listProducts: vi.fn(),
+    createProduct: vi.fn(),
+    updateProductStatus: vi.fn(),
+  };
+});
 
-vi.mock("../api/agents", () => ({
-  listAgents: vi.fn(),
-}));
+vi.mock("../api/agents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/agents")>();
+  return {
+    ...actual,
+    listAgents: vi.fn(),
+    createAgent: vi.fn(),
+    updateAgentStatus: vi.fn(),
+  };
+});
 
 const mockApplication: ApplicationResponse = {
   id: "app-1",

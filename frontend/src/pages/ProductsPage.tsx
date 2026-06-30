@@ -2,8 +2,12 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api";
 import {
   createProduct,
+  getNextProductStatuses,
+  getProductStatusActionLabel,
   listProducts,
+  updateProductStatus,
   type PublishedDataProductResponse,
+  type PublishedDataProductStatus,
 } from "../api/products";
 
 type PageState =
@@ -179,6 +183,8 @@ interface ProductsPageProps {
 export function ProductsPage({ applicationId }: ProductsPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingProductId, setPendingProductId] = useState<string | null>(null);
 
   const loadProducts = useCallback(() => {
     setState({ kind: "loading" });
@@ -231,6 +237,28 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
     void loadProducts();
   }
 
+  async function handleStatusTransition(
+    productId: string,
+    nextStatus: PublishedDataProductStatus,
+  ) {
+    setActionError(null);
+    setPendingProductId(productId);
+    try {
+      await updateProductStatus(productId, nextStatus);
+      await loadProducts();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update product status";
+      setActionError(message);
+    } finally {
+      setPendingProductId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.products.length === 0;
   const hasProducts = state.kind === "success" && state.products.length > 0;
 
@@ -267,6 +295,12 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
         </div>
       )}
 
+      {actionError && (
+        <div className="products-page__error products-page__action-error" role="alert">
+          {actionError}
+        </div>
+      )}
+
       {isEmpty && (
         <div className="products-page__empty" role="status">
           <p>No published data products yet.</p>
@@ -297,6 +331,7 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
                 <th scope="col">Status</th>
                 <th scope="col">Version</th>
                 <th scope="col">Published at</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -308,6 +343,24 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
                   </td>
                   <td>{product.version_number}</td>
                   <td>{formatDate(product.published_at ?? product.created_at)}</td>
+                  <td>
+                    <div className="products-table__actions">
+                      {getNextProductStatuses(product.status).map((nextStatus) => (
+                        <button
+                          key={nextStatus}
+                          type="button"
+                          className="products-page__button products-page__button--secondary products-table__action"
+                          disabled={pendingProductId === product.id}
+                          onClick={() => void handleStatusTransition(product.id, nextStatus)}
+                        >
+                          {getProductStatusActionLabel(nextStatus)}
+                        </button>
+                      ))}
+                      {getNextProductStatuses(product.status).length === 0 && (
+                        <span className="products-table__no-actions">—</span>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

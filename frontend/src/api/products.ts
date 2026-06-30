@@ -47,3 +47,39 @@ export function createProduct(
     body: JSON.stringify(payload),
   });
 }
+
+const PRODUCT_NEXT_STATUSES: Record<PublishedDataProductStatus, PublishedDataProductStatus[]> = {
+  Draft: ["Certified"],
+  Certified: ["Published", "Draft"],
+  Published: ["Versioned"],
+  Versioned: ["Retired"],
+  Retired: [],
+};
+
+export function getNextProductStatuses(
+  status: PublishedDataProductStatus,
+): PublishedDataProductStatus[] {
+  return PRODUCT_NEXT_STATUSES[status];
+}
+
+const PRODUCT_STATUS_ACTION_LABELS: Record<PublishedDataProductStatus, string> = {
+  Draft: "Revert to Draft",
+  Certified: "Certify",
+  Published: "Publish",
+  Versioned: "Version",
+  Retired: "Retire",
+};
+
+export function getProductStatusActionLabel(status: PublishedDataProductStatus): string {
+  return PRODUCT_STATUS_ACTION_LABELS[status];
+}
+
+export function updateProductStatus(
+  productId: string,
+  status: PublishedDataProductStatus,
+): Promise<PublishedDataProductResponse> {
+  return apiFetch<PublishedDataProductResponse>(`/products/${productId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
