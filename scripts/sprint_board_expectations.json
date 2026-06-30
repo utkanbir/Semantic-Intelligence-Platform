@@ -57,6 +57,10 @@
     "13": {
       "label": "Console Blueprint",
       "issues": [179, 180, 182, 183]
+    },
+    "14": {
+      "label": "Console Create Flows",
+      "issues": [185, 188, 186, 187]
     }
   }
 }
