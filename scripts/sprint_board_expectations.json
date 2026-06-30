@@ -61,6 +61,10 @@
     "14": {
       "label": "Console Create Flows",
       "issues": [185, 188, 186, 187]
+    },
+    "15": {
+      "label": "Console Products & Agents Create",
+      "issues": [191, 192, 193]
     }
   }
 }

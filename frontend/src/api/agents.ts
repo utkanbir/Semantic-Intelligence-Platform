@@ -29,3 +29,21 @@ export function listAgents(applicationId: string): Promise<AgentDefinitionRespon
   const params = new URLSearchParams({ application_id: applicationId });
   return apiFetch<AgentDefinitionResponse[]>(`/agents?${params}`);
 }
+
+export interface AgentDefinitionCreateRequest {
+  application_id: string;
+  title: string;
+  created_by?: string;
+  description?: string;
+  agent_definition?: Record<string, unknown>;
+  bound_product_ids?: string[];
+}
+
+export function createAgent(
+  payload: AgentDefinitionCreateRequest,
+): Promise<AgentDefinitionResponse> {
+  return apiFetch<AgentDefinitionResponse>("/agents", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
