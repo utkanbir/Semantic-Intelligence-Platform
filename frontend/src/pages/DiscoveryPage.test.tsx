@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createDiscoverySession,
   listDiscoverySessions,
   type DiscoverySessionResponse,
 } from "../api/discovery";
@@ -8,6 +9,7 @@ import { DiscoveryPage } from "./DiscoveryPage";
 
 vi.mock("../api/discovery", () => ({
   listDiscoverySessions: vi.fn(),
+  createDiscoverySession: vi.fn(),
 }));
 
 const mockSession: DiscoverySessionResponse = {
@@ -30,9 +32,17 @@ const mockSession: DiscoverySessionResponse = {
   phase_history: [],
 };
 
+const newSession: DiscoverySessionResponse = {
+  ...mockSession,
+  id: "session-2",
+  title: "New Session",
+  started_by: "bob@example.com",
+};
+
 describe("DiscoveryPage", () => {
   beforeEach(() => {
     vi.mocked(listDiscoverySessions).mockReset();
+    vi.mocked(createDiscoverySession).mockReset();
   });
 
   it("renders loading then sessions table", async () => {
@@ -57,13 +67,79 @@ describe("DiscoveryPage", () => {
     expect(screen.getByText("alice@example.com")).toBeInTheDocument();
   });
 
-  it("renders empty state when no sessions exist", async () => {
+  it("renders empty state with create form", async () => {
     vi.mocked(listDiscoverySessions).mockResolvedValue([]);
 
     render(<DiscoveryPage applicationId="app-1" />);
 
     await waitFor(() => {
       expect(screen.getByText("No discovery sessions yet.")).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText("Create discovery session")).toBeInTheDocument();
+  });
+
+  it("creates session from empty state and refreshes list", async () => {
+    vi.mocked(listDiscoverySessions)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([newSession]);
+    vi.mocked(createDiscoverySession).mockResolvedValue(newSession);
+
+    render(<DiscoveryPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Create discovery session")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "New Session" },
+    });
+    fireEvent.change(screen.getByLabelText(/Started by/), {
+      target: { value: "bob@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
+
+    await waitFor(() => {
+      expect(createDiscoverySession).toHaveBeenCalledWith({
+        application_id: "app-1",
+        title: "New Session",
+        started_by: "bob@example.com",
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("New Session")).toBeInTheDocument();
+    });
+  });
+
+  it("shows New session panel when list has items", async () => {
+    vi.mocked(listDiscoverySessions).mockResolvedValue([mockSession]);
+
+    render(<DiscoveryPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Q2 Intent Discovery")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(screen.getByRole("heading", { name: "New discovery session" })).toBeInTheDocument();
+  });
+
+  it("shows API error on create failure", async () => {
+    vi.mocked(listDiscoverySessions).mockResolvedValue([]);
+    vi.mocked(createDiscoverySession).mockRejectedValue(new Error("Server error"));
+
+    render(<DiscoveryPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Create discovery session")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Fail Session" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Server error");
     });
   });
 
