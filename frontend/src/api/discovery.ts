@@ -54,3 +54,37 @@ export function createDiscoverySession(
     body: JSON.stringify(payload),
   });
 }
+
+const DISCOVERY_NEXT_STATUSES: Record<DiscoverySessionStatus, DiscoverySessionStatus[]> = {
+  Active: ["Paused", "Completed", "Archived"],
+  Paused: ["Active", "Completed", "Archived"],
+  Completed: ["Archived"],
+  Archived: [],
+};
+
+export function getNextDiscoveryStatuses(
+  status: DiscoverySessionStatus,
+): DiscoverySessionStatus[] {
+  return DISCOVERY_NEXT_STATUSES[status];
+}
+
+const DISCOVERY_STATUS_ACTION_LABELS: Record<DiscoverySessionStatus, string> = {
+  Active: "Resume",
+  Paused: "Pause",
+  Completed: "Complete",
+  Archived: "Archive",
+};
+
+export function getDiscoveryStatusActionLabel(status: DiscoverySessionStatus): string {
+  return DISCOVERY_STATUS_ACTION_LABELS[status];
+}
+
+export function updateDiscoverySessionStatus(
+  sessionId: string,
+  status: DiscoverySessionStatus,
+): Promise<DiscoverySessionResponse> {
+  return apiFetch<DiscoverySessionResponse>(`/discovery-sessions/${sessionId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}

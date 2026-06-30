@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createBlueprint,
   listBlueprints,
+  updateBlueprintStatus,
   type BlueprintResponse,
 } from "../api/blueprints";
 import { BlueprintPage } from "./BlueprintPage";
@@ -10,6 +11,27 @@ import { BlueprintPage } from "./BlueprintPage";
 vi.mock("../api/blueprints", () => ({
   listBlueprints: vi.fn(),
   createBlueprint: vi.fn(),
+  updateBlueprintStatus: vi.fn(),
+  getNextBlueprintStatuses: vi.fn((status: string) => {
+    const map: Record<string, string[]> = {
+      Draft: ["Review"],
+      Review: ["Approved", "Draft"],
+      Approved: ["Versioned"],
+      Versioned: ["Retired"],
+      Retired: [],
+    };
+    return map[status] ?? [];
+  }),
+  getBlueprintStatusActionLabel: vi.fn((status: string) => {
+    const labels: Record<string, string> = {
+      Draft: "Revert to Draft",
+      Review: "Submit for review",
+      Approved: "Approve",
+      Versioned: "Version",
+      Retired: "Retire",
+    };
+    return labels[status] ?? status;
+  }),
 }));
 
 const mockBlueprint: BlueprintResponse = {
@@ -33,10 +55,16 @@ const newBlueprint: BlueprintResponse = {
   title: "New Blueprint",
 };
 
+const reviewBlueprint: BlueprintResponse = {
+  ...mockBlueprint,
+  status: "Review",
+};
+
 describe("BlueprintPage", () => {
   beforeEach(() => {
     vi.mocked(listBlueprints).mockReset();
     vi.mocked(createBlueprint).mockReset();
+    vi.mocked(updateBlueprintStatus).mockReset();
   });
 
   it("renders loading then blueprints table", async () => {
@@ -58,6 +86,7 @@ describe("BlueprintPage", () => {
     expect(listBlueprints).toHaveBeenCalledWith("app-1");
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit for review" })).toBeInTheDocument();
   });
 
   it("renders empty state with create form", async () => {
@@ -113,6 +142,46 @@ describe("BlueprintPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New blueprint" }));
     expect(screen.getByRole("heading", { name: "New blueprint" })).toBeInTheDocument();
+  });
+
+  it("submits draft blueprint for review via lifecycle action", async () => {
+    vi.mocked(listBlueprints)
+      .mockResolvedValueOnce([mockBlueprint])
+      .mockResolvedValueOnce([reviewBlueprint]);
+    vi.mocked(updateBlueprintStatus).mockResolvedValue(reviewBlueprint);
+
+    render(<BlueprintPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Submit for review" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit for review" }));
+
+    await waitFor(() => {
+      expect(updateBlueprintStatus).toHaveBeenCalledWith("bp-1", "Review");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Review")).toBeInTheDocument();
+    });
+  });
+
+  it("shows action error when status update fails", async () => {
+    vi.mocked(listBlueprints).mockResolvedValue([mockBlueprint]);
+    vi.mocked(updateBlueprintStatus).mockRejectedValue(new Error("Invalid transition"));
+
+    render(<BlueprintPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Submit for review" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit for review" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Invalid transition");
+    });
   });
 
   it("shows API error on create failure", async () => {
