@@ -39,3 +39,18 @@ export function listDiscoverySessions(
   const params = new URLSearchParams({ application_id: applicationId });
   return apiFetch<DiscoverySessionResponse[]>(`/discovery-sessions?${params}`);
 }
+
+export interface DiscoverySessionCreateRequest {
+  application_id: string;
+  title: string;
+  started_by?: string;
+}
+
+export function createDiscoverySession(
+  payload: DiscoverySessionCreateRequest,
+): Promise<DiscoverySessionResponse> {
+  return apiFetch<DiscoverySessionResponse>("/discovery-sessions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

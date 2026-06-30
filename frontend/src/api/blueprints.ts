@@ -26,3 +26,21 @@ export function listBlueprints(applicationId: string): Promise<BlueprintResponse
   const params = new URLSearchParams({ application_id: applicationId });
   return apiFetch<BlueprintResponse[]>(`/blueprints?${params}`);
 }
+
+export interface BlueprintCreateRequest {
+  application_id: string;
+  title: string;
+  created_by?: string;
+  goal?: string;
+  outcome?: string;
+  blueprint_snapshot?: Record<string, unknown>;
+}
+
+export function createBlueprint(
+  payload: BlueprintCreateRequest,
+): Promise<BlueprintResponse> {
+  return apiFetch<BlueprintResponse>("/blueprints", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
