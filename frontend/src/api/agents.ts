@@ -47,3 +47,37 @@ export function createAgent(
     body: JSON.stringify(payload),
   });
 }
+
+const AGENT_NEXT_STATUSES: Record<AgentDefinitionStatus, AgentDefinitionStatus[]> = {
+  Draft: ["Approved"],
+  Approved: ["Active", "Draft"],
+  Active: ["Versioned"],
+  Versioned: ["Retired"],
+  Retired: [],
+};
+
+export function getNextAgentStatuses(status: AgentDefinitionStatus): AgentDefinitionStatus[] {
+  return AGENT_NEXT_STATUSES[status];
+}
+
+const AGENT_STATUS_ACTION_LABELS: Record<AgentDefinitionStatus, string> = {
+  Draft: "Revert to Draft",
+  Approved: "Approve",
+  Active: "Activate",
+  Versioned: "Version",
+  Retired: "Retire",
+};
+
+export function getAgentStatusActionLabel(status: AgentDefinitionStatus): string {
+  return AGENT_STATUS_ACTION_LABELS[status];
+}
+
+export function updateAgentStatus(
+  agentId: string,
+  status: AgentDefinitionStatus,
+): Promise<AgentDefinitionResponse> {
+  return apiFetch<AgentDefinitionResponse>(`/agents/${agentId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createAgent,
   listAgents,
+  updateAgentStatus,
   type AgentDefinitionResponse,
 } from "../api/agents";
 import { AgentsPage } from "./AgentsPage";
@@ -10,6 +11,27 @@ import { AgentsPage } from "./AgentsPage";
 vi.mock("../api/agents", () => ({
   listAgents: vi.fn(),
   createAgent: vi.fn(),
+  updateAgentStatus: vi.fn(),
+  getNextAgentStatuses: vi.fn((status: string) => {
+    const map: Record<string, string[]> = {
+      Draft: ["Approved"],
+      Approved: ["Active", "Draft"],
+      Active: ["Versioned"],
+      Versioned: ["Retired"],
+      Retired: [],
+    };
+    return map[status] ?? [];
+  }),
+  getAgentStatusActionLabel: vi.fn((status: string) => {
+    const labels: Record<string, string> = {
+      Approved: "Approve",
+      Active: "Activate",
+      Draft: "Revert to Draft",
+      Versioned: "Version",
+      Retired: "Retire",
+    };
+    return labels[status] ?? status;
+  }),
 }));
 
 const mockAgent: AgentDefinitionResponse = {
@@ -38,10 +60,22 @@ const newAgent: AgentDefinitionResponse = {
   bound_product_ids: [],
 };
 
+const draftAgent: AgentDefinitionResponse = {
+  ...newAgent,
+  id: "agent-draft",
+  title: "Draft Agent",
+};
+
+const approvedAgent: AgentDefinitionResponse = {
+  ...draftAgent,
+  status: "Approved",
+};
+
 describe("AgentsPage", () => {
   beforeEach(() => {
     vi.mocked(listAgents).mockReset();
     vi.mocked(createAgent).mockReset();
+    vi.mocked(updateAgentStatus).mockReset();
   });
 
   it("renders loading then agents table", async () => {
@@ -132,6 +166,46 @@ describe("AgentsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Server error");
+    });
+  });
+
+  it("approves draft agent via lifecycle action", async () => {
+    vi.mocked(listAgents)
+      .mockResolvedValueOnce([draftAgent])
+      .mockResolvedValueOnce([approvedAgent]);
+    vi.mocked(updateAgentStatus).mockResolvedValue(approvedAgent);
+
+    render(<AgentsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(updateAgentStatus).toHaveBeenCalledWith("agent-draft", "Approved");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Approved")).toBeInTheDocument();
+    });
+  });
+
+  it("shows action error when agent status update fails", async () => {
+    vi.mocked(listAgents).mockResolvedValue([draftAgent]);
+    vi.mocked(updateAgentStatus).mockRejectedValue(new Error("Binding required"));
+
+    render(<AgentsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Binding required");
     });
   });
 

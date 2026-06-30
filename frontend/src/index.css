@@ -1119,6 +1119,29 @@ body {
   background: #eceef2;
 }
 
+.products-page__action-error,
+.agents-page__action-error {
+  margin-bottom: 1rem;
+}
+
+.products-table__actions,
+.agents-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.products-table__action,
+.agents-table__action {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.products-table__no-actions,
+.agents-table__no-actions {
+  color: #6b6b80;
+}
+
 .application-detail__status {
   margin: 0;
   color: #4a4a68;

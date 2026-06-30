@@ -2,8 +2,12 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api";
 import {
   createAgent,
+  getAgentStatusActionLabel,
+  getNextAgentStatuses,
   listAgents,
+  updateAgentStatus,
   type AgentDefinitionResponse,
+  type AgentDefinitionStatus,
 } from "../api/agents";
 
 type PageState =
@@ -179,6 +183,8 @@ interface AgentsPageProps {
 export function AgentsPage({ applicationId }: AgentsPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingAgentId, setPendingAgentId] = useState<string | null>(null);
 
   const loadAgents = useCallback(() => {
     setState({ kind: "loading" });
@@ -231,6 +237,25 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
     void loadAgents();
   }
 
+  async function handleStatusTransition(agentId: string, nextStatus: AgentDefinitionStatus) {
+    setActionError(null);
+    setPendingAgentId(agentId);
+    try {
+      await updateAgentStatus(agentId, nextStatus);
+      await loadAgents();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update agent status";
+      setActionError(message);
+    } finally {
+      setPendingAgentId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.agents.length === 0;
   const hasAgents = state.kind === "success" && state.agents.length > 0;
 
@@ -267,6 +292,12 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
         </div>
       )}
 
+      {actionError && (
+        <div className="agents-page__error agents-page__action-error" role="alert">
+          {actionError}
+        </div>
+      )}
+
       {isEmpty && (
         <div className="agents-page__empty" role="status">
           <p>No agent definitions yet.</p>
@@ -297,6 +328,7 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
                 <th scope="col">Status</th>
                 <th scope="col">Version</th>
                 <th scope="col">Created</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -308,6 +340,24 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
                   </td>
                   <td>{agent.version_number}</td>
                   <td>{formatDate(agent.created_at)}</td>
+                  <td>
+                    <div className="agents-table__actions">
+                      {getNextAgentStatuses(agent.status).map((nextStatus) => (
+                        <button
+                          key={nextStatus}
+                          type="button"
+                          className="agents-page__button agents-page__button--secondary agents-table__action"
+                          disabled={pendingAgentId === agent.id}
+                          onClick={() => void handleStatusTransition(agent.id, nextStatus)}
+                        >
+                          {getAgentStatusActionLabel(nextStatus)}
+                        </button>
+                      ))}
+                      {getNextAgentStatuses(agent.status).length === 0 && (
+                        <span className="agents-table__no-actions">—</span>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

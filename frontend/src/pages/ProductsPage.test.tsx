@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createProduct,
   listProducts,
+  updateProductStatus,
   type PublishedDataProductResponse,
 } from "../api/products";
 import { ProductsPage } from "./ProductsPage";
@@ -10,6 +11,27 @@ import { ProductsPage } from "./ProductsPage";
 vi.mock("../api/products", () => ({
   listProducts: vi.fn(),
   createProduct: vi.fn(),
+  updateProductStatus: vi.fn(),
+  getNextProductStatuses: vi.fn((status: string) => {
+    const map: Record<string, string[]> = {
+      Draft: ["Certified"],
+      Certified: ["Published", "Draft"],
+      Published: ["Versioned"],
+      Versioned: ["Retired"],
+      Retired: [],
+    };
+    return map[status] ?? [];
+  }),
+  getProductStatusActionLabel: vi.fn((status: string) => {
+    const labels: Record<string, string> = {
+      Certified: "Certify",
+      Published: "Publish",
+      Draft: "Revert to Draft",
+      Versioned: "Version",
+      Retired: "Retire",
+    };
+    return labels[status] ?? status;
+  }),
 }));
 
 const mockProduct: PublishedDataProductResponse = {
@@ -30,6 +52,13 @@ const mockProduct: PublishedDataProductResponse = {
   source_asset_record_ids: [],
 };
 
+const draftProduct: PublishedDataProductResponse = {
+  ...mockProduct,
+  id: "prod-draft",
+  status: "Draft",
+  published_at: null,
+};
+
 const newProduct: PublishedDataProductResponse = {
   ...mockProduct,
   id: "prod-2",
@@ -38,10 +67,16 @@ const newProduct: PublishedDataProductResponse = {
   published_at: null,
 };
 
+const certifiedProduct: PublishedDataProductResponse = {
+  ...draftProduct,
+  status: "Certified",
+};
+
 describe("ProductsPage", () => {
   beforeEach(() => {
     vi.mocked(listProducts).mockReset();
     vi.mocked(createProduct).mockReset();
+    vi.mocked(updateProductStatus).mockReset();
   });
 
   it("renders loading then products table", async () => {
@@ -132,6 +167,46 @@ describe("ProductsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Server error");
+    });
+  });
+
+  it("certifies draft product via lifecycle action", async () => {
+    vi.mocked(listProducts)
+      .mockResolvedValueOnce([draftProduct])
+      .mockResolvedValueOnce([certifiedProduct]);
+    vi.mocked(updateProductStatus).mockResolvedValue(certifiedProduct);
+
+    render(<ProductsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Certify" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Certify" }));
+
+    await waitFor(() => {
+      expect(updateProductStatus).toHaveBeenCalledWith("prod-draft", "Certified");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Certified")).toBeInTheDocument();
+    });
+  });
+
+  it("shows action error when status update fails", async () => {
+    vi.mocked(listProducts).mockResolvedValue([draftProduct]);
+    vi.mocked(updateProductStatus).mockRejectedValue(new Error("Invalid transition"));
+
+    render(<ProductsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Certify" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Certify" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Invalid transition");
     });
   });
 
