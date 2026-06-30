@@ -20,7 +20,7 @@ Optional Docker Compose (PostgreSQL-only) under `infra/compose/` is **non-author
 |------|---------|--------|
 | **Kubernetes cluster** | Runtime | Docker Desktop Kubernetes, minikube, kind, or equivalent |
 | **kubectl** | Apply manifests | Must match cluster context |
-| **Docker** | Build `sip-backend:s14` and `sip-console:s14` images | Required for in-cluster workloads |
+| **Docker** | Build `sip-backend:s14` and `sip-console:s15` images | Required for in-cluster workloads |
 | **Python 3.11+** | Backend dev / Alembic | See `backend/README.md` |
 | **Ingress controller** (optional) | `api.sip.local`, `console.sip.local` routing | nginx Ingress Controller or Docker Desktop built-in |
 
@@ -53,7 +53,7 @@ From the **repository root**:
 ```bash
 # 1. Build images (loaded into cluster Docker context)
 docker build -t sip-backend:s14 backend
-docker build -t sip-console:s14 frontend
+docker build -t sip-console:s15 frontend
 
 # 2. Deploy stack to sip-dev
 kubectl apply -k infra/kubernetes/overlays/dev
@@ -122,11 +122,11 @@ curl http://127.0.0.1:8080/api/v1/health/live
 
 ### Platform Console access (S12-04)
 
-The dev overlay pins **`sip-console:s14`** and **`sip-backend:s14`** (see `infra/kubernetes/overlays/dev/kustomization.yaml` `images` section). Rebuild and re-apply after frontend or backend changes:
+The dev overlay pins **`sip-console:s15`** and **`sip-backend:s14`** (see `infra/kubernetes/overlays/dev/kustomization.yaml` `images` section). Rebuild and re-apply after frontend or backend changes:
 
 ```bash
 docker build -t sip-backend:s14 backend
-docker build -t sip-console:s14 frontend
+docker build -t sip-console:s15 frontend
 kubectl apply -k infra/kubernetes/overlays/dev
 kubectl -n sip-dev rollout status deployment/sip-backend
 kubectl -n sip-dev rollout status deployment/sip-console

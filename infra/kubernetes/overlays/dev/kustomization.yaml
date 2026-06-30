@@ -10,11 +10,11 @@ labels:
   - pairs:
       environment: dev
 
-# S13/S14: pin images to avoid stale :dev cache (TD-016 pattern)
+# S13–S15: pin images to avoid stale :dev cache (TD-016 pattern)
 images:
   - name: sip-backend:dev
     newName: sip-backend
     newTag: s14
   - name: sip-console:dev
     newName: sip-console
-    newTag: s14
+    newTag: s15
