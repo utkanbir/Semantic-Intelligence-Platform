@@ -85,6 +85,10 @@
     "20": {
       "label": "Console Ontology & KG",
       "issues": [219, 220, 221, 222]
+    },
+    "21": {
+      "label": "Console Ontology & KG Create",
+      "issues": [226, 227, 228, 229]
     }
   }
 }
