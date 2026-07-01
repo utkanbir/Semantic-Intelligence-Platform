@@ -30,3 +30,17 @@ export function listAgentRuns(
 export function getAgentRun(runId: string): Promise<AgentRunResponse> {
   return apiFetch<AgentRunResponse>(`/agent-runs/${runId}`);
 }
+
+export interface AgentRunCreateRequest {
+  application_id: string;
+  agent_definition_id: string;
+  created_by?: string;
+  run_payload?: Record<string, unknown>;
+}
+
+export function startAgentRun(payload: AgentRunCreateRequest): Promise<AgentRunResponse> {
+  return apiFetch<AgentRunResponse>("/agent-runs", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
