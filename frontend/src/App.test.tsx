@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
@@ -44,14 +44,24 @@ describe("App", () => {
     fetchMock.mockReset();
   });
 
-  it("renders platform header and applications home", async () => {
+  it("renders platform overview at home", async () => {
     render(<App />);
     expect(
       screen.getByText("Semantic Intelligence Platform"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Applications" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Platform overview" })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText("Backend connected")).toBeInTheDocument();
+    });
+  });
+
+  it("loads applications list at /applications", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("link", { name: "Applications" }));
+
+    expect(screen.getByRole("heading", { name: "Applications" })).toBeInTheDocument();
+    await waitFor(() => {
       expect(screen.getByText("No applications yet.")).toBeInTheDocument();
     });
   });

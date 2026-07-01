@@ -18,15 +18,15 @@ body {
   min-height: 100vh;
 }
 
-.app-shell {
+.platform-shell {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-.app-header {
+.platform-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1.5rem;
   padding: 0.75rem 1.5rem;
@@ -35,16 +35,18 @@ body {
   border-bottom: 1px solid #2d2d44;
 }
 
-.app-header__title {
+.platform-header__title {
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
 
-.app-header__actions {
+.platform-header__actions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .backend-status {
@@ -74,12 +76,38 @@ body {
   background: rgba(139, 58, 58, 0.35);
 }
 
-.app-nav {
+.platform-nav {
   display: flex;
-  gap: 0.5rem;
+  gap: 1.25rem;
+  align-items: flex-start;
 }
 
-.app-nav__link {
+.platform-nav__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.platform-nav__label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7a7e94;
+  padding: 0 0.5rem;
+}
+
+.platform-nav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.platform-nav__link {
+  display: block;
   color: #b8bcc8;
   text-decoration: none;
   padding: 0.35rem 0.75rem;
@@ -88,22 +116,78 @@ body {
   font-weight: 500;
 }
 
-.app-nav__link:hover {
+.platform-nav__link:hover {
   color: #f5f6f8;
   background: rgba(255, 255, 255, 0.08);
 }
 
-.app-nav__link--active {
+.platform-nav__link--active {
   color: #f5f6f8;
   background: rgba(255, 255, 255, 0.12);
 }
 
-.app-main {
+.platform-main {
   flex: 1;
   padding: 2rem 1.5rem;
   max-width: 960px;
   margin: 0 auto;
   width: 100%;
+}
+
+.platform-page h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.platform-page__lead {
+  margin: 0 0 1.5rem;
+  color: #4a4a68;
+  max-width: 42rem;
+}
+
+.platform-page__placeholder {
+  padding: 2rem;
+  border: 1px dashed #c8ccd4;
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+  color: #6b6b80;
+}
+
+.platform-page__placeholder p {
+  margin: 0;
+}
+
+.platform-page__summary {
+  margin: 0;
+  display: grid;
+  gap: 1rem;
+  max-width: 36rem;
+}
+
+.platform-page__summary-row {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.platform-page__summary-row dt {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b6b80;
+}
+
+.platform-page__summary-row dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #4a4a68;
 }
 
 .applications-page h1 {
