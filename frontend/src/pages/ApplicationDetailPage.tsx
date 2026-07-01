@@ -8,6 +8,7 @@ import {
 import { ApplicationShell } from "../components/ApplicationShell";
 import { AgentsPage } from "./AgentsPage";
 import { AgentRunsPage } from "./AgentRunsPage";
+import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
 import { ProductsPage } from "./ProductsPage";
@@ -167,6 +168,10 @@ export function ApplicationDetailPage() {
         <Route
           path="agent-runs"
           element={<AgentRunsPage applicationId={application.id} />}
+        />
+        <Route
+          path="audit-trace"
+          element={<ApplicationAuditTracePage applicationId={application.id} />}
         />
       </Routes>
     </ApplicationShell>
