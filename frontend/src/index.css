@@ -1204,7 +1204,8 @@ body {
 
 .products-page h2,
 .agents-page h2,
-.ontologies-page h2 {
+.ontologies-page h2,
+.knowledge-graphs-page h2 {
   margin: 0 0 0.5rem;
   font-size: 1.125rem;
   font-weight: 600;
@@ -1212,7 +1213,8 @@ body {
 
 .products-page__header,
 .agents-page__header,
-.ontologies-page__header {
+.ontologies-page__header,
+.knowledge-graphs-page__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1222,7 +1224,8 @@ body {
 
 .products-page__header .products-page__lead,
 .agents-page__header .agents-page__lead,
-.ontologies-page__header .ontologies-page__lead {
+.ontologies-page__header .ontologies-page__lead,
+.knowledge-graphs-page__header .knowledge-graphs-page__lead {
   margin-bottom: 0;
 }
 
@@ -1382,7 +1385,8 @@ body {
 
 .products-page__lead,
 .agents-page__lead,
-.ontologies-page__lead {
+.ontologies-page__lead,
+.knowledge-graphs-page__lead {
   margin: 0 0 1.5rem;
   color: #4a4a68;
   max-width: 42rem;
@@ -1391,14 +1395,16 @@ body {
 
 .products-page__status,
 .agents-page__status,
-.ontologies-page__status {
+.ontologies-page__status,
+.knowledge-graphs-page__status {
   margin: 0;
   color: #4a4a68;
 }
 
 .products-page__error,
 .agents-page__error,
-.ontologies-page__error {
+.ontologies-page__error,
+.knowledge-graphs-page__error {
   padding: 1rem 1.25rem;
   border-radius: 8px;
   border: 1px solid #e8b4b4;
@@ -1408,7 +1414,8 @@ body {
 
 .products-page__empty,
 .agents-page__empty,
-.ontologies-page__empty {
+.ontologies-page__empty,
+.knowledge-graphs-page__empty {
   padding: 2rem;
   border: 1px dashed #c8ccd4;
   border-radius: 8px;
@@ -1419,13 +1426,15 @@ body {
 
 .products-page__empty p,
 .agents-page__empty p,
-.ontologies-page__empty p {
+.ontologies-page__empty p,
+.knowledge-graphs-page__empty p {
   margin: 0;
 }
 
 .products-page__hint,
 .agents-page__hint,
-.ontologies-page__hint {
+.ontologies-page__hint,
+.knowledge-graphs-page__hint {
   margin-top: 0.5rem !important;
   font-size: 0.875rem;
   color: #6b6b80;
@@ -1433,7 +1442,8 @@ body {
 
 .products-page__table-wrap,
 .agents-page__table-wrap,
-.ontologies-page__table-wrap {
+.ontologies-page__table-wrap,
+.knowledge-graphs-page__table-wrap {
   overflow-x: auto;
   border: 1px solid #e0e3ea;
   border-radius: 8px;
@@ -1442,7 +1452,8 @@ body {
 
 .products-table,
 .agents-table,
-.ontologies-table {
+.ontologies-table,
+.knowledge-graphs-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
@@ -1453,7 +1464,9 @@ body {
 .agents-table th,
 .agents-table td,
 .ontologies-table th,
-.ontologies-table td {
+.ontologies-table td,
+.knowledge-graphs-table th,
+.knowledge-graphs-table td {
   padding: 0.75rem 1rem;
   text-align: left;
   border-bottom: 1px solid #e8ebf0;
@@ -1461,7 +1474,8 @@ body {
 
 .products-table th,
 .agents-table th,
-.ontologies-table th {
+.ontologies-table th,
+.knowledge-graphs-table th {
   font-weight: 600;
   color: #4a4a68;
   background: #f8f9fb;
@@ -1469,13 +1483,15 @@ body {
 
 .products-table tbody tr:last-child td,
 .agents-table tbody tr:last-child td,
-.ontologies-table tbody tr:last-child td {
+.ontologies-table tbody tr:last-child td,
+.knowledge-graphs-table tbody tr:last-child td {
   border-bottom: none;
 }
 
 .products-table__status,
 .agents-table__status,
-.ontologies-table__status {
+.ontologies-table__status,
+.knowledge-graphs-table__status {
   display: inline-block;
   padding: 0.125rem 0.5rem;
   border-radius: 999px;
@@ -1515,6 +1531,26 @@ body {
 .products-table__status--retired,
 .agents-table__status--retired,
 .ontologies-table__status--retired {
+  color: #6b6b80;
+  background: #eceef2;
+}
+
+.knowledge-graphs-table__status--created {
+  color: #5c4a1f;
+  background: #f3ecd8;
+}
+
+.knowledge-graphs-table__status--populated {
+  color: #1f5c38;
+  background: #d8f3e4;
+}
+
+.knowledge-graphs-table__status--updated {
+  color: #2d4a7c;
+  background: #dce8f8;
+}
+
+.knowledge-graphs-table__status--archived {
   color: #6b6b80;
   background: #eceef2;
 }

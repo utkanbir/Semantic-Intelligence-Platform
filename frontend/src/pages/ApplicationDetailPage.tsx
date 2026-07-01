@@ -11,6 +11,7 @@ import { AgentRunsPage } from "./AgentRunsPage";
 import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
+import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
 import { OntologiesPage } from "./OntologiesPage";
 import { ProductsPage } from "./ProductsPage";
 
@@ -164,6 +165,10 @@ export function ApplicationDetailPage() {
         <Route
           path="ontology"
           element={<OntologiesPage applicationId={application.id} />}
+        />
+        <Route
+          path="knowledge-graph"
+          element={<KnowledgeGraphsPage applicationId={application.id} />}
         />
         <Route
           path="products"

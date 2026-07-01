@@ -12,6 +12,7 @@ const SECTIONS = [
   { segment: "discovery", label: "Discovery", end: false },
   { segment: "blueprint", label: "Blueprint", end: false },
   { segment: "ontology", label: "Ontology", end: false },
+  { segment: "knowledge-graph", label: "Knowledge graph", end: false },
   { segment: "products", label: "Products", end: false },
   { segment: "agents", label: "Agents", end: false },
   { segment: "agent-runs", label: "Agent runs", end: false },

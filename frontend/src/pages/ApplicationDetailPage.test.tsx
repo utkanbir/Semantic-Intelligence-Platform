@@ -10,6 +10,7 @@ import { listAgentRuns } from "../api/agentRuns";
 import { listAuditTraces } from "../api/auditTrace";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
+import { listKnowledgeGraphs } from "../api/knowledgeGraphs";
 import { listOntologies } from "../api/ontologies";
 import { listProducts } from "../api/products";
 import { ApplicationDetailPage } from "./ApplicationDetailPage";
@@ -72,6 +73,11 @@ vi.mock("../api/ontologies", () => ({
   getOntology: vi.fn(),
 }));
 
+vi.mock("../api/knowledgeGraphs", () => ({
+  listKnowledgeGraphs: vi.fn(),
+  getKnowledgeGraph: vi.fn(),
+}));
+
 const mockApplication: ApplicationResponse = {
   id: "app-1",
   key: "demo",
@@ -130,6 +136,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listAuditTraces).mockResolvedValue([]);
     vi.mocked(listOntologies).mockReset();
     vi.mocked(listOntologies).mockResolvedValue([]);
+    vi.mocked(listKnowledgeGraphs).mockReset();
+    vi.mocked(listKnowledgeGraphs).mockResolvedValue([]);
   });
 
   it("loads application and shows overview by default", async () => {
@@ -258,6 +266,42 @@ describe("ApplicationDetailPage", () => {
 
     expect(listOntologies).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Ontology" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("navigates to knowledge graph list", async () => {
+    vi.mocked(listKnowledgeGraphs).mockResolvedValue([
+      {
+        id: "kg-1",
+        application_id: "app-1",
+        status: "Created",
+        title: "Knowledge Graph A",
+        description: null,
+        created_by: "alice@example.com",
+        created_at: "2025-06-01T10:00:00Z",
+        updated_at: "2025-06-01T10:00:00Z",
+        populated_at: null,
+        graph_updated_at: null,
+        archived_at: null,
+        graph_metadata: {},
+        bound_ontology_ids: [],
+      },
+    ]);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Knowledge graph" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Knowledge Graph A")).toBeInTheDocument();
+    });
+
+    expect(listKnowledgeGraphs).toHaveBeenCalledWith("app-1");
+    expect(screen.getByRole("heading", { name: "Knowledge graph" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
@@ -437,6 +481,7 @@ describe("ApplicationDetailPage", () => {
     ["discovery"],
     ["blueprint"],
     ["ontology"],
+    ["knowledge-graph"],
     ["products"],
     ["agents"],
     ["agent-runs"],
