@@ -86,6 +86,7 @@ function renderDetailPage(initialEntry = "/applications/app-1") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
+        <Route path="/applications" element={<div>Applications list</div>} />
         <Route
           path="/applications/:applicationId/*"
           element={<ApplicationDetailPage />}
@@ -291,5 +292,62 @@ describe("ApplicationDetailPage", () => {
     expect(screen.getByRole("link", { name: "Overview" })).not.toHaveClass(
       "application-shell__nav-link--active",
     );
+  });
+
+  it("shows breadcrumb with application name on overview", async () => {
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(breadcrumb).toHaveTextContent("Applications");
+    expect(breadcrumb).toHaveTextContent("Demo App");
+    expect(screen.getByRole("link", { name: "Applications" })).toHaveAttribute(
+      "href",
+      "/applications",
+    );
+  });
+
+  it.each([
+    ["discovery"],
+    ["blueprint"],
+    ["products"],
+    ["agents"],
+  ] as const)("shows breadcrumb on %s route", async (segment) => {
+    renderDetailPage(`/applications/app-1/${segment}`);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(breadcrumb).toHaveTextContent("Applications");
+    expect(breadcrumb).toHaveTextContent("Demo App");
+  });
+
+  it("navigates back to applications list from back link", async () => {
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "← Back to Applications" }));
+
+    expect(screen.getByText("Applications list")).toBeInTheDocument();
+  });
+
+  it("navigates back to applications list from breadcrumb", async () => {
+    renderDetailPage("/applications/app-1/discovery");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Applications" }));
+
+    expect(screen.getByText("Applications list")).toBeInTheDocument();
   });
 });
