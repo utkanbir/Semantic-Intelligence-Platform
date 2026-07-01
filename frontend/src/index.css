@@ -1739,3 +1739,123 @@ body {
   color: #6b6b80;
   font-size: 0.9375rem;
 }
+
+.agent-runs-page h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.agent-runs-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.agent-runs-page__header .agent-runs-page__lead {
+  margin-bottom: 0;
+}
+
+.agent-runs-page__lead {
+  margin: 0 0 1.5rem;
+  color: #4a4a68;
+  max-width: 42rem;
+  font-size: 0.9375rem;
+}
+
+.agent-runs-page__status {
+  margin: 0;
+  color: #4a4a68;
+}
+
+.agent-runs-page__error {
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #e8b4b4;
+  background: #fff5f5;
+  color: #8b3a3a;
+}
+
+.agent-runs-page__empty {
+  padding: 2rem;
+  border: 1px dashed #c8ccd4;
+  border-radius: 8px;
+  background: #fafbfc;
+  text-align: center;
+  color: #4a4a68;
+}
+
+.agent-runs-page__empty p {
+  margin: 0;
+}
+
+.agent-runs-page__hint {
+  margin-top: 0.5rem !important;
+  font-size: 0.875rem;
+  color: #6b6b80;
+}
+
+.agent-runs-page__table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.agent-runs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.agent-runs-table th,
+.agent-runs-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e8ebf0;
+}
+
+.agent-runs-table th {
+  font-weight: 600;
+  color: #4a4a68;
+  background: #f8f9fb;
+}
+
+.agent-runs-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.agent-runs-table__id {
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.75rem;
+}
+
+.agent-runs-table__status {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.agent-runs-table__status--pending {
+  color: #5c4a1f;
+  background: #f3ecd8;
+}
+
+.agent-runs-table__status--running {
+  color: #2d4a7c;
+  background: #dce8f8;
+}
+
+.agent-runs-table__status--completed {
+  color: #1f5c38;
+  background: #d8f3e4;
+}
+
+.agent-runs-table__status--failed {
+  color: #8b3a3a;
+  background: #f5dede;
+}

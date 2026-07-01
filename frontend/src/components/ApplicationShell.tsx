@@ -13,6 +13,7 @@ const SECTIONS = [
   { segment: "blueprint", label: "Blueprint", end: false },
   { segment: "products", label: "Products", end: false },
   { segment: "agents", label: "Agents", end: false },
+  { segment: "agent-runs", label: "Agent runs", end: false },
 ] as const;
 
 function statusLabel(status: ApplicationResponse["status"]): string {

@@ -6,6 +6,7 @@ import {
   type ApplicationResponse,
 } from "../api/applications";
 import { listAgents } from "../api/agents";
+import { listAgentRuns } from "../api/agentRuns";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
 import { listProducts } from "../api/products";
@@ -55,6 +56,10 @@ vi.mock("../api/agents", async (importOriginal) => {
     updateAgentStatus: vi.fn(),
   };
 });
+
+vi.mock("../api/agentRuns", () => ({
+  listAgentRuns: vi.fn(),
+}));
 
 const mockApplication: ApplicationResponse = {
   id: "app-1",
@@ -108,6 +113,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listProducts).mockResolvedValue([]);
     vi.mocked(listAgents).mockReset();
     vi.mocked(listAgents).mockResolvedValue([]);
+    vi.mocked(listAgentRuns).mockReset();
+    vi.mocked(listAgentRuns).mockResolvedValue([]);
   });
 
   it("loads application and shows overview by default", async () => {
@@ -275,6 +282,40 @@ describe("ApplicationDetailPage", () => {
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
+  it("navigates to agent runs list", async () => {
+    vi.mocked(listAgentRuns).mockResolvedValue([
+      {
+        id: "run-1",
+        application_id: "app-1",
+        agent_definition_id: "agent-1",
+        status: "Completed",
+        created_by: "bob@example.com",
+        created_at: "2025-06-01T10:00:00Z",
+        updated_at: "2025-06-01T10:05:00Z",
+        started_at: "2025-06-01T10:00:01Z",
+        completed_at: "2025-06-01T10:05:00Z",
+        run_payload: {},
+        run_result: { answer: "stub" },
+      },
+    ]);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Agent runs" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("run-1")).toBeInTheDocument();
+    });
+
+    expect(listAgentRuns).toHaveBeenCalledWith("app-1");
+    expect(screen.getByRole("heading", { name: "Agent runs" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
   it("highlights active section in navigation", async () => {
     renderDetailPage();
 
@@ -315,6 +356,7 @@ describe("ApplicationDetailPage", () => {
     ["blueprint"],
     ["products"],
     ["agents"],
+    ["agent-runs"],
   ] as const)("shows breadcrumb on %s route", async (segment) => {
     renderDetailPage(`/applications/app-1/${segment}`);
 
