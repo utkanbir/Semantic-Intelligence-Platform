@@ -40,3 +40,20 @@ export function listOntologies(
 export function getOntology(ontologyId: string): Promise<OntologyDefinitionResponse> {
   return apiFetch<OntologyDefinitionResponse>(`/ontologies/${ontologyId}`);
 }
+
+export interface OntologyDefinitionCreateRequest {
+  application_id: string;
+  title: string;
+  created_by?: string;
+  description?: string;
+  ontology_definition?: Record<string, unknown>;
+}
+
+export function createOntology(
+  payload: OntologyDefinitionCreateRequest,
+): Promise<OntologyDefinitionResponse> {
+  return apiFetch<OntologyDefinitionResponse>("/ontologies", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

@@ -1231,6 +1231,7 @@ body {
 
 .products-page__create-panel,
 .agents-page__create-panel,
+.ontologies-page__create-panel,
 .agent-runs-page__trigger-panel {
   margin-bottom: 1.5rem;
   padding: 1.5rem;
@@ -1241,6 +1242,7 @@ body {
 
 .products-page__create-title,
 .agents-page__create-title,
+.ontologies-page__create-title,
 .agent-runs-page__trigger-title {
   margin: 0 0 1rem;
   font-size: 1rem;
@@ -1249,6 +1251,7 @@ body {
 
 .products-page__form,
 .agents-page__form,
+.ontologies-page__form,
 .agent-runs-page__form {
   display: flex;
   flex-direction: column;
@@ -1258,7 +1261,8 @@ body {
 }
 
 .products-page__empty .products-page__form,
-.agents-page__empty .agents-page__form {
+.agents-page__empty .agents-page__form,
+.ontologies-page__empty .ontologies-page__form {
   max-width: 28rem;
   margin-left: auto;
   margin-right: auto;
@@ -1266,6 +1270,7 @@ body {
 
 .products-page__field,
 .agents-page__field,
+.ontologies-page__field,
 .agent-runs-page__field {
   display: flex;
   flex-direction: column;
@@ -1274,6 +1279,7 @@ body {
 
 .products-page__field label,
 .agents-page__field label,
+.ontologies-page__field label,
 .agent-runs-page__field label {
   font-size: 0.875rem;
   font-weight: 600;
@@ -1282,6 +1288,7 @@ body {
 
 .products-page__optional,
 .agents-page__optional,
+.ontologies-page__optional,
 .agent-runs-page__optional {
   font-weight: 400;
   color: #6b6b80;
@@ -1291,6 +1298,8 @@ body {
 .products-page__field textarea,
 .agents-page__field input,
 .agents-page__field textarea,
+.ontologies-page__field input,
+.ontologies-page__field textarea,
 .agent-runs-page__field input,
 .agent-runs-page__field select {
   width: 100%;
@@ -1306,6 +1315,8 @@ body {
 .products-page__field textarea:focus,
 .agents-page__field input:focus,
 .agents-page__field textarea:focus,
+.ontologies-page__field input:focus,
+.ontologies-page__field textarea:focus,
 .agent-runs-page__field input:focus,
 .agent-runs-page__field select:focus {
   outline: 2px solid #4a6fa5;
@@ -1317,6 +1328,8 @@ body {
 .products-page__field textarea[aria-invalid="true"],
 .agents-page__field input[aria-invalid="true"],
 .agents-page__field textarea[aria-invalid="true"],
+.ontologies-page__field input[aria-invalid="true"],
+.ontologies-page__field textarea[aria-invalid="true"],
 .agent-runs-page__field input[aria-invalid="true"],
 .agent-runs-page__field select[aria-invalid="true"] {
   border-color: #c45c5c;
@@ -1324,6 +1337,7 @@ body {
 
 .products-page__field-error,
 .agents-page__field-error,
+.ontologies-page__field-error,
 .agent-runs-page__field-error {
   margin: 0;
   font-size: 0.8125rem;
@@ -1332,6 +1346,7 @@ body {
 
 .products-page__form-actions,
 .agents-page__form-actions,
+.ontologies-page__form-actions,
 .agent-runs-page__form-actions {
   display: flex;
   justify-content: flex-end;
@@ -1340,6 +1355,7 @@ body {
 
 .products-page__button,
 .agents-page__button,
+.ontologies-page__button,
 .agent-runs-page__button {
   padding: 0.5rem 1rem;
   border-radius: 6px;
@@ -1352,6 +1368,7 @@ body {
 
 .products-page__button:disabled,
 .agents-page__button:disabled,
+.ontologies-page__button:disabled,
 .agent-runs-page__button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -1359,6 +1376,7 @@ body {
 
 .products-page__button--primary,
 .agents-page__button--primary,
+.ontologies-page__button--primary,
 .agent-runs-page__button--primary {
   color: #fff;
   background: #1a1a2e;
@@ -1367,19 +1385,22 @@ body {
 
 .products-page__button--primary:hover:not(:disabled),
 .agents-page__button--primary:hover:not(:disabled),
+.ontologies-page__button--primary:hover:not(:disabled),
 .agent-runs-page__button--primary:hover:not(:disabled) {
   background: #2d2d44;
 }
 
 .products-page__button--secondary,
-.agents-page__button--secondary {
+.agents-page__button--secondary,
+.ontologies-page__button--secondary {
   color: #1a1a2e;
   background: #fff;
   border-color: #c8ccd4;
 }
 
 .products-page__button--secondary:hover:not(:disabled),
-.agents-page__button--secondary:hover:not(:disabled) {
+.agents-page__button--secondary:hover:not(:disabled),
+.ontologies-page__button--secondary:hover:not(:disabled) {
   background: #f8f9fb;
 }
 
