@@ -81,6 +81,10 @@
     "19": {
       "label": "Console Application Journey",
       "issues": [212, 213, 214, 215]
+    },
+    "20": {
+      "label": "Console Ontology & KG",
+      "issues": [219, 220, 221, 222]
     }
   }
 }
