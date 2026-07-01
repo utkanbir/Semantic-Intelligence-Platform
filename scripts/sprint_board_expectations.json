@@ -69,6 +69,10 @@
     "16": {
       "label": "Console Lifecycle Actions",
       "issues": [195, 196, 197]
+    },
+    "17": {
+      "label": "Console Agent Binding & Discovery Lifecycle",
+      "issues": [199, 200, 201, 202]
     }
   }
 }
