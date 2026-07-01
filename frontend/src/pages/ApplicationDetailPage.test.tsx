@@ -69,15 +69,23 @@ vi.mock("../api/auditTrace", () => ({
   listAuditTraces: vi.fn(),
 }));
 
-vi.mock("../api/ontologies", () => ({
-  listOntologies: vi.fn(),
-  getOntology: vi.fn(),
-}));
+vi.mock("../api/ontologies", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/ontologies")>();
+  return {
+    ...actual,
+    listOntologies: vi.fn(),
+    getOntology: vi.fn(),
+  };
+});
 
-vi.mock("../api/knowledgeGraphs", () => ({
-  listKnowledgeGraphs: vi.fn(),
-  getKnowledgeGraph: vi.fn(),
-}));
+vi.mock("../api/knowledgeGraphs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/knowledgeGraphs")>();
+  return {
+    ...actual,
+    listKnowledgeGraphs: vi.fn(),
+    getKnowledgeGraph: vi.fn(),
+  };
+});
 
 const mockApplication: ApplicationResponse = {
   id: "app-1",

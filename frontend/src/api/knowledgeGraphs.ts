@@ -56,3 +56,39 @@ export function createKnowledgeGraph(
     body: JSON.stringify(payload),
   });
 }
+
+const KG_NEXT_STATUSES: Record<KnowledgeGraphRegistryStatus, KnowledgeGraphRegistryStatus[]> = {
+  Created: ["Populated"],
+  Populated: ["Updated", "Archived"],
+  Updated: ["Archived"],
+  Archived: [],
+};
+
+export function getNextKnowledgeGraphStatuses(
+  status: KnowledgeGraphRegistryStatus,
+): KnowledgeGraphRegistryStatus[] {
+  return KG_NEXT_STATUSES[status];
+}
+
+const KG_STATUS_ACTION_LABELS: Record<KnowledgeGraphRegistryStatus, string> = {
+  Created: "Revert to Created",
+  Populated: "Populate",
+  Updated: "Update",
+  Archived: "Archive",
+};
+
+export function getKnowledgeGraphStatusActionLabel(
+  status: KnowledgeGraphRegistryStatus,
+): string {
+  return KG_STATUS_ACTION_LABELS[status];
+}
+
+export function updateKnowledgeGraphStatus(
+  registryId: string,
+  status: KnowledgeGraphRegistryStatus,
+): Promise<KnowledgeGraphRegistryResponse> {
+  return apiFetch<KnowledgeGraphRegistryResponse>(`/knowledge-graphs/${registryId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}

@@ -57,3 +57,41 @@ export function createOntology(
     body: JSON.stringify(payload),
   });
 }
+
+const ONTOLOGY_NEXT_STATUSES: Record<OntologyDefinitionStatus, OntologyDefinitionStatus[]> = {
+  Draft: ["Validated"],
+  Validated: ["Approved", "Draft"],
+  Approved: ["Published"],
+  Published: ["Versioned"],
+  Versioned: ["Retired"],
+  Retired: [],
+};
+
+export function getNextOntologyStatuses(
+  status: OntologyDefinitionStatus,
+): OntologyDefinitionStatus[] {
+  return ONTOLOGY_NEXT_STATUSES[status];
+}
+
+const ONTOLOGY_STATUS_ACTION_LABELS: Record<OntologyDefinitionStatus, string> = {
+  Draft: "Revert to Draft",
+  Validated: "Validate",
+  Approved: "Approve",
+  Published: "Publish",
+  Versioned: "Version",
+  Retired: "Retire",
+};
+
+export function getOntologyStatusActionLabel(status: OntologyDefinitionStatus): string {
+  return ONTOLOGY_STATUS_ACTION_LABELS[status];
+}
+
+export function updateOntologyStatus(
+  ontologyId: string,
+  status: OntologyDefinitionStatus,
+): Promise<OntologyDefinitionResponse> {
+  return apiFetch<OntologyDefinitionResponse>(`/ontologies/${ontologyId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}

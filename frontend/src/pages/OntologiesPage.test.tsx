@@ -4,6 +4,7 @@ import { ApiError } from "../api";
 import {
   createOntology,
   listOntologies,
+  updateOntologyStatus,
   type OntologyDefinitionResponse,
 } from "../api/ontologies";
 import { OntologiesPage } from "./OntologiesPage";
@@ -12,6 +13,29 @@ vi.mock("../api/ontologies", () => ({
   listOntologies: vi.fn(),
   getOntology: vi.fn(),
   createOntology: vi.fn(),
+  updateOntologyStatus: vi.fn(),
+  getNextOntologyStatuses: vi.fn((status: string) => {
+    const map: Record<string, string[]> = {
+      Draft: ["Validated"],
+      Validated: ["Approved", "Draft"],
+      Approved: ["Published"],
+      Published: ["Versioned"],
+      Versioned: ["Retired"],
+      Retired: [],
+    };
+    return map[status] ?? [];
+  }),
+  getOntologyStatusActionLabel: vi.fn((status: string) => {
+    const labels: Record<string, string> = {
+      Validated: "Validate",
+      Approved: "Approve",
+      Draft: "Revert to Draft",
+      Published: "Publish",
+      Versioned: "Version",
+      Retired: "Retire",
+    };
+    return labels[status] ?? status;
+  }),
 }));
 
 const mockOntology: OntologyDefinitionResponse = {
@@ -43,10 +67,27 @@ const newOntology: OntologyDefinitionResponse = {
   approved_at: null,
 };
 
+const draftOntology: OntologyDefinitionResponse = {
+  ...mockOntology,
+  id: "onto-draft",
+  status: "Draft",
+  version_number: 1,
+  published_at: null,
+  validated_at: null,
+  approved_at: null,
+};
+
+const validatedOntology: OntologyDefinitionResponse = {
+  ...draftOntology,
+  status: "Validated",
+  validated_at: "2025-06-02T10:00:00Z",
+};
+
 describe("OntologiesPage", () => {
   beforeEach(() => {
     vi.mocked(listOntologies).mockReset();
     vi.mocked(createOntology).mockReset();
+    vi.mocked(updateOntologyStatus).mockReset();
   });
 
   it("renders loading then ontologies table", async () => {
@@ -189,6 +230,48 @@ describe("OntologiesPage", () => {
         title: "New Ontology",
         ontology_definition: { classes: ["Person"] },
       });
+    });
+  });
+
+  it("validates draft ontology via lifecycle action", async () => {
+    vi.mocked(listOntologies)
+      .mockResolvedValueOnce([draftOntology])
+      .mockResolvedValueOnce([validatedOntology]);
+    vi.mocked(updateOntologyStatus).mockResolvedValue(validatedOntology);
+
+    render(<OntologiesPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Validate" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => {
+      expect(updateOntologyStatus).toHaveBeenCalledWith("onto-draft", "Validated");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Validated")).toBeInTheDocument();
+    });
+  });
+
+  it("shows ApiError message when status update fails", async () => {
+    vi.mocked(listOntologies).mockResolvedValue([draftOntology]);
+    vi.mocked(updateOntologyStatus).mockRejectedValue(
+      new ApiError("Invalid status transition", 422),
+    );
+
+    render(<OntologiesPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Validate" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Invalid status transition");
     });
   });
 

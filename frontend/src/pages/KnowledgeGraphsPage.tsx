@@ -2,8 +2,12 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api";
 import {
   createKnowledgeGraph,
+  getKnowledgeGraphStatusActionLabel,
+  getNextKnowledgeGraphStatuses,
   listKnowledgeGraphs,
+  updateKnowledgeGraphStatus,
   type KnowledgeGraphRegistryResponse,
+  type KnowledgeGraphRegistryStatus,
 } from "../api/knowledgeGraphs";
 import {
   listOntologies,
@@ -269,6 +273,8 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [ontologies, setOntologies] = useState<OntologyDefinitionResponse[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingRegistryId, setPendingRegistryId] = useState<string | null>(null);
 
   const loadRegistries = useCallback(() => {
     setState({ kind: "loading" });
@@ -322,6 +328,28 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
     void loadRegistries();
   }
 
+  async function handleStatusTransition(
+    registryId: string,
+    nextStatus: KnowledgeGraphRegistryStatus,
+  ) {
+    setActionError(null);
+    setPendingRegistryId(registryId);
+    try {
+      await updateKnowledgeGraphStatus(registryId, nextStatus);
+      await loadRegistries();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update knowledge graph status";
+      setActionError(message);
+    } finally {
+      setPendingRegistryId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.registries.length === 0;
   const hasRegistries = state.kind === "success" && state.registries.length > 0;
 
@@ -355,6 +383,15 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
       {state.kind === "error" && (
         <div className="knowledge-graphs-page__error" role="alert">
           {state.message}
+        </div>
+      )}
+
+      {actionError && (
+        <div
+          className="knowledge-graphs-page__error knowledge-graphs-page__action-error"
+          role="alert"
+        >
+          {actionError}
         </div>
       )}
 
@@ -393,6 +430,7 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
                 <th scope="col">Status</th>
                 <th scope="col">Created at</th>
                 <th scope="col">Populated at</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -404,6 +442,24 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
                   </td>
                   <td>{formatDate(registry.created_at)}</td>
                   <td>{formatDate(registry.populated_at)}</td>
+                  <td>
+                    <div className="knowledge-graphs-table__actions">
+                      {getNextKnowledgeGraphStatuses(registry.status).map((nextStatus) => (
+                        <button
+                          key={nextStatus}
+                          type="button"
+                          className="knowledge-graphs-page__button knowledge-graphs-page__button--secondary knowledge-graphs-table__action"
+                          disabled={pendingRegistryId === registry.id}
+                          onClick={() => void handleStatusTransition(registry.id, nextStatus)}
+                        >
+                          {getKnowledgeGraphStatusActionLabel(nextStatus)}
+                        </button>
+                      ))}
+                      {getNextKnowledgeGraphStatuses(registry.status).length === 0 && (
+                        <span className="knowledge-graphs-table__no-actions">—</span>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
