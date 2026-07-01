@@ -77,6 +77,10 @@
     "18": {
       "label": "Console Platform Shell",
       "issues": [204, 205, 206, 207]
+    },
+    "19": {
+      "label": "Console Application Journey",
+      "issues": [212, 213, 214, 215]
     }
   }
 }
