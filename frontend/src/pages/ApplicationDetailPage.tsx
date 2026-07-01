@@ -7,6 +7,7 @@ import {
 } from "../api/applications";
 import { ApplicationShell } from "../components/ApplicationShell";
 import { AgentsPage } from "./AgentsPage";
+import { AgentRunsPage } from "./AgentRunsPage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
 import { ProductsPage } from "./ProductsPage";
@@ -163,6 +164,10 @@ export function ApplicationDetailPage() {
           element={<ProductsPage applicationId={application.id} />}
         />
         <Route path="agents" element={<AgentsPage applicationId={application.id} />} />
+        <Route
+          path="agent-runs"
+          element={<AgentRunsPage applicationId={application.id} />}
+        />
       </Routes>
     </ApplicationShell>
   );
