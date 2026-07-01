@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api";
 import { listAgents, type AgentDefinitionResponse } from "../api/agents";
@@ -81,7 +82,11 @@ describe("AgentRunsPage", () => {
         }),
     );
 
-    render(<AgentRunsPage applicationId="app-1" />);
+    render(
+      <MemoryRouter>
+        <AgentRunsPage applicationId="app-1" />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText("Loading agent runs…")).toBeInTheDocument();
 
@@ -97,7 +102,11 @@ describe("AgentRunsPage", () => {
   it("renders empty state when no runs", async () => {
     vi.mocked(listAgentRuns).mockResolvedValue([]);
 
-    render(<AgentRunsPage applicationId="app-1" />);
+    render(
+      <MemoryRouter>
+        <AgentRunsPage applicationId="app-1" />
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("No agent runs yet.")).toBeInTheDocument();
@@ -107,7 +116,11 @@ describe("AgentRunsPage", () => {
   it("renders error state on API failure", async () => {
     vi.mocked(listAgentRuns).mockRejectedValue(new Error("Network error"));
 
-    render(<AgentRunsPage applicationId="app-1" />);
+    render(
+      <MemoryRouter>
+        <AgentRunsPage applicationId="app-1" />
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Network error");
@@ -122,7 +135,11 @@ describe("AgentRunsPage", () => {
       activeAgentWithoutBindings,
     ]);
 
-    render(<AgentRunsPage applicationId="app-1" />);
+    render(
+      <MemoryRouter>
+        <AgentRunsPage applicationId="app-1" />
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
       expect(screen.getByLabelText("Trigger agent run")).toBeInTheDocument();
@@ -146,7 +163,11 @@ describe("AgentRunsPage", () => {
       .mockResolvedValueOnce([newRun]);
     vi.mocked(startAgentRun).mockResolvedValue(newRun);
 
-    render(<AgentRunsPage applicationId="app-1" />);
+    render(
+      <MemoryRouter>
+        <AgentRunsPage applicationId="app-1" />
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
       expect(screen.getByLabelText("Trigger agent run")).toBeInTheDocument();
@@ -183,7 +204,11 @@ describe("AgentRunsPage", () => {
       new ApiError("Active agent must have bound products", 422),
     );
 
-    render(<AgentRunsPage applicationId="app-1" />);
+    render(
+      <MemoryRouter>
+        <AgentRunsPage applicationId="app-1" />
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
       expect(screen.getByLabelText("Trigger agent run")).toBeInTheDocument();
@@ -202,5 +227,24 @@ describe("AgentRunsPage", () => {
         "Active agent must have bound products",
       );
     });
+  });
+
+  it("links run IDs to detail page", async () => {
+    vi.mocked(listAgentRuns).mockResolvedValue([mockRun]);
+
+    render(
+      <MemoryRouter>
+        <AgentRunsPage applicationId="app-1" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "run-1" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: "run-1" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/agent-runs/run-1",
+    );
   });
 });

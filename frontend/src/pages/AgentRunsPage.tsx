@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import { listAgents, type AgentDefinitionResponse } from "../api/agents";
 import {
@@ -344,7 +345,12 @@ export function AgentRunsPage({ applicationId }: AgentRunsPageProps) {
               {state.runs.map((run) => (
                 <tr key={run.id}>
                   <td>
-                    <code className="agent-runs-table__id">{run.id}</code>
+                    <Link
+                      to={`/applications/${applicationId}/agent-runs/${run.id}`}
+                      className="agent-runs-table__link"
+                    >
+                      <code className="agent-runs-table__id">{run.id}</code>
+                    </Link>
                   </td>
                   <td>
                     <code className="agent-runs-table__id">{run.agent_definition_id}</code>

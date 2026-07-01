@@ -6,7 +6,7 @@ import {
   type ApplicationResponse,
 } from "../api/applications";
 import { listAgents } from "../api/agents";
-import { listAgentRuns } from "../api/agentRuns";
+import { listAgentRuns, getAgentRun } from "../api/agentRuns";
 import { listAuditTraces } from "../api/auditTrace";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
@@ -62,6 +62,7 @@ vi.mock("../api/agents", async (importOriginal) => {
 
 vi.mock("../api/agentRuns", () => ({
   listAgentRuns: vi.fn(),
+  getAgentRun: vi.fn(),
 }));
 
 vi.mock("../api/auditTrace", () => ({
@@ -132,6 +133,7 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listAgents).mockResolvedValue([]);
     vi.mocked(listAgentRuns).mockReset();
     vi.mocked(listAgentRuns).mockResolvedValue([]);
+    vi.mocked(getAgentRun).mockReset();
     vi.mocked(listAuditTraces).mockReset();
     vi.mocked(listAuditTraces).mockResolvedValue([]);
     vi.mocked(listOntologies).mockReset();
@@ -411,6 +413,35 @@ describe("ApplicationDetailPage", () => {
     expect(listAgentRuns).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Agent runs" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("renders agent run detail route", async () => {
+    vi.mocked(getAgentRun).mockResolvedValue({
+      id: "run-1",
+      application_id: "app-1",
+      agent_definition_id: "agent-1",
+      status: "Completed",
+      created_by: "bob@example.com",
+      created_at: "2025-06-01T10:00:00Z",
+      updated_at: "2025-06-01T10:05:00Z",
+      started_at: "2025-06-01T10:00:01Z",
+      completed_at: "2025-06-01T10:05:00Z",
+      run_payload: { message: "Hello" },
+      run_result: { answer: "stub" },
+    });
+
+    renderDetailPage("/applications/app-1/agent-runs/run-1");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Agent run detail" })).toBeInTheDocument();
+    });
+
+    expect(getAgentRun).toHaveBeenCalledWith("run-1");
+    expect(screen.getByText("agent-1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Back to agent runs" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/agent-runs",
+    );
   });
 
   it("navigates to audit trace list", async () => {
