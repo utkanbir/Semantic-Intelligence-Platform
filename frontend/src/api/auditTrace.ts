@@ -18,6 +18,11 @@ export interface SemanticTransactionResponse {
   trace_steps: TraceStepResponse[];
 }
 
-export function listAuditTraces(): Promise<SemanticTransactionResponse[]> {
-  return apiFetch<SemanticTransactionResponse[]>("/audit-traces");
+export function listAuditTraces(resourceId: string): Promise<SemanticTransactionResponse[]> {
+  const params = new URLSearchParams({ resource_id: resourceId });
+  return apiFetch<SemanticTransactionResponse[]>(`/audit-traces?${params}`);
+}
+
+export function getAuditTrace(transactionId: string): Promise<SemanticTransactionResponse> {
+  return apiFetch<SemanticTransactionResponse>(`/audit-traces/${transactionId}`);
 }

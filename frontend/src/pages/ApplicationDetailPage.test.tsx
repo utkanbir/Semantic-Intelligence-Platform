@@ -7,6 +7,7 @@ import {
 } from "../api/applications";
 import { listAgents } from "../api/agents";
 import { listAgentRuns } from "../api/agentRuns";
+import { listAuditTraces } from "../api/auditTrace";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
 import { listProducts } from "../api/products";
@@ -59,6 +60,10 @@ vi.mock("../api/agents", async (importOriginal) => {
 
 vi.mock("../api/agentRuns", () => ({
   listAgentRuns: vi.fn(),
+}));
+
+vi.mock("../api/auditTrace", () => ({
+  listAuditTraces: vi.fn(),
 }));
 
 const mockApplication: ApplicationResponse = {
@@ -115,6 +120,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listAgents).mockResolvedValue([]);
     vi.mocked(listAgentRuns).mockReset();
     vi.mocked(listAgentRuns).mockResolvedValue([]);
+    vi.mocked(listAuditTraces).mockReset();
+    vi.mocked(listAuditTraces).mockResolvedValue([]);
   });
 
   it("loads application and shows overview by default", async () => {
@@ -316,6 +323,35 @@ describe("ApplicationDetailPage", () => {
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
+  it("navigates to audit trace list", async () => {
+    vi.mocked(listAuditTraces).mockResolvedValue([
+      {
+        id: "txn-1",
+        transaction_type: "CREATE",
+        resource_type: "Application",
+        resource_id: "app-1",
+        created_at: "2025-06-01T10:00:00Z",
+        trace_steps: [],
+      },
+    ]);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Audit trace" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("CREATE")).toBeInTheDocument();
+    });
+
+    expect(listAuditTraces).toHaveBeenCalledWith("app-1");
+    expect(screen.getByRole("heading", { name: "Audit trace" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
   it("highlights active section in navigation", async () => {
     renderDetailPage();
 
@@ -357,6 +393,7 @@ describe("ApplicationDetailPage", () => {
     ["products"],
     ["agents"],
     ["agent-runs"],
+    ["audit-trace"],
   ] as const)("shows breadcrumb on %s route", async (segment) => {
     renderDetailPage(`/applications/app-1/${segment}`);
 

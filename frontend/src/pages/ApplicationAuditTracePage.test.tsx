@@ -1,13 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "../../api";
+import { ApiError } from "../api";
 import {
   listAuditTraces,
   type SemanticTransactionResponse,
-} from "../../api/auditTrace";
-import { AuditTracePage } from "./AuditTracePage";
+} from "../api/auditTrace";
+import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
 
-vi.mock("../../api/auditTrace", () => ({
+vi.mock("../api/auditTrace", () => ({
   listAuditTraces: vi.fn(),
 }));
 
@@ -37,24 +37,12 @@ const mockTransaction: SemanticTransactionResponse = {
   ],
 };
 
-describe("AuditTracePage", () => {
+describe("ApplicationAuditTracePage", () => {
   beforeEach(() => {
     vi.mocked(listAuditTraces).mockReset();
   });
 
-  it("does not fetch on mount without resource ID", () => {
-    render(<AuditTracePage />);
-
-    expect(listAuditTraces).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Load audit traces by resource ID")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Enter an application ID or other resource ID to list semantic transactions",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("loads audit traces when resource ID is submitted", async () => {
+  it("renders loading then audit traces table", async () => {
     vi.mocked(listAuditTraces).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -62,12 +50,7 @@ describe("AuditTracePage", () => {
         }),
     );
 
-    render(<AuditTracePage />);
-
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    render(<ApplicationAuditTracePage applicationId="app-1" />);
 
     expect(screen.getByText("Loading audit traces…")).toBeInTheDocument();
 
@@ -77,28 +60,13 @@ describe("AuditTracePage", () => {
 
     expect(listAuditTraces).toHaveBeenCalledWith("app-1");
     expect(screen.getByText("Application")).toBeInTheDocument();
-    expect(screen.getByText("app-1")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
-  });
-
-  it("shows validation error when resource ID is empty", async () => {
-    render(<AuditTracePage />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
-
-    expect(screen.getByRole("alert")).toHaveTextContent("Resource ID is required");
-    expect(listAuditTraces).not.toHaveBeenCalled();
   });
 
   it("renders empty state", async () => {
     vi.mocked(listAuditTraces).mockResolvedValue([]);
 
-    render(<AuditTracePage />);
-
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    render(<ApplicationAuditTracePage applicationId="app-1" />);
 
     await waitFor(() => {
       expect(screen.getByText("No audit traces yet.")).toBeInTheDocument();
@@ -108,12 +76,7 @@ describe("AuditTracePage", () => {
   it("renders error state", async () => {
     vi.mocked(listAuditTraces).mockRejectedValue(new ApiError("Server error", 500));
 
-    render(<AuditTracePage />);
-
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    render(<ApplicationAuditTracePage applicationId="app-1" />);
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Server error");
