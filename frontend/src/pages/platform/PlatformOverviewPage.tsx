@@ -1,3 +1,20 @@
+import { NavLink } from "react-router-dom";
+
+const SUMMARY_CARDS = [
+  {
+    to: "/adapters",
+    label: "Platform",
+    description: "Cross-cutting framework capabilities shared across all applications.",
+    hint: "Adapters, governance, audit trace",
+  },
+  {
+    to: "/applications",
+    label: "Applications",
+    description: "Isolated workspaces for discovery, blueprints, products, and agents.",
+    hint: "Open application list",
+  },
+] as const;
+
 export function PlatformOverviewPage() {
   return (
     <section className="platform-page">
@@ -6,18 +23,21 @@ export function PlatformOverviewPage() {
         Manage platform-wide framework services—adapters, governance, and audit
         trace—or switch to Applications to work inside an application workspace.
       </p>
-      <dl className="platform-page__summary">
-        <div className="platform-page__summary-row">
-          <dt>Platform</dt>
-          <dd>Cross-cutting framework capabilities shared across all applications.</dd>
-        </div>
-        <div className="platform-page__summary-row">
-          <dt>Applications</dt>
-          <dd>
-            Isolated workspaces for discovery, blueprints, products, and agents.
-          </dd>
-        </div>
-      </dl>
+      <div className="platform-page__summary">
+        {SUMMARY_CARDS.map((card) => (
+          <NavLink
+            key={card.to}
+            to={card.to}
+            className={({ isActive }) =>
+              `platform-page__summary-card${isActive ? " platform-page__summary-card--active" : ""}`
+            }
+          >
+            <span className="platform-page__summary-label">{card.label}</span>
+            <p className="platform-page__summary-description">{card.description}</p>
+            <span className="platform-page__summary-hint">{card.hint} →</span>
+          </NavLink>
+        ))}
+      </div>
     </section>
   );
 }
