@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createKnowledgeGraph,
   getKnowledgeGraph,
+  getKnowledgeGraphStatusActionLabel,
+  getNextKnowledgeGraphStatuses,
   listKnowledgeGraphs,
+  updateKnowledgeGraphStatus,
   type KnowledgeGraphRegistryResponse,
 } from "./knowledgeGraphs";
 
@@ -107,6 +110,39 @@ describe("knowledgeGraphs API", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("getNextKnowledgeGraphStatuses matches backend transitions", () => {
+    expect(getNextKnowledgeGraphStatuses("Created")).toEqual(["Populated"]);
+    expect(getNextKnowledgeGraphStatuses("Populated")).toEqual(["Updated", "Archived"]);
+    expect(getNextKnowledgeGraphStatuses("Updated")).toEqual(["Archived"]);
+    expect(getNextKnowledgeGraphStatuses("Archived")).toEqual([]);
+  });
+
+  it("getKnowledgeGraphStatusActionLabel returns action labels", () => {
+    expect(getKnowledgeGraphStatusActionLabel("Populated")).toBe("Populate");
+    expect(getKnowledgeGraphStatusActionLabel("Updated")).toBe("Update");
+    expect(getKnowledgeGraphStatusActionLabel("Archived")).toBe("Archive");
+  });
+
+  it("updateKnowledgeGraphStatus calls PATCH with status body", async () => {
+    const updated = { ...mockRegistry, status: "Updated" as const };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(updated), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(updateKnowledgeGraphStatus("kg-1", "Updated")).resolves.toEqual(updated);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/knowledge-graphs/kg-1/status",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ status: "Updated" }),
         headers: expect.any(Headers),
       }),
     );

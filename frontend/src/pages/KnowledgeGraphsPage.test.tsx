@@ -4,6 +4,7 @@ import { ApiError } from "../api";
 import {
   createKnowledgeGraph,
   listKnowledgeGraphs,
+  updateKnowledgeGraphStatus,
   type KnowledgeGraphRegistryResponse,
 } from "../api/knowledgeGraphs";
 import { listOntologies, type OntologyDefinitionResponse } from "../api/ontologies";
@@ -13,6 +14,24 @@ vi.mock("../api/knowledgeGraphs", () => ({
   listKnowledgeGraphs: vi.fn(),
   getKnowledgeGraph: vi.fn(),
   createKnowledgeGraph: vi.fn(),
+  updateKnowledgeGraphStatus: vi.fn(),
+  getNextKnowledgeGraphStatuses: vi.fn((status: string) => {
+    const map: Record<string, string[]> = {
+      Created: ["Populated"],
+      Populated: ["Updated", "Archived"],
+      Updated: ["Archived"],
+      Archived: [],
+    };
+    return map[status] ?? [];
+  }),
+  getKnowledgeGraphStatusActionLabel: vi.fn((status: string) => {
+    const labels: Record<string, string> = {
+      Populated: "Populate",
+      Updated: "Update",
+      Archived: "Archive",
+    };
+    return labels[status] ?? status;
+  }),
 }));
 
 vi.mock("../api/ontologies", () => ({
@@ -63,11 +82,25 @@ const newRegistry: KnowledgeGraphRegistryResponse = {
   bound_ontology_ids: [],
 };
 
+const createdRegistry: KnowledgeGraphRegistryResponse = {
+  ...mockRegistry,
+  id: "kg-created",
+  status: "Created",
+  populated_at: null,
+};
+
+const populatedRegistry: KnowledgeGraphRegistryResponse = {
+  ...createdRegistry,
+  status: "Populated",
+  populated_at: "2025-06-02T10:00:00Z",
+};
+
 describe("KnowledgeGraphsPage", () => {
   beforeEach(() => {
     vi.mocked(listKnowledgeGraphs).mockReset();
     vi.mocked(listOntologies).mockReset();
     vi.mocked(createKnowledgeGraph).mockReset();
+    vi.mocked(updateKnowledgeGraphStatus).mockReset();
     vi.mocked(listOntologies).mockResolvedValue([mockOntology]);
   });
 
@@ -192,6 +225,48 @@ describe("KnowledgeGraphsPage", () => {
     });
 
     expect(createKnowledgeGraph).not.toHaveBeenCalled();
+  });
+
+  it("populates created registry via lifecycle action", async () => {
+    vi.mocked(listKnowledgeGraphs)
+      .mockResolvedValueOnce([createdRegistry])
+      .mockResolvedValueOnce([populatedRegistry]);
+    vi.mocked(updateKnowledgeGraphStatus).mockResolvedValue(populatedRegistry);
+
+    render(<KnowledgeGraphsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Populate" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Populate" }));
+
+    await waitFor(() => {
+      expect(updateKnowledgeGraphStatus).toHaveBeenCalledWith("kg-created", "Populated");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Populated")).toBeInTheDocument();
+    });
+  });
+
+  it("shows ApiError message when status update fails", async () => {
+    vi.mocked(listKnowledgeGraphs).mockResolvedValue([createdRegistry]);
+    vi.mocked(updateKnowledgeGraphStatus).mockRejectedValue(
+      new ApiError("Invalid status transition", 422),
+    );
+
+    render(<KnowledgeGraphsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Populate" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Populate" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Invalid status transition");
+    });
   });
 
   it("shows ApiError message on create failure", async () => {

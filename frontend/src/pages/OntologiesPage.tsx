@@ -2,8 +2,12 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api";
 import {
   createOntology,
+  getNextOntologyStatuses,
+  getOntologyStatusActionLabel,
   listOntologies,
+  updateOntologyStatus,
   type OntologyDefinitionResponse,
+  type OntologyDefinitionStatus,
 } from "../api/ontologies";
 
 type PageState =
@@ -228,6 +232,8 @@ interface OntologiesPageProps {
 export function OntologiesPage({ applicationId }: OntologiesPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingOntologyId, setPendingOntologyId] = useState<string | null>(null);
 
   const loadOntologies = useCallback(() => {
     setState({ kind: "loading" });
@@ -280,6 +286,28 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
     void loadOntologies();
   }
 
+  async function handleStatusTransition(
+    ontologyId: string,
+    nextStatus: OntologyDefinitionStatus,
+  ) {
+    setActionError(null);
+    setPendingOntologyId(ontologyId);
+    try {
+      await updateOntologyStatus(ontologyId, nextStatus);
+      await loadOntologies();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update ontology status";
+      setActionError(message);
+    } finally {
+      setPendingOntologyId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.ontologies.length === 0;
   const hasOntologies = state.kind === "success" && state.ontologies.length > 0;
 
@@ -316,6 +344,12 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
         </div>
       )}
 
+      {actionError && (
+        <div className="ontologies-page__error ontologies-page__action-error" role="alert">
+          {actionError}
+        </div>
+      )}
+
       {isEmpty && (
         <div className="ontologies-page__empty" role="status">
           <p>No ontology definitions yet.</p>
@@ -346,6 +380,7 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                 <th scope="col">Status</th>
                 <th scope="col">Version</th>
                 <th scope="col">Created at</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -357,6 +392,24 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                   </td>
                   <td>{ontology.version_number}</td>
                   <td>{formatDate(ontology.created_at)}</td>
+                  <td>
+                    <div className="ontologies-table__actions">
+                      {getNextOntologyStatuses(ontology.status).map((nextStatus) => (
+                        <button
+                          key={nextStatus}
+                          type="button"
+                          className="ontologies-page__button ontologies-page__button--secondary ontologies-table__action"
+                          disabled={pendingOntologyId === ontology.id}
+                          onClick={() => void handleStatusTransition(ontology.id, nextStatus)}
+                        >
+                          {getOntologyStatusActionLabel(nextStatus)}
+                        </button>
+                      ))}
+                      {getNextOntologyStatuses(ontology.status).length === 0 && (
+                        <span className="ontologies-table__no-actions">—</span>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
