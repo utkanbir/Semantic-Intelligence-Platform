@@ -166,6 +166,48 @@ body {
   max-width: 36rem;
 }
 
+.platform-page__summary-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.platform-page__summary-card:hover {
+  border-color: #b8bcc8;
+  box-shadow: 0 2px 8px rgba(26, 29, 46, 0.08);
+}
+
+.platform-page__summary-card--active {
+  border-color: #4a5568;
+  box-shadow: 0 0 0 1px #4a5568;
+}
+
+.platform-page__summary-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7a7e94;
+}
+
+.platform-page__summary-description {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #1a1d2e;
+}
+
+.platform-page__summary-hint {
+  font-size: 0.8125rem;
+  color: #4a5568;
+  font-weight: 500;
+}
+
 .platform-page__summary-row {
   display: grid;
   gap: 0.25rem;
