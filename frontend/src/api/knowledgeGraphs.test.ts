@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createKnowledgeGraph,
   getKnowledgeGraph,
   listKnowledgeGraphs,
   type KnowledgeGraphRegistryResponse,
@@ -80,6 +81,32 @@ describe("knowledgeGraphs API", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/knowledge-graphs/kg-1",
       expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("createKnowledgeGraph calls POST with payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockRegistry), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const payload = {
+      application_id: "app-1",
+      title: "Customer Knowledge Graph",
+      bound_ontology_ids: ["onto-1"],
+      created_by: "alice@example.com",
+    };
+
+    await expect(createKnowledgeGraph(payload)).resolves.toEqual(mockRegistry);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/knowledge-graphs",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
         headers: expect.any(Headers),
       }),
     );

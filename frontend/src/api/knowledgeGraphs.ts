@@ -38,3 +38,21 @@ export function getKnowledgeGraph(
 ): Promise<KnowledgeGraphRegistryResponse> {
   return apiFetch<KnowledgeGraphRegistryResponse>(`/knowledge-graphs/${registryId}`);
 }
+
+export interface KnowledgeGraphRegistryCreateRequest {
+  application_id: string;
+  title: string;
+  created_by?: string;
+  description?: string;
+  graph_metadata?: Record<string, unknown>;
+  bound_ontology_ids?: string[];
+}
+
+export function createKnowledgeGraph(
+  payload: KnowledgeGraphRegistryCreateRequest,
+): Promise<KnowledgeGraphRegistryResponse> {
+  return apiFetch<KnowledgeGraphRegistryResponse>("/knowledge-graphs", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
