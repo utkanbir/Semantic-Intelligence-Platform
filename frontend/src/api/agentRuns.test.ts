@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAgentRun, listAgentRuns, type AgentRunResponse } from "./agentRuns";
+import {
+  getAgentRun,
+  listAgentRuns,
+  startAgentRun,
+  type AgentRunResponse,
+} from "./agentRuns";
 
 const mockRun: AgentRunResponse = {
   id: "run-1",
@@ -72,6 +77,32 @@ describe("agentRuns API", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/agent-runs/run-1",
       expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("startAgentRun calls POST with payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockRun), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const payload = {
+      application_id: "app-1",
+      agent_definition_id: "agent-1",
+      created_by: "alice@example.com",
+      run_payload: { message: "What is revenue?" },
+    };
+
+    await expect(startAgentRun(payload)).resolves.toEqual(mockRun);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/agent-runs",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
         headers: expect.any(Headers),
       }),
     );
