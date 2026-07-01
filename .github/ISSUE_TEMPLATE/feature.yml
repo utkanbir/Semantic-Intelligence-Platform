@@ -96,3 +96,28 @@ body:
       description: Test steps or link to scenario doc
     validations:
       required: true
+  - type: textarea
+    id: definition_of_done
+    attributes:
+      label: Definition of Done
+      description: Checklist per playbook §11 / workflow §10 (copy surface-appropriate items)
+      value: |
+        **Delivery**
+        - [ ] Merged to `develop` via approved PR
+        - [ ] Scope matches issue (module paths respected)
+
+        **Architecture**
+        - [ ] Module template & dependency rules (Implementation Guide §5–6)
+        - [ ] REST under `/api/v1`; no internal MCP (API-001)
+        - [ ] Lifecycle / ARR rules as applicable
+
+        **Traceability**
+        - [ ] Domain events & Semantic Transactions for significant actions (or N/A documented)
+
+        **Tests & CI**
+        - [ ] Unit/integration tests; CI green
+
+        **Quality**
+        - [ ] Review approved; QA scenarios executed; no open S1/S2 defects
+    validations:
+      required: true

@@ -73,6 +73,10 @@
     "17": {
       "label": "Console Agent Binding & Discovery Lifecycle",
       "issues": [199, 200, 201, 202]
+    },
+    "18": {
+      "label": "Console Platform Shell",
+      "issues": [204, 205, 206, 207]
     }
   }
 }
