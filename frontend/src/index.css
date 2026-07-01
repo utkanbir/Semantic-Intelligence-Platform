@@ -1203,14 +1203,16 @@ body {
 }
 
 .products-page h2,
-.agents-page h2 {
+.agents-page h2,
+.ontologies-page h2 {
   margin: 0 0 0.5rem;
   font-size: 1.125rem;
   font-weight: 600;
 }
 
 .products-page__header,
-.agents-page__header {
+.agents-page__header,
+.ontologies-page__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1219,7 +1221,8 @@ body {
 }
 
 .products-page__header .products-page__lead,
-.agents-page__header .agents-page__lead {
+.agents-page__header .agents-page__lead,
+.ontologies-page__header .ontologies-page__lead {
   margin-bottom: 0;
 }
 
@@ -1378,7 +1381,8 @@ body {
 }
 
 .products-page__lead,
-.agents-page__lead {
+.agents-page__lead,
+.ontologies-page__lead {
   margin: 0 0 1.5rem;
   color: #4a4a68;
   max-width: 42rem;
@@ -1386,13 +1390,15 @@ body {
 }
 
 .products-page__status,
-.agents-page__status {
+.agents-page__status,
+.ontologies-page__status {
   margin: 0;
   color: #4a4a68;
 }
 
 .products-page__error,
-.agents-page__error {
+.agents-page__error,
+.ontologies-page__error {
   padding: 1rem 1.25rem;
   border-radius: 8px;
   border: 1px solid #e8b4b4;
@@ -1401,7 +1407,8 @@ body {
 }
 
 .products-page__empty,
-.agents-page__empty {
+.agents-page__empty,
+.ontologies-page__empty {
   padding: 2rem;
   border: 1px dashed #c8ccd4;
   border-radius: 8px;
@@ -1411,19 +1418,22 @@ body {
 }
 
 .products-page__empty p,
-.agents-page__empty p {
+.agents-page__empty p,
+.ontologies-page__empty p {
   margin: 0;
 }
 
 .products-page__hint,
-.agents-page__hint {
+.agents-page__hint,
+.ontologies-page__hint {
   margin-top: 0.5rem !important;
   font-size: 0.875rem;
   color: #6b6b80;
 }
 
 .products-page__table-wrap,
-.agents-page__table-wrap {
+.agents-page__table-wrap,
+.ontologies-page__table-wrap {
   overflow-x: auto;
   border: 1px solid #e0e3ea;
   border-radius: 8px;
@@ -1431,7 +1441,8 @@ body {
 }
 
 .products-table,
-.agents-table {
+.agents-table,
+.ontologies-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
@@ -1440,26 +1451,31 @@ body {
 .products-table th,
 .products-table td,
 .agents-table th,
-.agents-table td {
+.agents-table td,
+.ontologies-table th,
+.ontologies-table td {
   padding: 0.75rem 1rem;
   text-align: left;
   border-bottom: 1px solid #e8ebf0;
 }
 
 .products-table th,
-.agents-table th {
+.agents-table th,
+.ontologies-table th {
   font-weight: 600;
   color: #4a4a68;
   background: #f8f9fb;
 }
 
 .products-table tbody tr:last-child td,
-.agents-table tbody tr:last-child td {
+.agents-table tbody tr:last-child td,
+.ontologies-table tbody tr:last-child td {
   border-bottom: none;
 }
 
 .products-table__status,
-.agents-table__status {
+.agents-table__status,
+.ontologies-table__status {
   display: inline-block;
   padding: 0.125rem 0.5rem;
   border-radius: 999px;
@@ -1468,31 +1484,37 @@ body {
 }
 
 .products-table__status--draft,
-.agents-table__status--draft {
+.agents-table__status--draft,
+.ontologies-table__status--draft {
   color: #5c4a1f;
   background: #f3ecd8;
 }
 
 .products-table__status--certified,
-.agents-table__status--approved {
+.agents-table__status--approved,
+.ontologies-table__status--validated,
+.ontologies-table__status--approved {
   color: #2d4a7c;
   background: #dce8f8;
 }
 
 .products-table__status--published,
-.agents-table__status--active {
+.agents-table__status--active,
+.ontologies-table__status--published {
   color: #1f5c38;
   background: #d8f3e4;
 }
 
 .products-table__status--versioned,
-.agents-table__status--versioned {
+.agents-table__status--versioned,
+.ontologies-table__status--versioned {
   color: #4a2d7c;
   background: #e8dcf8;
 }
 
 .products-table__status--retired,
-.agents-table__status--retired {
+.agents-table__status--retired,
+.ontologies-table__status--retired {
   color: #6b6b80;
   background: #eceef2;
 }
