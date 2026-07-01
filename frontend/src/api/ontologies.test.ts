@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createOntology,
   getOntology,
   listOntologies,
   type OntologyDefinitionResponse,
@@ -82,6 +83,32 @@ describe("ontologies API", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/ontologies/onto-1",
       expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("createOntology calls POST with payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockOntology), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const payload = {
+      application_id: "app-1",
+      title: "Customer Ontology",
+      ontology_definition: { classes: [] },
+      created_by: "alice@example.com",
+    };
+
+    await expect(createOntology(payload)).resolves.toEqual(mockOntology);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
         headers: expect.any(Headers),
       }),
     );
