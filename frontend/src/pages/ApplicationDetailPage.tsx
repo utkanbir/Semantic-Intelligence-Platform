@@ -11,6 +11,7 @@ import { AgentRunsPage } from "./AgentRunsPage";
 import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
+import { OntologiesPage } from "./OntologiesPage";
 import { ProductsPage } from "./ProductsPage";
 
 type PageState =
@@ -159,6 +160,10 @@ export function ApplicationDetailPage() {
         <Route
           path="blueprint"
           element={<BlueprintPage applicationId={application.id} />}
+        />
+        <Route
+          path="ontology"
+          element={<OntologiesPage applicationId={application.id} />}
         />
         <Route
           path="products"

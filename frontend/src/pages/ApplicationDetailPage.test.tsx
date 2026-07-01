@@ -10,6 +10,7 @@ import { listAgentRuns } from "../api/agentRuns";
 import { listAuditTraces } from "../api/auditTrace";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
+import { listOntologies } from "../api/ontologies";
 import { listProducts } from "../api/products";
 import { ApplicationDetailPage } from "./ApplicationDetailPage";
 
@@ -64,6 +65,11 @@ vi.mock("../api/agentRuns", () => ({
 
 vi.mock("../api/auditTrace", () => ({
   listAuditTraces: vi.fn(),
+}));
+
+vi.mock("../api/ontologies", () => ({
+  listOntologies: vi.fn(),
+  getOntology: vi.fn(),
 }));
 
 const mockApplication: ApplicationResponse = {
@@ -122,6 +128,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listAgentRuns).mockResolvedValue([]);
     vi.mocked(listAuditTraces).mockReset();
     vi.mocked(listAuditTraces).mockResolvedValue([]);
+    vi.mocked(listOntologies).mockReset();
+    vi.mocked(listOntologies).mockResolvedValue([]);
   });
 
   it("loads application and shows overview by default", async () => {
@@ -212,6 +220,44 @@ describe("ApplicationDetailPage", () => {
 
     expect(listBlueprints).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Blueprint" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("navigates to ontology list", async () => {
+    vi.mocked(listOntologies).mockResolvedValue([
+      {
+        id: "onto-1",
+        application_id: "app-1",
+        version_number: 1,
+        previous_version_id: null,
+        status: "Draft",
+        title: "Ontology A",
+        description: null,
+        created_by: "alice@example.com",
+        created_at: "2025-06-01T10:00:00Z",
+        updated_at: "2025-06-01T10:00:00Z",
+        validated_at: null,
+        approved_at: null,
+        published_at: null,
+        version_created_at: null,
+        ontology_definition: {},
+      },
+    ]);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Ontology" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Ontology A")).toBeInTheDocument();
+    });
+
+    expect(listOntologies).toHaveBeenCalledWith("app-1");
+    expect(screen.getByRole("heading", { name: "Ontology" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
@@ -390,6 +436,7 @@ describe("ApplicationDetailPage", () => {
   it.each([
     ["discovery"],
     ["blueprint"],
+    ["ontology"],
     ["products"],
     ["agents"],
     ["agent-runs"],
