@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Route, Routes, useParams } from "react-router-dom";
+import { AgentRunDetailPage } from "./AgentRunDetailPage";
 import { ApiError } from "../api";
 import {
   getApplication,
@@ -97,6 +98,20 @@ function OverviewSection({ application }: { application: ApplicationResponse }) 
   );
 }
 
+function AgentRunDetailRoute({ applicationId }: { applicationId: string }) {
+  const { runId } = useParams<{ runId: string }>();
+
+  if (!runId) {
+    return (
+      <div className="agent-runs-page__error" role="alert">
+        Run ID is required
+      </div>
+    );
+  }
+
+  return <AgentRunDetailPage applicationId={applicationId} runId={runId} />;
+}
+
 export function ApplicationDetailPage() {
   const { applicationId } = useParams<{ applicationId: string }>();
   const [state, setState] = useState<PageState>({ kind: "loading" });
@@ -178,6 +193,12 @@ export function ApplicationDetailPage() {
         <Route
           path="agent-runs"
           element={<AgentRunsPage applicationId={application.id} />}
+        />
+        <Route
+          path="agent-runs/:runId"
+          element={
+            <AgentRunDetailRoute applicationId={application.id} />
+          }
         />
         <Route
           path="audit-trace"
