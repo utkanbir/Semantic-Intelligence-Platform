@@ -105,6 +105,10 @@
     "25": {
       "label": "Console Bindings Edit",
       "issues": [250, 251, 252, 253]
+    },
+    "26": {
+      "label": "Console Platform Adapters",
+      "issues": [255, 256, 257, 258]
     }
   }
 }
