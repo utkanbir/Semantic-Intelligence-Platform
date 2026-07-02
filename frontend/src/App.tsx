@@ -6,6 +6,7 @@ import { AdaptersPage } from "./pages/platform/AdaptersPage";
 import { AuditTracePage } from "./pages/platform/AuditTracePage";
 import { GovernancePage } from "./pages/platform/GovernancePage";
 import { PlatformOverviewPage } from "./pages/platform/PlatformOverviewPage";
+import { SemanticConnectorsPage } from "./pages/platform/SemanticConnectorsPage";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<PlatformOverviewPage />} />
           <Route path="/adapters" element={<AdaptersPage />} />
+          <Route path="/semantic-connectors" element={<SemanticConnectorsPage />} />
           <Route path="/governance" element={<GovernancePage />} />
           <Route path="/audit-trace" element={<AuditTracePage />} />
           <Route path="/applications" element={<ApplicationsPage />} />

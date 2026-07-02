@@ -30,6 +30,7 @@ class SemanticTransactionResponse(BaseModel):
     resource_id: str
     created_at: datetime
     trace_steps: list[TraceStepResponse]
+    application_id: UUID | None = None
 
 
 def to_trace_step_response(trace_step: TraceStep) -> TraceStepResponse:
@@ -53,4 +54,5 @@ def to_semantic_transaction_response(
         resource_id=record.resource_id,
         created_at=record.created_at,
         trace_steps=[to_trace_step_response(step) for step in record.trace_steps],
+        application_id=record.application_id,
     )

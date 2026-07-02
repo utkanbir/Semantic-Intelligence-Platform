@@ -26,3 +26,18 @@ class AuditTraceService:
 
     def list_by_resource_id(self, resource_id: str) -> list[SemanticTransactionRecord]:
         return list(self._repository.list_by_resource_id(resource_id))
+
+    def list_by_application_id(
+        self,
+        application_id: UUID,
+        *,
+        resource_type: str | None = None,
+        transaction_type_prefix: str | None = None,
+    ) -> list[SemanticTransactionRecord]:
+        return list(
+            self._repository.list_by_application_id(
+                application_id,
+                resource_type=resource_type,
+                transaction_type_prefix=transaction_type_prefix,
+            )
+        )

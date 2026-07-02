@@ -30,12 +30,34 @@ def _get_service(db: Session) -> AuditTraceService:
 
 
 @router.get("", response_model=list[SemanticTransactionResponse])
-def list_audit_traces_by_resource(
+def list_audit_traces(
     db: DbSession,
-    resource_id: Annotated[str, Query(min_length=1, max_length=255)],
+    resource_id: Annotated[str | None, Query(min_length=1, max_length=255)] = None,
+    application_id: Annotated[UUID | None, Query()] = None,
+    resource_type: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+    transaction_type_prefix: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
 ) -> list[SemanticTransactionResponse]:
+    if resource_id is None and application_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Either resource_id or application_id is required",
+        )
+    if resource_id is not None and application_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide resource_id or application_id, not both",
+        )
+
     service = _get_service(db)
-    records = service.list_by_resource_id(resource_id)
+    if resource_id is not None:
+        records = service.list_by_resource_id(resource_id)
+    else:
+        assert application_id is not None
+        records = service.list_by_application_id(
+            application_id,
+            resource_type=resource_type,
+            transaction_type_prefix=transaction_type_prefix,
+        )
     return [to_semantic_transaction_response(record) for record in records]
 
 

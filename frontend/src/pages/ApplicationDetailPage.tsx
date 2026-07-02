@@ -15,6 +15,7 @@ import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
 import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
 import { OntologiesPage } from "./OntologiesPage";
+import { OntologyStudioPage } from "./OntologyStudioPage";
 import { ProductsPage } from "./ProductsPage";
 
 type PageState =
@@ -182,6 +183,10 @@ export function ApplicationDetailPage() {
         <Route
           path="ontology"
           element={<OntologiesPage applicationId={application.id} />}
+        />
+        <Route
+          path="ontology-studio"
+          element={<OntologyStudioPage applicationId={application.id} />}
         />
         <Route
           path="knowledge-graph"

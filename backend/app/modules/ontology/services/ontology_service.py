@@ -9,8 +9,13 @@ from uuid import UUID, uuid4
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.domain.models import OntologyDefinition
-from app.modules.ontology.ports.interfaces import TraceRecorder
+from app.modules.ontology.ports.interfaces import OntologyTransactionRecorder
 from app.modules.ontology.repositories.interfaces import OntologyDefinitionRepository
+from app.modules.semantic_connectors.domain.enums import (
+    SemanticConnectorStatus,
+    SemanticConnectorType,
+)
+from app.modules.semantic_connectors.repositories.interfaces import SemanticConnectorRepository
 
 UNSET = object()
 
@@ -43,29 +48,40 @@ class InvalidOntologyDefinitionVersionForkError(Exception):
     """Raised when an ontology version fork is not allowed."""
 
 
-class _NoOpTraceRecorder:
-    def record_transaction(
+class SemanticConnectorNotFoundError(Exception):
+    """Raised when the selected semantic connector does not exist."""
+
+
+class InvalidOntologyConnectorError(Exception):
+    """Raised when the semantic connector is not eligible for ontology import."""
+
+
+class _NoOpTransactionRecorder:
+    def record_orchestrated(
         self,
         *,
         transaction_type: str,
-        resource_type: str,
         resource_id: str,
+        application_id: UUID,
+        steps: list[tuple[str, str | None]],
     ) -> None:
         return None
 
 
 class OntologyService:
-    """Ontology definition CRUD and lifecycle orchestration."""
+    """Ontology definition CRUD, import, and lifecycle orchestration."""
 
     def __init__(
         self,
         repository: OntologyDefinitionRepository,
         application_repository: ApplicationRepository,
-        trace_recorder: TraceRecorder | None = None,
+        connector_repository: SemanticConnectorRepository | None = None,
+        transaction_recorder: OntologyTransactionRecorder | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
-        self._trace_recorder = trace_recorder or _NoOpTraceRecorder()
+        self._connector_repository = connector_repository
+        self._transaction_recorder = transaction_recorder or _NoOpTransactionRecorder()
 
     def create_ontology(
         self,
@@ -75,15 +91,17 @@ class OntologyService:
         created_by: str | None = None,
         description: str | None = None,
         ontology_definition: dict[str, Any] | None = None,
+        semantic_connector_id: UUID | None = None,
     ) -> OntologyDefinition:
         if self._application_repository.get(application_id) is None:
             raise ApplicationNotFoundError("Application not found")
 
         now = datetime.now(UTC)
-        if ontology_definition is None:
-            definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
-        else:
-            definition = ontology_definition
+        definition = (
+            dict(DEFAULT_ONTOLOGY_DEFINITION)
+            if ontology_definition is None
+            else ontology_definition
+        )
         ontology = OntologyDefinition(
             id=uuid4(),
             application_id=application_id,
@@ -95,12 +113,75 @@ class OntologyService:
             created_at=now,
             updated_at=now,
             ontology_definition=definition,
+            semantic_connector_id=semantic_connector_id,
         )
         created = self._repository.create(ontology)
-        self._trace_recorder.record_transaction(
+        self._record_transaction(
             transaction_type="ontology.created",
-            resource_type="OntologyDefinition",
-            resource_id=str(created.id),
+            ontology=created,
+            steps=[
+                ("validate_request", "Validated ontology create request"),
+                ("persist_metadata", "Persisted ontology metadata"),
+                ("finalize", "Ontology create completed"),
+            ],
+        )
+        return created
+
+    def import_ontology(
+        self,
+        *,
+        application_id: UUID,
+        title: str,
+        semantic_connector_id: UUID,
+        source_format: str,
+        source_content: str,
+        created_by: str | None = None,
+        description: str | None = None,
+    ) -> OntologyDefinition:
+        if self._application_repository.get(application_id) is None:
+            raise ApplicationNotFoundError("Application not found")
+        connector = self._require_ontology_connector(semantic_connector_id)
+
+        now = datetime.now(UTC)
+        ontology_id = uuid4()
+        artifact_uri = (
+            f"{connector.connector_key}://{application_id}/{ontology_id}/"
+            f"artifact.{source_format.lstrip('.')}"
+        )
+        definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
+        definition["metadata"] = {
+            **definition.get("metadata", {}),
+            "import": {
+                "source_format": source_format,
+                "content_length": len(source_content),
+            },
+        }
+        ontology = OntologyDefinition(
+            id=ontology_id,
+            application_id=application_id,
+            version_number=1,
+            status=OntologyDefinitionStatus.DRAFT,
+            title=title,
+            description=description,
+            created_by=created_by or "",
+            created_at=now,
+            updated_at=now,
+            ontology_definition=definition,
+            semantic_connector_id=semantic_connector_id,
+            artifact_uri=artifact_uri,
+            source_format=source_format,
+        )
+        created = self._repository.create(ontology)
+        self._record_transaction(
+            transaction_type="ontology.imported",
+            ontology=created,
+            steps=[
+                ("validate_request", "Validated ontology import request"),
+                ("resolve_connector", f"Resolved connector {connector.connector_key}"),
+                ("persist_metadata", "Persisted ontology metadata"),
+                ("persist_artifact", f"Stub artifact persisted at {artifact_uri}"),
+                ("finalize", "Ontology import completed"),
+            ],
         )
         return created
 
@@ -162,10 +243,22 @@ class OntologyService:
                 if ontology_definition is UNSET
                 else cast(dict[str, Any], ontology_definition)
             ),
+            semantic_connector_id=current.semantic_connector_id,
+            artifact_uri=current.artifact_uri,
+            source_format=current.source_format,
         )
         result = self._repository.update(updated)
         if result is None:
             raise OntologyDefinitionNotFoundError("Ontology definition not found")
+        self._record_transaction(
+            transaction_type="ontology.updated",
+            ontology=result,
+            steps=[
+                ("validate_request", "Validated ontology update request"),
+                ("persist_metadata", "Updated ontology metadata"),
+                ("finalize", "Ontology update completed"),
+            ],
+        )
         return result
 
     def update_status(
@@ -207,10 +300,24 @@ class OntologyService:
             published_at=published_at,
             version_created_at=current.version_created_at,
             ontology_definition=current.ontology_definition,
+            semantic_connector_id=current.semantic_connector_id,
+            artifact_uri=current.artifact_uri,
+            source_format=current.source_format,
         )
         result = self._repository.update(updated)
         if result is None:
             raise OntologyDefinitionNotFoundError("Ontology definition not found")
+        self._record_transaction(
+            transaction_type="ontology.status_changed",
+            ontology=result,
+            steps=[
+                (
+                    "transition_status",
+                    f"Status changed to {status.value}",
+                ),
+                ("finalize", "Ontology status transition completed"),
+            ],
+        )
         return result
 
     def create_version(
@@ -250,8 +357,49 @@ class OntologyService:
             updated_at=now,
             version_created_at=now,
             ontology_definition=definition,
+            semantic_connector_id=parent.semantic_connector_id,
+            artifact_uri=parent.artifact_uri,
+            source_format=parent.source_format,
         )
-        return self._repository.create(child)
+        created = self._repository.create(child)
+        self._record_transaction(
+            transaction_type="ontology.version_forked",
+            ontology=created,
+            steps=[
+                ("validate_request", f"Forked from version {parent.version_number}"),
+                ("persist_metadata", "Persisted forked ontology metadata"),
+                ("finalize", "Ontology version fork completed"),
+            ],
+        )
+        return created
+
+    def _require_ontology_connector(self, connector_id: UUID):
+        if self._connector_repository is None:
+            raise SemanticConnectorNotFoundError("Semantic connector repository unavailable")
+        connector = self._connector_repository.get(connector_id)
+        if connector is None:
+            raise SemanticConnectorNotFoundError("Semantic connector not found")
+        if connector.status != SemanticConnectorStatus.ACTIVE:
+            raise InvalidOntologyConnectorError("Semantic connector must be Active")
+        if connector.connector_type != SemanticConnectorType.ONTOLOGY_STORE:
+            raise InvalidOntologyConnectorError(
+                "Ontology import requires an ontology_store connector"
+            )
+        return connector
+
+    def _record_transaction(
+        self,
+        *,
+        transaction_type: str,
+        ontology: OntologyDefinition,
+        steps: list[tuple[str, str | None]],
+    ) -> None:
+        self._transaction_recorder.record_orchestrated(
+            transaction_type=transaction_type,
+            resource_id=str(ontology.id),
+            application_id=ontology.application_id,
+            steps=steps,
+        )
 
 
 VALID_STATUS_TRANSITIONS: dict[

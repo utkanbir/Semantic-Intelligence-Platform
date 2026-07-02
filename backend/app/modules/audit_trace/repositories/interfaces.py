@@ -27,3 +27,12 @@ class AuditTraceQueryRepository(Protocol):
 
     def list_by_resource_id(self, resource_id: str) -> Sequence[SemanticTransactionRecord]:
         """Return semantic transactions for a resource id with trace steps."""
+
+    def list_by_application_id(
+        self,
+        application_id: UUID,
+        *,
+        resource_type: str | None = None,
+        transaction_type_prefix: str | None = None,
+    ) -> Sequence[SemanticTransactionRecord]:
+        """Return semantic transactions scoped to an application."""

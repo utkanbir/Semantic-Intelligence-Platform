@@ -29,3 +29,6 @@ class OntologyDefinition:
     approved_at: datetime | None = None
     published_at: datetime | None = None
     version_created_at: datetime | None = None
+    semantic_connector_id: UUID | None = None
+    artifact_uri: str | None = None
+    source_format: str | None = None

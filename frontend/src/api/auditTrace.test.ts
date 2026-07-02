@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getAuditTrace,
+  listApplicationAuditTraces,
   listAuditTraces,
   type SemanticTransactionResponse,
 } from "./auditTrace";
@@ -46,6 +47,28 @@ describe("auditTrace API", () => {
     await expect(listAuditTraces("app-1")).resolves.toEqual([mockTransaction]);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/audit-traces?resource_id=app-1",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("listApplicationAuditTraces calls GET with application_id and filters", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify([mockTransaction]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      listApplicationAuditTraces("app-1", {
+        resourceType: "OntologyDefinition",
+        transactionTypePrefix: "ontology",
+      }),
+    ).resolves.toEqual([mockTransaction]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/audit-traces?application_id=app-1&resource_type=OntologyDefinition&transaction_type_prefix=ontology",
       expect.objectContaining({
         headers: expect.any(Headers),
       }),

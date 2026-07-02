@@ -554,6 +554,30 @@
         "agent_runs",
         "policy_definitions"
       ]
+    },
+    "27": {
+      "label": "Ontology Semantic Transaction v1",
+      "alembic_head": "20260702_0016",
+      "new_tables": ["semantic_connectors"],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries",
+        "technology_adapters",
+        "agent_runs",
+        "policy_definitions",
+        "semantic_connectors"
+      ]
     }
   }
 }
