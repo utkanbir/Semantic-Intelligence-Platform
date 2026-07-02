@@ -1,5 +1,6 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../api";
+import { listAssets, type AssetRecordResponse } from "../api/assets";
 import {
   createProduct,
   getNextProductStatuses,
@@ -29,23 +30,103 @@ function statusClassName(status: PublishedDataProductResponse["status"]): string
   return `products-table__status products-table__status--${status.toLowerCase()}`;
 }
 
+function formatBoundSourceAssets(
+  product: PublishedDataProductResponse,
+  assetTitleById: Map<string, string>,
+): string {
+  if (product.source_asset_record_ids.length === 0) {
+    return "None";
+  }
+  const titles = product.source_asset_record_ids.map(
+    (id) => assetTitleById.get(id) ?? id,
+  );
+  return `${product.source_asset_record_ids.length}: ${titles.join(", ")}`;
+}
+
+interface SourceAssetBindingsFieldProps {
+  idPrefix: string;
+  assets: AssetRecordResponse[];
+  selectedIds: string[];
+  onChange: (selectedIds: string[]) => void;
+  disabled?: boolean;
+}
+
+function SourceAssetBindingsField({
+  idPrefix,
+  assets,
+  selectedIds,
+  onChange,
+  disabled = false,
+}: SourceAssetBindingsFieldProps) {
+  if (assets.length === 0) {
+    return (
+      <p className="products-page__bindings-hint">No assets available to bind.</p>
+    );
+  }
+
+  function toggleAsset(assetId: string) {
+    if (selectedIds.includes(assetId)) {
+      onChange(selectedIds.filter((id) => id !== assetId));
+    } else {
+      onChange([...selectedIds, assetId]);
+    }
+  }
+
+  return (
+    <fieldset className="products-page__bindings-fieldset" disabled={disabled}>
+      <legend>
+        Source assets <span className="products-page__optional">(optional)</span>
+      </legend>
+      <ul className="products-page__bindings-list">
+        {assets.map((asset) => {
+          const inputId = `${idPrefix}-asset-${asset.id}`;
+          return (
+            <li key={asset.id}>
+              <label htmlFor={inputId} className="products-page__bindings-option">
+                <input
+                  id={inputId}
+                  type="checkbox"
+                  checked={selectedIds.includes(asset.id)}
+                  onChange={() => toggleAsset(asset.id)}
+                />
+                <span>
+                  {asset.title}{" "}
+                  <span className="products-page__bindings-status">({asset.asset_type})</span>
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </fieldset>
+  );
+}
+
 interface CreateFormFields {
   title: string;
   description: string;
   created_by: string;
+  source_asset_record_ids: string[];
 }
 
 interface ProductCreateFormProps {
   applicationId: string;
+  assets: AssetRecordResponse[];
   onCreated: () => void;
   onCancel?: () => void;
 }
 
-function ProductCreateForm({ applicationId, onCreated, onCancel }: ProductCreateFormProps) {
+function ProductCreateForm({
+  applicationId,
+  assets,
+  onCreated,
+  onCancel,
+}: ProductCreateFormProps) {
   const [fields, setFields] = useState<CreateFormFields>({
     title: "",
     description: "",
     created_by: "",
+    source_asset_record_ids: [],
   });
   const [titleError, setTitleError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -72,6 +153,9 @@ function ProductCreateForm({ applicationId, onCreated, onCancel }: ProductCreate
         product_definition: {},
         ...(description ? { description } : {}),
         ...(createdBy ? { created_by: createdBy } : {}),
+        ...(fields.source_asset_record_ids.length > 0
+          ? { source_asset_record_ids: fields.source_asset_record_ids }
+          : {}),
       });
       onCreated();
     } catch (error: unknown) {
@@ -147,6 +231,16 @@ function ProductCreateForm({ applicationId, onCreated, onCancel }: ProductCreate
         />
       </div>
 
+      <SourceAssetBindingsField
+        idPrefix="product-create"
+        assets={assets}
+        selectedIds={fields.source_asset_record_ids}
+        onChange={(source_asset_record_ids) =>
+          setFields((current) => ({ ...current, source_asset_record_ids }))
+        }
+        disabled={submitting}
+      />
+
       {submitError && (
         <div className="products-page__error" role="alert">
           {submitError}
@@ -182,9 +276,29 @@ interface ProductsPageProps {
 
 export function ProductsPage({ applicationId }: ProductsPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
+  const [assets, setAssets] = useState<AssetRecordResponse[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
+
+  const assetTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const asset of assets) {
+      map.set(asset.id, asset.title);
+    }
+    return map;
+  }, [assets]);
+
+  const loadAssets = useCallback(() => {
+    return listAssets(applicationId)
+      .then((loadedAssets) => {
+        setAssets(loadedAssets);
+        return loadedAssets;
+      })
+      .catch(() => {
+        setAssets([]);
+      });
+  }, [applicationId]);
 
   const loadProducts = useCallback(() => {
     setState({ kind: "loading" });
@@ -209,6 +323,8 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
   useEffect(() => {
     let cancelled = false;
 
+    void loadAssets();
+
     listProducts(applicationId)
       .then((products) => {
         if (!cancelled) {
@@ -230,11 +346,12 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [applicationId]);
+  }, [applicationId, loadAssets]);
 
   function handleCreated() {
     setShowCreateForm(false);
     void loadProducts();
+    void loadAssets();
   }
 
   async function handleStatusTransition(
@@ -307,7 +424,11 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
           <p className="products-page__hint">
             Create your first data product to get started.
           </p>
-          <ProductCreateForm applicationId={applicationId} onCreated={handleCreated} />
+          <ProductCreateForm
+            applicationId={applicationId}
+            assets={assets}
+            onCreated={handleCreated}
+          />
         </div>
       )}
 
@@ -316,6 +437,7 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
           <h3 className="products-page__create-title">New product</h3>
           <ProductCreateForm
             applicationId={applicationId}
+            assets={assets}
             onCreated={handleCreated}
             onCancel={() => setShowCreateForm(false)}
           />
@@ -329,6 +451,7 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
               <tr>
                 <th scope="col">Title</th>
                 <th scope="col">Status</th>
+                <th scope="col">Source assets</th>
                 <th scope="col">Version</th>
                 <th scope="col">Published at</th>
                 <th scope="col">Actions</th>
@@ -340,6 +463,9 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
                   <td>{product.title}</td>
                   <td>
                     <span className={statusClassName(product.status)}>{product.status}</span>
+                  </td>
+                  <td className="products-table__bindings">
+                    {formatBoundSourceAssets(product, assetTitleById)}
                   </td>
                   <td>{product.version_number}</td>
                   <td>{formatDate(product.published_at ?? product.created_at)}</td>
