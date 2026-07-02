@@ -11,6 +11,7 @@ const SECTIONS = [
   { segment: "", label: "Overview", end: true },
   { segment: "discovery", label: "Discovery", end: false },
   { segment: "blueprint", label: "Blueprint", end: false },
+  { segment: "assets", label: "Assets", end: false },
   { segment: "ontology", label: "Ontology", end: false },
   { segment: "knowledge-graph", label: "Knowledge graph", end: false },
   { segment: "products", label: "Products", end: false },

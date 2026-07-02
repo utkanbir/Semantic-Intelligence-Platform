@@ -8,6 +8,7 @@ import {
 import { listAgents } from "../api/agents";
 import { listAgentRuns, getAgentRun } from "../api/agentRuns";
 import { listAuditTraces } from "../api/auditTrace";
+import { listAssets } from "../api/assets";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
 import { listKnowledgeGraphs } from "../api/knowledgeGraphs";
@@ -68,6 +69,15 @@ vi.mock("../api/agentRuns", () => ({
 vi.mock("../api/auditTrace", () => ({
   listAuditTraces: vi.fn(),
 }));
+
+vi.mock("../api/assets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/assets")>();
+  return {
+    ...actual,
+    listAssets: vi.fn(),
+    getAsset: vi.fn(),
+  };
+});
 
 vi.mock("../api/ontologies", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ontologies")>();
@@ -135,6 +145,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listDiscoverySessions).mockResolvedValue([]);
     vi.mocked(listBlueprints).mockReset();
     vi.mocked(listBlueprints).mockResolvedValue([]);
+    vi.mocked(listAssets).mockReset();
+    vi.mocked(listAssets).mockResolvedValue([]);
     vi.mocked(listProducts).mockReset();
     vi.mocked(listProducts).mockResolvedValue([]);
     vi.mocked(listAgents).mockReset();
@@ -238,6 +250,41 @@ describe("ApplicationDetailPage", () => {
 
     expect(listBlueprints).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Blueprint" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("navigates to assets list", async () => {
+    vi.mocked(listAssets).mockResolvedValue([
+      {
+        id: "asset-1",
+        application_id: "app-1",
+        asset_type: "Blueprint",
+        resource_type: "Blueprint",
+        resource_id: "bp-1",
+        status: "Active",
+        title: "Asset A",
+        description: null,
+        created_by: "alice@example.com",
+        created_at: "2025-06-01T10:00:00Z",
+        updated_at: "2025-06-01T10:00:00Z",
+        metadata: null,
+      },
+    ]);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Assets" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Asset A")).toBeInTheDocument();
+    });
+
+    expect(listAssets).toHaveBeenCalledWith("app-1");
+    expect(screen.getByRole("heading", { name: "Assets" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
@@ -519,6 +566,7 @@ describe("ApplicationDetailPage", () => {
   it.each([
     ["discovery"],
     ["blueprint"],
+    ["assets"],
     ["ontology"],
     ["knowledge-graph"],
     ["products"],

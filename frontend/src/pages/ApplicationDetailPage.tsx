@@ -10,6 +10,7 @@ import { ApplicationShell } from "../components/ApplicationShell";
 import { AgentsPage } from "./AgentsPage";
 import { AgentRunsPage } from "./AgentRunsPage";
 import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
+import { AssetsPage } from "./AssetsPage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
 import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
@@ -177,6 +178,7 @@ export function ApplicationDetailPage() {
           path="blueprint"
           element={<BlueprintPage applicationId={application.id} />}
         />
+        <Route path="assets" element={<AssetsPage applicationId={application.id} />} />
         <Route
           path="ontology"
           element={<OntologiesPage applicationId={application.id} />}
