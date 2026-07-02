@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules.adapters.domain.enums import TechnologyAdapterStatus, ConnectorType
+from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
 from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.adapters.repositories.orm_models import (

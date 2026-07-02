@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from app.modules.adapters.domain.enums import TechnologyAdapterStatus, ConnectorType
+from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
 
 
 @dataclass(slots=True)

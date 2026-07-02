@@ -9,6 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.infrastructure.database import get_db
+from app.modules.adapters.repositories.sqlalchemy_repository import (
+    SqlAlchemyTechnologyAdapterRepository,
+)
 from app.modules.applications.repositories.sqlalchemy_repository import (
     SqlAlchemyApplicationRepository,
 )
@@ -31,16 +34,13 @@ from app.modules.ontology.repositories.sqlalchemy_repository import (
 from app.modules.ontology.services.ontology_service import (
     UNSET,
     ApplicationNotFoundError,
+    ConnectorNotFoundError,
     ImmutableOntologyDefinitionError,
     InvalidOntologyConnectorError,
     InvalidOntologyDefinitionStatusTransitionError,
     InvalidOntologyDefinitionVersionForkError,
     OntologyDefinitionNotFoundError,
     OntologyService,
-    ConnectorNotFoundError,
-)
-from app.modules.adapters.repositories.sqlalchemy_repository import (
-    SqlAlchemyTechnologyAdapterRepository,
 )
 
 router = APIRouter()
