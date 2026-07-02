@@ -89,6 +89,10 @@
     "21": {
       "label": "Console Ontology & KG Create",
       "issues": [226, 227, 228, 229]
+    },
+    "22": {
+      "label": "Console Asset Registry",
+      "issues": [233, 234, 235, 236]
     }
   }
 }
