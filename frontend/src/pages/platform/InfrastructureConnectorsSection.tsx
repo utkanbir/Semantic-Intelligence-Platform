@@ -14,10 +14,10 @@ import {
   type TechnologyType,
 } from "../../api/adapters";
 
-type PageState =
+type SectionState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "success"; adapters: TechnologyAdapterResponse[] };
+  | { kind: "success"; connectors: TechnologyAdapterResponse[] };
 
 function formatDate(iso: string | null): string {
   if (!iso) {
@@ -35,27 +35,28 @@ function statusClassName(status: TechnologyAdapterResponse["status"]): string {
 
 interface CreateFormFields {
   technology_type: TechnologyType;
-  adapter_key: string;
+  connector_key: string;
   title: string;
   description: string;
   created_by: string;
 }
 
-interface AdapterCreateFormProps {
+function InfrastructureConnectorCreateForm({
+  onCreated,
+  onCancel,
+}: {
   onCreated: () => void;
   onCancel?: () => void;
-}
-
-function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
+}) {
   const [fields, setFields] = useState<CreateFormFields>({
     technology_type: "postgresql",
-    adapter_key: "",
+    connector_key: "",
     title: "",
     description: "",
     created_by: "",
   });
   const [titleError, setTitleError] = useState<string | null>(null);
-  const [adapterKeyError, setAdapterKeyError] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,12 +71,12 @@ function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
     }
     setTitleError(null);
 
-    const trimmedKey = fields.adapter_key.trim();
+    const trimmedKey = fields.connector_key.trim();
     if (!trimmedKey) {
-      setAdapterKeyError("Adapter key is required");
+      setKeyError("Connector key is required");
       return;
     }
-    setAdapterKeyError(null);
+    setKeyError(null);
 
     setSubmitting(true);
     try {
@@ -95,7 +96,7 @@ function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to create adapter";
+            : "Failed to create connector";
       setSubmitError(message);
     } finally {
       setSubmitting(false);
@@ -106,13 +107,12 @@ function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
     <form
       className="platform-page__create-form"
       onSubmit={(event) => void handleSubmit(event)}
-      aria-label="Create adapter"
+      aria-label="Create infrastructure connector"
     >
       <div className="platform-page__field">
-        <label htmlFor="adapter-technology-type">Technology type</label>
+        <label htmlFor="infra-connector-type">Connector type</label>
         <select
-          id="adapter-technology-type"
-          name="technology_type"
+          id="infra-connector-type"
           value={fields.technology_type}
           onChange={(event) =>
             setFields((current) => ({
@@ -131,34 +131,29 @@ function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
       </div>
 
       <div className="platform-page__field">
-        <label htmlFor="adapter-key">Adapter key</label>
+        <label htmlFor="infra-connector-key">Connector key</label>
         <input
-          id="adapter-key"
-          name="adapter_key"
-          type="text"
-          value={fields.adapter_key}
+          id="infra-connector-key"
+          value={fields.connector_key}
           onChange={(event) => {
-            setFields((current) => ({ ...current, adapter_key: event.target.value }));
-            if (adapterKeyError) {
-              setAdapterKeyError(null);
+            setFields((current) => ({ ...current, connector_key: event.target.value }));
+            if (keyError) {
+              setKeyError(null);
             }
           }}
-          aria-invalid={adapterKeyError ? true : undefined}
-          aria-describedby={adapterKeyError ? "adapter-key-error" : undefined}
+          aria-invalid={keyError ? true : undefined}
         />
-        {adapterKeyError && (
-          <p id="adapter-key-error" className="platform-page__field-error" role="alert">
-            {adapterKeyError}
+        {keyError && (
+          <p className="platform-page__field-error" role="alert">
+            {keyError}
           </p>
         )}
       </div>
 
       <div className="platform-page__field">
-        <label htmlFor="adapter-title">Title</label>
+        <label htmlFor="infra-connector-title">Title</label>
         <input
-          id="adapter-title"
-          name="title"
-          type="text"
+          id="infra-connector-title"
           value={fields.title}
           onChange={(event) => {
             setFields((current) => ({ ...current, title: event.target.value }));
@@ -167,22 +162,20 @@ function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
             }
           }}
           aria-invalid={titleError ? true : undefined}
-          aria-describedby={titleError ? "adapter-title-error" : undefined}
         />
         {titleError && (
-          <p id="adapter-title-error" className="platform-page__field-error" role="alert">
+          <p className="platform-page__field-error" role="alert">
             {titleError}
           </p>
         )}
       </div>
 
       <div className="platform-page__field">
-        <label htmlFor="adapter-description">
+        <label htmlFor="infra-connector-description">
           Description <span className="platform-page__optional">(optional)</span>
         </label>
         <textarea
-          id="adapter-description"
-          name="description"
+          id="infra-connector-description"
           rows={3}
           value={fields.description}
           onChange={(event) =>
@@ -192,13 +185,11 @@ function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
       </div>
 
       <div className="platform-page__field">
-        <label htmlFor="adapter-created-by">
+        <label htmlFor="infra-connector-created-by">
           Created by <span className="platform-page__optional">(optional)</span>
         </label>
         <input
-          id="adapter-created-by"
-          name="created_by"
-          type="text"
+          id="infra-connector-created-by"
           value={fields.created_by}
           onChange={(event) =>
             setFields((current) => ({ ...current, created_by: event.target.value }))
@@ -214,12 +205,7 @@ function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
 
       <div className="platform-page__form-actions">
         {onCancel && (
-          <button
-            type="button"
-            className="platform-page__button"
-            onClick={onCancel}
-            disabled={submitting}
-          >
+          <button type="button" className="platform-page__button" onClick={onCancel} disabled={submitting}>
             Cancel
           </button>
         )}
@@ -228,27 +214,28 @@ function AdapterCreateForm({ onCreated, onCancel }: AdapterCreateFormProps) {
           className="platform-page__button platform-page__button--primary"
           disabled={submitting}
         >
-          {submitting ? "Creating…" : "Create adapter"}
+          {submitting ? "Creating…" : "Create connector"}
         </button>
       </div>
     </form>
   );
 }
 
-export function AdaptersPage() {
-  const [state, setState] = useState<PageState>({ kind: "loading" });
+export function InfrastructureConnectorsSection() {
+  const [state, setState] = useState<SectionState>({ kind: "loading" });
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pingResults, setPingResults] = useState<Record<string, string>>({});
-  const [pendingAdapterId, setPendingAdapterId] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const loadAdapters = useCallback(() => {
-    setState({ kind: "loading" });
-
+  const loadConnectors = useCallback((options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setState({ kind: "loading" });
+    }
     return listAdapters()
-      .then((adapters) => {
-        setState({ kind: "success", adapters });
-        return adapters;
+      .then((connectors) => {
+        setState({ kind: "success", connectors });
+        return connectors;
       })
       .catch((error: unknown) => {
         const message =
@@ -256,7 +243,7 @@ export function AdaptersPage() {
             ? error.message
             : error instanceof Error
               ? error.message
-              : "Failed to load adapters";
+              : "Failed to load infrastructure connectors";
         setState({ kind: "error", message });
         throw error;
       });
@@ -264,12 +251,11 @@ export function AdaptersPage() {
 
   useEffect(() => {
     let cancelled = false;
-
     listAdapters()
-      .then((adapters) => {
+      .then((connectors) => {
         if (!cancelled) {
-          setState({ kind: "success", adapters });
-          if (adapters.length === 0) {
+          setState({ kind: "success", connectors });
+          if (connectors.length === 0) {
             setShowCreateForm(true);
           }
         }
@@ -281,11 +267,10 @@ export function AdaptersPage() {
               ? error.message
               : error instanceof Error
                 ? error.message
-                : "Failed to load adapters";
+                : "Failed to load infrastructure connectors";
           setState({ kind: "error", message });
         }
       });
-
     return () => {
       cancelled = true;
     };
@@ -293,36 +278,36 @@ export function AdaptersPage() {
 
   function handleCreated() {
     setShowCreateForm(false);
-    void loadAdapters();
+    void loadConnectors({ silent: true });
   }
 
-  async function handleStatusTransition(adapterId: string, nextStatus: TechnologyAdapterStatus) {
+  async function handleStatusTransition(connectorId: string, nextStatus: TechnologyAdapterStatus) {
     setActionError(null);
-    setPendingAdapterId(adapterId);
+    setPendingId(connectorId);
     try {
-      await updateAdapterStatus(adapterId, nextStatus);
-      await loadAdapters();
+      await updateAdapterStatus(connectorId, nextStatus);
+      await loadConnectors();
     } catch (error: unknown) {
       const message =
         error instanceof ApiError
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to update adapter status";
+            : "Failed to update connector status";
       setActionError(message);
     } finally {
-      setPendingAdapterId(null);
+      setPendingId(null);
     }
   }
 
-  async function handlePing(adapterId: string) {
+  async function handlePing(connectorId: string) {
     setActionError(null);
-    setPendingAdapterId(adapterId);
+    setPendingId(connectorId);
     try {
-      const result = await pingAdapter(adapterId);
+      const result = await pingAdapter(connectorId);
       setPingResults((current) => ({
         ...current,
-        [adapterId]: `${result.status} (${result.technology})`,
+        [connectorId]: `${result.status} (${result.technology})`,
       }));
     } catch (error: unknown) {
       const message =
@@ -330,24 +315,23 @@ export function AdaptersPage() {
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to ping adapter";
+            : "Failed to ping connector";
       setActionError(message);
     } finally {
-      setPendingAdapterId(null);
+      setPendingId(null);
     }
   }
 
-  const isEmpty = state.kind === "success" && state.adapters.length === 0;
-  const hasAdapters = state.kind === "success" && state.adapters.length > 0;
+  const isEmpty = state.kind === "success" && state.connectors.length === 0;
+  const hasConnectors = state.kind === "success" && state.connectors.length > 0;
 
   return (
-    <section className="platform-page" aria-labelledby="adapters-heading">
-      <div className="platform-page__header">
+    <section className="connectors-page__section" aria-labelledby="infra-connectors-heading">
+      <div className="connectors-page__section-header">
         <div>
-          <h1 id="adapters-heading">Adapters</h1>
-          <p className="platform-page__lead">
-            Configure and monitor technology adapters that connect the platform to
-            external systems.
+          <h2 id="infra-connectors-heading">Infrastructure connectors</h2>
+          <p className="platform-page__hint">
+            Database, object storage, vector store, and other technology endpoints.
           </p>
         </div>
         {state.kind === "success" && !showCreateForm && (
@@ -356,14 +340,14 @@ export function AdaptersPage() {
             className="platform-page__button platform-page__button--primary"
             onClick={() => setShowCreateForm(true)}
           >
-            New adapter
+            New infrastructure connector
           </button>
         )}
       </div>
 
       {state.kind === "loading" && (
-        <p className="platform-page__status" role="status" aria-live="polite">
-          Loading adapters…
+        <p className="platform-page__status" role="status">
+          Loading infrastructure connectors…
         </p>
       )}
 
@@ -381,17 +365,14 @@ export function AdaptersPage() {
 
       {isEmpty && (
         <div className="platform-page__empty" role="status">
-          <p>No adapters yet.</p>
-          <p className="platform-page__hint">
-            Create your first technology adapter to get started.
-          </p>
+          <p>No infrastructure connectors yet.</p>
           {!showCreateForm && (
             <button
               type="button"
               className="platform-page__button platform-page__button--primary platform-page__empty-action"
               onClick={() => setShowCreateForm(true)}
             >
-              Create adapter
+              Create connector
             </button>
           )}
         </div>
@@ -399,73 +380,69 @@ export function AdaptersPage() {
 
       {showCreateForm && (
         <div className="platform-page__create-panel">
-          <h2 className="platform-page__create-title">New adapter</h2>
-          <AdapterCreateForm
+          <h3 className="platform-page__create-title">New infrastructure connector</h3>
+          <InfrastructureConnectorCreateForm
             onCreated={handleCreated}
             onCancel={isEmpty ? undefined : () => setShowCreateForm(false)}
           />
         </div>
       )}
 
-      {hasAdapters && (
+      {hasConnectors && (
         <div className="platform-page__table-wrap">
           <table className="platform-table">
             <thead>
               <tr>
                 <th scope="col">Title</th>
-                <th scope="col">Technology</th>
-                <th scope="col">Adapter key</th>
+                <th scope="col">Type</th>
+                <th scope="col">Key</th>
                 <th scope="col">Status</th>
                 <th scope="col">Created</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {state.adapters.map((adapter) => (
-                <tr key={adapter.id}>
-                  <td>{adapter.title}</td>
+              {state.connectors.map((connector) => (
+                <tr key={connector.id}>
+                  <td>{connector.title}</td>
                   <td>
-                    <code className="platform-table__code">{adapter.technology_type}</code>
+                    <code className="platform-table__code">{connector.technology_type}</code>
                   </td>
                   <td>
-                    <code className="platform-table__code">{adapter.adapter_key}</code>
+                    <code className="platform-table__code">{connector.adapter_key}</code>
                   </td>
                   <td>
-                    <span className={statusClassName(adapter.status)}>{adapter.status}</span>
-                    {pingResults[adapter.id] && (
+                    <span className={statusClassName(connector.status)}>{connector.status}</span>
+                    {pingResults[connector.id] && (
                       <span className="platform-table__ping-result">
-                        Ping: {pingResults[adapter.id]}
+                        Ping: {pingResults[connector.id]}
                       </span>
                     )}
                   </td>
-                  <td>{formatDate(adapter.created_at)}</td>
+                  <td>{formatDate(connector.created_at)}</td>
                   <td>
                     <div className="platform-table__actions">
-                      {canPingAdapter(adapter) && (
+                      {canPingAdapter(connector) && (
                         <button
                           type="button"
                           className="platform-page__button platform-table__action"
-                          disabled={pendingAdapterId === adapter.id}
-                          onClick={() => void handlePing(adapter.id)}
+                          disabled={pendingId === connector.id}
+                          onClick={() => void handlePing(connector.id)}
                         >
                           Ping
                         </button>
                       )}
-                      {getNextAdapterStatuses(adapter.status).map((nextStatus) => (
+                      {getNextAdapterStatuses(connector.status).map((nextStatus) => (
                         <button
                           key={nextStatus}
                           type="button"
                           className="platform-page__button platform-table__action"
-                          disabled={pendingAdapterId === adapter.id}
-                          onClick={() => void handleStatusTransition(adapter.id, nextStatus)}
+                          disabled={pendingId === connector.id}
+                          onClick={() => void handleStatusTransition(connector.id, nextStatus)}
                         >
                           {getAdapterStatusActionLabel(nextStatus)}
                         </button>
                       ))}
-                      {getNextAdapterStatuses(adapter.status).length === 0 &&
-                        !canPingAdapter(adapter) && (
-                          <span className="platform-table__no-actions">—</span>
-                        )}
                     </div>
                   </td>
                 </tr>

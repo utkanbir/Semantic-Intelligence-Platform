@@ -2,12 +2,14 @@
 
 ## Decision
 
-Introduce **SemanticConnector** as a platform-level aggregate distinct from **TechnologyAdapter**.
+Platform **Connectors** unify infrastructure endpoints and semantic roles under one UI concept.
 
-| Aggregate | Role |
-|-----------|------|
-| TechnologyAdapter | Infrastructure endpoint (MinIO, Fuseki, PostgreSQL, …) |
-| SemanticConnector | Semantic role binding (`ontology_store`, `knowledge_graph_store`) to an Active adapter |
+| Layer | Backend aggregate (unchanged API) | UI section |
+|-------|-----------------------------------|------------|
+| Infrastructure | `TechnologyAdapter` (`/adapters`) | Infrastructure connectors — postgresql, minio, fuseki, … |
+| Semantic role | `SemanticConnector` (`/semantic-connectors`) | Semantic connectors — ontology_store, knowledge_graph_store |
+
+Ontology create/import/status/fork operations record **SemanticTransaction** rows with `application_id` and ordered **TraceSteps**.
 
 Ontology create/import/status/fork operations record **SemanticTransaction** rows with `application_id` and ordered **TraceSteps**.
 

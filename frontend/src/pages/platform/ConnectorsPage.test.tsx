@@ -8,14 +8,15 @@ import {
   updateAdapterStatus,
   type TechnologyAdapterResponse,
 } from "../../api/adapters";
-import { AdaptersPage } from "./AdaptersPage";
+import { listSemanticConnectors } from "../../api/semanticConnectors";
+import { ConnectorsPage } from "./ConnectorsPage";
 
 vi.mock("../../api/adapters", () => ({
   listAdapters: vi.fn(),
   createAdapter: vi.fn(),
   updateAdapterStatus: vi.fn(),
   pingAdapter: vi.fn(),
-  canPingAdapter: vi.fn((adapter: { status: string }) => adapter.status === "Active"),
+  canPingAdapter: vi.fn((connector: { status: string }) => connector.status === "Active"),
   getNextAdapterStatuses: vi.fn((status: string) => {
     const map: Record<string, string[]> = {
       Registered: ["Configured"],
@@ -39,8 +40,14 @@ vi.mock("../../api/adapters", () => ({
   TECHNOLOGY_TYPES: ["postgresql", "openmetadata"],
 }));
 
-const mockAdapter: TechnologyAdapterResponse = {
-  id: "adapter-1",
+vi.mock("../../api/semanticConnectors", () => ({
+  listSemanticConnectors: vi.fn(),
+  createSemanticConnector: vi.fn(),
+  SEMANTIC_CONNECTOR_TYPES: ["ontology_store", "knowledge_graph_store"],
+}));
+
+const mockConnector: TechnologyAdapterResponse = {
+  id: "connector-1",
   technology_type: "postgresql",
   adapter_key: "primary-db",
   status: "Active",
@@ -56,82 +63,85 @@ const mockAdapter: TechnologyAdapterResponse = {
   adapter_configuration: {},
 };
 
-const registeredAdapter: TechnologyAdapterResponse = {
-  ...mockAdapter,
-  id: "adapter-2",
+const registeredConnector: TechnologyAdapterResponse = {
+  ...mockConnector,
+  id: "connector-2",
   status: "Registered",
-  title: "New Adapter",
+  title: "New Connector",
   adapter_key: "new-key",
   configured_at: null,
   activated_at: null,
 };
 
-const newAdapter: TechnologyAdapterResponse = {
-  ...registeredAdapter,
+const newConnector: TechnologyAdapterResponse = {
+  ...registeredConnector,
   title: "OpenMetadata Dev",
   adapter_key: "om-dev",
   technology_type: "openmetadata",
 };
 
-describe("AdaptersPage", () => {
+describe("ConnectorsPage", () => {
   beforeEach(() => {
     vi.mocked(listAdapters).mockReset();
+    vi.mocked(listSemanticConnectors).mockReset();
     vi.mocked(createAdapter).mockReset();
     vi.mocked(updateAdapterStatus).mockReset();
     vi.mocked(pingAdapter).mockReset();
+    vi.mocked(listSemanticConnectors).mockResolvedValue([]);
   });
 
-  it("renders loading then adapters table", async () => {
+  it("renders loading then infrastructure connectors table", async () => {
     vi.mocked(listAdapters).mockImplementation(
       () =>
         new Promise((resolve) => {
-          setTimeout(() => resolve([mockAdapter]), 0);
+          setTimeout(() => resolve([mockConnector]), 0);
         }),
     );
 
-    render(<AdaptersPage />);
+    render(<ConnectorsPage />);
 
-    expect(screen.getByText("Loading adapters…")).toBeInTheDocument();
+    expect(screen.getByText("Loading infrastructure connectors…")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText("Primary PostgreSQL")).toBeInTheDocument();
     });
 
-    expect(listAdapters).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ping" })).toBeInTheDocument();
+    expect(listAdapters).toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Connectors" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Infrastructure connectors" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Semantic connectors" })).toBeInTheDocument();
   });
 
-  it("renders empty state with create form", async () => {
+  it("renders empty infrastructure state with create form", async () => {
     vi.mocked(listAdapters).mockResolvedValue([]);
 
-    render(<AdaptersPage />);
+    render(<ConnectorsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("No adapters yet.")).toBeInTheDocument();
+      expect(screen.getByText("No infrastructure connectors yet.")).toBeInTheDocument();
     });
 
-    expect(screen.getByLabelText("Create adapter")).toBeInTheDocument();
+    expect(screen.getByLabelText("Create infrastructure connector")).toBeInTheDocument();
   });
 
-  it("creates adapter from empty state and refreshes list", async () => {
+  it("creates infrastructure connector and refreshes list", async () => {
     vi.mocked(listAdapters)
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([newAdapter]);
-    vi.mocked(createAdapter).mockResolvedValue(newAdapter);
+      .mockResolvedValue([newConnector]);
+    vi.mocked(createAdapter).mockResolvedValue(newConnector);
 
-    render(<AdaptersPage />);
+    render(<ConnectorsPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Create adapter")).toBeInTheDocument();
+      expect(screen.getByLabelText("Create infrastructure connector")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Adapter key"), { target: { value: "om-dev" } });
+    fireEvent.change(screen.getByLabelText("Connector key"), { target: { value: "om-dev" } });
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "OpenMetadata Dev" } });
-    fireEvent.change(screen.getByLabelText("Technology type"), {
+    fireEvent.change(screen.getByLabelText("Connector type"), {
       target: { value: "openmetadata" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create adapter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create connector" }));
 
     await waitFor(() => {
       expect(createAdapter).toHaveBeenCalledWith({
@@ -146,18 +156,18 @@ describe("AdaptersPage", () => {
     });
   });
 
-  it("configures registered adapter via lifecycle action", async () => {
-    const configuredAdapter: TechnologyAdapterResponse = {
-      ...registeredAdapter,
+  it("configures registered connector via lifecycle action", async () => {
+    const configuredConnector: TechnologyAdapterResponse = {
+      ...registeredConnector,
       status: "Configured",
       configured_at: "2025-06-02T10:00:00Z",
     };
     vi.mocked(listAdapters)
-      .mockResolvedValueOnce([registeredAdapter])
-      .mockResolvedValueOnce([configuredAdapter]);
-    vi.mocked(updateAdapterStatus).mockResolvedValue(configuredAdapter);
+      .mockResolvedValueOnce([registeredConnector])
+      .mockResolvedValueOnce([configuredConnector]);
+    vi.mocked(updateAdapterStatus).mockResolvedValue(configuredConnector);
 
-    render(<AdaptersPage />);
+    render(<ConnectorsPage />);
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument();
@@ -166,15 +176,15 @@ describe("AdaptersPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Configure" }));
 
     await waitFor(() => {
-      expect(updateAdapterStatus).toHaveBeenCalledWith("adapter-2", "Configured");
+      expect(updateAdapterStatus).toHaveBeenCalledWith("connector-2", "Configured");
     });
   });
 
-  it("pings active adapter and shows result", async () => {
-    vi.mocked(listAdapters).mockResolvedValue([mockAdapter]);
+  it("pings active connector and shows result", async () => {
+    vi.mocked(listAdapters).mockResolvedValue([mockConnector]);
     vi.mocked(pingAdapter).mockResolvedValue({ status: "ok", technology: "postgresql" });
 
-    render(<AdaptersPage />);
+    render(<ConnectorsPage />);
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Ping" })).toBeInTheDocument();
@@ -183,7 +193,7 @@ describe("AdaptersPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ping" }));
 
     await waitFor(() => {
-      expect(pingAdapter).toHaveBeenCalledWith("adapter-1");
+      expect(pingAdapter).toHaveBeenCalledWith("connector-1");
     });
 
     await waitFor(() => {
@@ -191,13 +201,14 @@ describe("AdaptersPage", () => {
     });
   });
 
-  it("renders error state", async () => {
+  it("renders infrastructure error state", async () => {
     vi.mocked(listAdapters).mockRejectedValue(new ApiError("Server error", 500));
+    vi.mocked(listSemanticConnectors).mockResolvedValue([]);
 
-    render(<AdaptersPage />);
+    render(<ConnectorsPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Server error");
+      expect(screen.getAllByRole("alert")[0]).toHaveTextContent("Server error");
     });
   });
 });

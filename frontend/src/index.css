@@ -362,6 +362,28 @@ body {
   margin-top: 1rem;
 }
 
+.connectors-page {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.connectors-page__section {
+  margin-top: 2rem;
+}
+
+.connectors-page__section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.connectors-page__section-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
 .platform-page__optional {
   font-weight: 400;
   color: #6b6b80;

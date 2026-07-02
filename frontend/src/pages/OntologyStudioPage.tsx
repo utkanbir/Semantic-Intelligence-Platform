@@ -162,8 +162,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       {connectors.length === 0 ? (
         <div className="agent-runs-page__empty" role="status">
           <p>
-            No active ontology_store connectors. Create one under Platform → Semantic Connectors
-            (requires an Active MinIO adapter).
+            No active ontology_store connectors. Create one under Platform → Connectors
+            → Semantic connectors (requires an Active MinIO infrastructure connector).
           </p>
         </div>
       ) : (

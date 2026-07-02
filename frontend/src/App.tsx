@@ -2,11 +2,14 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { PlatformShell } from "./components/PlatformShell";
 import { ApplicationDetailPage } from "./pages/ApplicationDetailPage";
 import { ApplicationsPage } from "./pages/ApplicationsPage";
-import { AdaptersPage } from "./pages/platform/AdaptersPage";
 import { AuditTracePage } from "./pages/platform/AuditTracePage";
+import {
+  AdaptersPageRedirect,
+  ConnectorsPage,
+  SemanticConnectorsPageRedirect,
+} from "./pages/platform/ConnectorsPage";
 import { GovernancePage } from "./pages/platform/GovernancePage";
 import { PlatformOverviewPage } from "./pages/platform/PlatformOverviewPage";
-import { SemanticConnectorsPage } from "./pages/platform/SemanticConnectorsPage";
 
 export default function App() {
   return (
@@ -14,8 +17,9 @@ export default function App() {
       <PlatformShell>
         <Routes>
           <Route path="/" element={<PlatformOverviewPage />} />
-          <Route path="/adapters" element={<AdaptersPage />} />
-          <Route path="/semantic-connectors" element={<SemanticConnectorsPage />} />
+          <Route path="/connectors" element={<ConnectorsPage />} />
+          <Route path="/adapters" element={<AdaptersPageRedirect />} />
+          <Route path="/semantic-connectors" element={<SemanticConnectorsPageRedirect />} />
           <Route path="/governance" element={<GovernancePage />} />
           <Route path="/audit-trace" element={<AuditTracePage />} />
           <Route path="/applications" element={<ApplicationsPage />} />
