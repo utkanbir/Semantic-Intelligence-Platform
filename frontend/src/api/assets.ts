@@ -38,3 +38,37 @@ export function listAssets(
 export function getAsset(assetId: string): Promise<AssetRecordResponse> {
   return apiFetch<AssetRecordResponse>(`/assets/${assetId}`);
 }
+
+const ASSET_NEXT_STATUSES: Record<AssetRecordStatus, AssetRecordStatus[]> = {
+  Draft: ["Active"],
+  Active: ["Published", "Draft"],
+  Published: ["Deprecated"],
+  Deprecated: ["Retired", "Active"],
+  Retired: [],
+};
+
+export function getNextAssetStatuses(status: AssetRecordStatus): AssetRecordStatus[] {
+  return ASSET_NEXT_STATUSES[status];
+}
+
+const ASSET_STATUS_ACTION_LABELS: Record<AssetRecordStatus, string> = {
+  Draft: "Revert to Draft",
+  Active: "Activate",
+  Published: "Publish",
+  Deprecated: "Deprecate",
+  Retired: "Retire",
+};
+
+export function getAssetStatusActionLabel(status: AssetRecordStatus): string {
+  return ASSET_STATUS_ACTION_LABELS[status];
+}
+
+export function updateAssetStatus(
+  assetId: string,
+  status: AssetRecordStatus,
+): Promise<AssetRecordResponse> {
+  return apiFetch<AssetRecordResponse>(`/assets/${assetId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}

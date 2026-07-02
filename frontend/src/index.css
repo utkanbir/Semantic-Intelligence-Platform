@@ -1372,6 +1372,7 @@ body {
 .agents-page__button,
 .ontologies-page__button,
 .knowledge-graphs-page__button,
+.assets-page__button,
 .agent-runs-page__button {
   padding: 0.5rem 1rem;
   border-radius: 6px;
@@ -1386,6 +1387,7 @@ body {
 .agents-page__button:disabled,
 .ontologies-page__button:disabled,
 .knowledge-graphs-page__button:disabled,
+.assets-page__button:disabled,
 .agent-runs-page__button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -1395,6 +1397,7 @@ body {
 .agents-page__button--primary,
 .ontologies-page__button--primary,
 .knowledge-graphs-page__button--primary,
+.assets-page__button--primary,
 .agent-runs-page__button--primary {
   color: #fff;
   background: #1a1a2e;
@@ -1405,6 +1408,7 @@ body {
 .agents-page__button--primary:hover:not(:disabled),
 .ontologies-page__button--primary:hover:not(:disabled),
 .knowledge-graphs-page__button--primary:hover:not(:disabled),
+.assets-page__button--primary:hover:not(:disabled),
 .agent-runs-page__button--primary:hover:not(:disabled) {
   background: #2d2d44;
 }
@@ -1412,7 +1416,8 @@ body {
 .products-page__button--secondary,
 .agents-page__button--secondary,
 .ontologies-page__button--secondary,
-.knowledge-graphs-page__button--secondary {
+.knowledge-graphs-page__button--secondary,
+.assets-page__button--secondary {
   color: #1a1a2e;
   background: #fff;
   border-color: #c8ccd4;
@@ -1421,7 +1426,8 @@ body {
 .products-page__button--secondary:hover:not(:disabled),
 .agents-page__button--secondary:hover:not(:disabled),
 .ontologies-page__button--secondary:hover:not(:disabled),
-.knowledge-graphs-page__button--secondary:hover:not(:disabled) {
+.knowledge-graphs-page__button--secondary:hover:not(:disabled),
+.assets-page__button--secondary:hover:not(:disabled) {
   background: #f8f9fb;
 }
 
@@ -1600,14 +1606,16 @@ body {
 .products-page__action-error,
 .agents-page__action-error,
 .ontologies-page__action-error,
-.knowledge-graphs-page__action-error {
+.knowledge-graphs-page__action-error,
+.assets-page__action-error {
   margin-bottom: 1rem;
 }
 
 .products-table__actions,
 .agents-table__actions,
 .ontologies-table__actions,
-.knowledge-graphs-table__actions {
+.knowledge-graphs-table__actions,
+.assets-table__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
@@ -1616,7 +1624,8 @@ body {
 .products-table__action,
 .agents-table__action,
 .ontologies-table__action,
-.knowledge-graphs-table__action {
+.knowledge-graphs-table__action,
+.assets-table__action {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
 }
@@ -1624,7 +1633,8 @@ body {
 .products-table__no-actions,
 .agents-table__no-actions,
 .ontologies-table__no-actions,
-.knowledge-graphs-table__no-actions {
+.knowledge-graphs-table__no-actions,
+.assets-table__no-actions {
   color: #6b6b80;
 }
 
