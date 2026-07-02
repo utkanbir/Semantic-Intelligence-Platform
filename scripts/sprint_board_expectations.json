@@ -93,6 +93,10 @@
     "22": {
       "label": "Console Asset Registry",
       "issues": [233, 234, 235, 236]
+    },
+    "23": {
+      "label": "Console Product Asset Binding",
+      "issues": [240, 241, 242, 243]
     }
   }
 }
