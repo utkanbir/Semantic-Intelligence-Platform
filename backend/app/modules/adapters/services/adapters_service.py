@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
-from app.modules.adapters.domain.enums import TechnologyAdapterStatus, TechnologyType
+from app.modules.adapters.domain.enums import TechnologyAdapterStatus, ConnectorType
 from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.ports.interfaces import TraceRecorder
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
@@ -71,7 +71,7 @@ class AdaptersService:
     def create_adapter(
         self,
         *,
-        technology_type: TechnologyType,
+        technology_type: ConnectorType,
         adapter_key: str,
         title: str,
         created_by: str | None = None,
@@ -110,13 +110,13 @@ class AdaptersService:
     def list_adapters(
         self,
         *,
-        technology_type: TechnologyType | None = None,
+        technology_type: ConnectorType | None = None,
         status: TechnologyAdapterStatus | None = None,
     ) -> list[TechnologyAdapter]:
         type_value = technology_type.value if technology_type is not None else None
         status_value = status.value if status is not None else None
         return list(
-            self._repository.list_all(technology_type=type_value, status=status_value)
+            self._repository.list_all(connector_type=type_value, status=status_value)
         )
 
     def get_adapter(self, adapter_id: UUID) -> TechnologyAdapter:

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from app.modules.adapters.domain.enums import TechnologyAdapterStatus, TechnologyType
+from app.modules.adapters.domain.enums import TechnologyAdapterStatus, ConnectorType
 
 
 @dataclass(slots=True)
@@ -15,7 +15,7 @@ class TechnologyAdapter:
     """Technology adapter registry aggregate root."""
 
     id: UUID
-    technology_type: TechnologyType
+    technology_type: ConnectorType
     adapter_key: str
     status: TechnologyAdapterStatus
     title: str

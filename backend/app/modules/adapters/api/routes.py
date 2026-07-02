@@ -17,7 +17,7 @@ from app.modules.adapters.api.schemas import (
     TechnologyAdapterUpdateRequest,
     to_technology_adapter_response,
 )
-from app.modules.adapters.domain.enums import TechnologyAdapterStatus, TechnologyType
+from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
 from app.modules.adapters.repositories.sqlalchemy_repository import (
     SqlAlchemyTechnologyAdapterRepository,
 )
@@ -71,12 +71,12 @@ def create_adapter(
     service = _get_service(db)
     try:
         adapter = service.create_adapter(
-            technology_type=payload.technology_type,
-            adapter_key=payload.adapter_key,
+            technology_type=payload.connector_type,
+            adapter_key=payload.connector_key,
             title=payload.title,
             created_by=payload.created_by,
             description=payload.description,
-            adapter_configuration=payload.adapter_configuration,
+            adapter_configuration=payload.connector_configuration,
         )
     except DuplicateAdapterKeyError as error:
         raise HTTPException(
@@ -89,11 +89,11 @@ def create_adapter(
 @router.get("", response_model=list[TechnologyAdapterResponse])
 def list_adapters(
     db: DbSession,
-    technology_type: Annotated[TechnologyType | None, Query()] = None,
+    connector_type: Annotated[ConnectorType | None, Query()] = None,
     adapter_status: Annotated[TechnologyAdapterStatus | None, Query()] = None,
 ) -> list[TechnologyAdapterResponse]:
     service = _get_service(db)
-    adapters = service.list_adapters(technology_type=technology_type, status=adapter_status)
+    adapters = service.list_adapters(technology_type=connector_type, status=adapter_status)
     return [to_technology_adapter_response(item) for item in adapters]
 
 
@@ -118,7 +118,7 @@ def update_adapter(
             adapter_id,
             title=provided_values.get("title"),
             description=provided_values.get("description", UNSET),
-            adapter_configuration=provided_values.get("adapter_configuration", UNSET),
+            adapter_configuration=provided_values.get("connector_configuration", UNSET),
         )
     except TechnologyAdapterNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error

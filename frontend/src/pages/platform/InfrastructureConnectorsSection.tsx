@@ -1,23 +1,33 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../../api";
 import {
-  createAdapter,
-  getAdapterStatusActionLabel,
-  getNextAdapterStatuses,
-  listAdapters,
-  pingAdapter,
-  TECHNOLOGY_TYPES,
-  updateAdapterStatus,
-  canPingAdapter,
-  type TechnologyAdapterResponse,
-  type TechnologyAdapterStatus,
-  type TechnologyType,
+  CONNECTOR_TYPE_LABELS,
+  CONNECTOR_TYPES,
+  createConnector,
+  getConnectorStatusActionLabel,
+  getNextConnectorStatuses,
+  listConnectors,
+  pingConnector,
+  updateConnectorStatus,
+  canPingConnector,
+  type ConnectorResponse,
+  type ConnectorStatus,
+  type ConnectorType,
 } from "../../api/adapters";
+import {
+  buildConnectorConfiguration,
+  getConnectionFields,
+  getDefaultVendor,
+  getVendorLabel,
+  readConnectorVendor,
+  VENDORS_BY_CONNECTOR_TYPE,
+  type ConnectionMethod,
+} from "../../connectors/catalog";
 
-type SectionState =
+type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "success"; connectors: TechnologyAdapterResponse[] };
+  | { kind: "success"; connectors: ConnectorResponse[] };
 
 function formatDate(iso: string | null): string {
   if (!iso) {
@@ -29,27 +39,38 @@ function formatDate(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-function statusClassName(status: TechnologyAdapterResponse["status"]): string {
+function statusClassName(status: ConnectorResponse["status"]): string {
   return `platform-table__status platform-table__status--${status.toLowerCase()}`;
 }
 
 interface CreateFormFields {
-  technology_type: TechnologyType;
+  connector_type: ConnectorType;
+  vendor: string;
+  connection_method: ConnectionMethod;
+  connection: Record<string, string>;
   connector_key: string;
   title: string;
   description: string;
   created_by: string;
 }
 
-function InfrastructureConnectorCreateForm({
+function emptyConnectionValues(vendor: string): Record<string, string> {
+  return Object.fromEntries(getConnectionFields(vendor).map((field) => [field.id, ""]));
+}
+
+function ConnectorCreateForm({
   onCreated,
   onCancel,
 }: {
   onCreated: () => void;
   onCancel?: () => void;
 }) {
+  const initialVendor = getDefaultVendor("database");
   const [fields, setFields] = useState<CreateFormFields>({
-    technology_type: "postgresql",
+    connector_type: "database",
+    vendor: initialVendor,
+    connection_method: "existing_instance",
+    connection: emptyConnectionValues(initialVendor),
     connector_key: "",
     title: "",
     description: "",
@@ -57,12 +78,54 @@ function InfrastructureConnectorCreateForm({
   });
   const [titleError, setTitleError] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const vendors = VENDORS_BY_CONNECTOR_TYPE[fields.connector_type];
+  const connectionFields = useMemo(
+    () => getConnectionFields(fields.vendor),
+    [fields.vendor],
+  );
+
+  function handleConnectorTypeChange(connectorType: ConnectorType) {
+    const vendor = getDefaultVendor(connectorType);
+    setFields((current) => ({
+      ...current,
+      connector_type: connectorType,
+      vendor,
+      connection: emptyConnectionValues(vendor),
+    }));
+    setConnectionError(null);
+  }
+
+  function handleVendorChange(vendor: string) {
+    setFields((current) => ({
+      ...current,
+      vendor,
+      connection: emptyConnectionValues(vendor),
+    }));
+    setConnectionError(null);
+  }
+
+  function handleConnectionChange(fieldId: string, value: string) {
+    setFields((current) => ({
+      ...current,
+      connection: { ...current.connection, [fieldId]: value },
+    }));
+    if (connectionError) {
+      setConnectionError(null);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
+
+    if (fields.connection_method === "provision_in_cluster") {
+      setSubmitError("Provisioned in cluster is not available yet. Choose an existing instance.");
+      return;
+    }
 
     const trimmedTitle = fields.title.trim();
     if (!trimmedTitle) {
@@ -78,14 +141,32 @@ function InfrastructureConnectorCreateForm({
     }
     setKeyError(null);
 
+    const missingRequired = connectionFields.find(
+      (field) => field.required && !fields.connection[field.id]?.trim(),
+    );
+    if (missingRequired) {
+      setConnectionError(`${missingRequired.label} is required`);
+      return;
+    }
+    setConnectionError(null);
+
+    const trimmedConnection = Object.fromEntries(
+      Object.entries(fields.connection).map(([key, value]) => [key, value.trim()]),
+    );
+
     setSubmitting(true);
     try {
       const description = fields.description.trim();
       const createdBy = fields.created_by.trim();
-      await createAdapter({
-        technology_type: fields.technology_type,
-        adapter_key: trimmedKey,
+      await createConnector({
+        connector_type: fields.connector_type,
+        connector_key: trimmedKey,
         title: trimmedTitle,
+        connector_configuration: buildConnectorConfiguration(
+          fields.vendor,
+          fields.connection_method,
+          trimmedConnection,
+        ),
         ...(description ? { description } : {}),
         ...(createdBy ? { created_by: createdBy } : {}),
       });
@@ -107,33 +188,121 @@ function InfrastructureConnectorCreateForm({
     <form
       className="platform-page__create-form"
       onSubmit={(event) => void handleSubmit(event)}
-      aria-label="Create infrastructure connector"
+      aria-label="Create connector"
     >
       <div className="platform-page__field">
-        <label htmlFor="infra-connector-type">Connector type</label>
+        <label htmlFor="connector-type">Connector type</label>
         <select
-          id="infra-connector-type"
-          value={fields.technology_type}
+          id="connector-type"
+          value={fields.connector_type}
           onChange={(event) =>
-            setFields((current) => ({
-              ...current,
-              technology_type: event.target.value as TechnologyType,
-            }))
+            handleConnectorTypeChange(event.target.value as ConnectorType)
           }
           disabled={submitting}
         >
-          {TECHNOLOGY_TYPES.map((type) => (
+          {CONNECTOR_TYPES.map((type) => (
             <option key={type} value={type}>
-              {type}
+              {CONNECTOR_TYPE_LABELS[type]}
             </option>
           ))}
         </select>
       </div>
 
       <div className="platform-page__field">
-        <label htmlFor="infra-connector-key">Connector key</label>
+        <label htmlFor="connector-vendor">Connector vendor</label>
+        <select
+          id="connector-vendor"
+          value={fields.vendor}
+          onChange={(event) => handleVendorChange(event.target.value)}
+          disabled={submitting}
+        >
+          {vendors.map((vendor) => (
+            <option key={vendor.id} value={vendor.id}>
+              {vendor.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <fieldset className="platform-page__fieldset">
+        <legend>Connection method</legend>
+        <div className="platform-page__radio-group">
+          <label htmlFor="connection-method-existing">
+            <input
+              id="connection-method-existing"
+              type="radio"
+              name="connection_method"
+              value="existing_instance"
+              checked={fields.connection_method === "existing_instance"}
+              onChange={() =>
+                setFields((current) => ({
+                  ...current,
+                  connection_method: "existing_instance",
+                }))
+              }
+              disabled={submitting}
+            />
+            Connect to existing instance
+          </label>
+          <label htmlFor="connection-method-provision" className="platform-page__radio--disabled">
+            <input
+              id="connection-method-provision"
+              type="radio"
+              name="connection_method"
+              value="provision_in_cluster"
+              checked={fields.connection_method === "provision_in_cluster"}
+              onChange={() =>
+                setFields((current) => ({
+                  ...current,
+                  connection_method: "provision_in_cluster",
+                }))
+              }
+              disabled
+            />
+            Provision in cluster <span className="platform-page__optional">(coming soon)</span>
+          </label>
+        </div>
+      </fieldset>
+
+      {fields.connection_method === "existing_instance" && (
+        <div className="platform-page__create-panel platform-page__create-panel--nested">
+          <h3 className="platform-page__create-subtitle">Connection details</h3>
+          {connectionFields.map((field) => (
+            <div className="platform-page__field" key={field.id}>
+              <label htmlFor={`connection-${field.id}`}>
+                {field.label}
+                {!field.required && (
+                  <span className="platform-page__optional"> (optional)</span>
+                )}
+              </label>
+              <input
+                id={`connection-${field.id}`}
+                type={field.inputType ?? "text"}
+                placeholder={field.placeholder}
+                value={fields.connection[field.id] ?? ""}
+                onChange={(event) => handleConnectionChange(field.id, event.target.value)}
+                disabled={submitting}
+              />
+            </div>
+          ))}
+          {connectionError && (
+            <p className="platform-page__field-error" role="alert">
+              {connectionError}
+            </p>
+          )}
+        </div>
+      )}
+
+      {fields.connection_method === "provision_in_cluster" && (
+        <div className="platform-page__hint" role="status">
+          Kubernetes provisioning will be available in a future sprint.
+        </div>
+      )}
+
+      <div className="platform-page__field">
+        <label htmlFor="connector-key">Connector key</label>
         <input
-          id="infra-connector-key"
+          id="connector-key"
           value={fields.connector_key}
           onChange={(event) => {
             setFields((current) => ({ ...current, connector_key: event.target.value }));
@@ -151,9 +320,9 @@ function InfrastructureConnectorCreateForm({
       </div>
 
       <div className="platform-page__field">
-        <label htmlFor="infra-connector-title">Title</label>
+        <label htmlFor="connector-title">Title</label>
         <input
-          id="infra-connector-title"
+          id="connector-title"
           value={fields.title}
           onChange={(event) => {
             setFields((current) => ({ ...current, title: event.target.value }));
@@ -171,11 +340,11 @@ function InfrastructureConnectorCreateForm({
       </div>
 
       <div className="platform-page__field">
-        <label htmlFor="infra-connector-description">
+        <label htmlFor="connector-description">
           Description <span className="platform-page__optional">(optional)</span>
         </label>
         <textarea
-          id="infra-connector-description"
+          id="connector-description"
           rows={3}
           value={fields.description}
           onChange={(event) =>
@@ -185,11 +354,11 @@ function InfrastructureConnectorCreateForm({
       </div>
 
       <div className="platform-page__field">
-        <label htmlFor="infra-connector-created-by">
+        <label htmlFor="connector-created-by">
           Created by <span className="platform-page__optional">(optional)</span>
         </label>
         <input
-          id="infra-connector-created-by"
+          id="connector-created-by"
           value={fields.created_by}
           onChange={(event) =>
             setFields((current) => ({ ...current, created_by: event.target.value }))
@@ -212,7 +381,7 @@ function InfrastructureConnectorCreateForm({
         <button
           type="submit"
           className="platform-page__button platform-page__button--primary"
-          disabled={submitting}
+          disabled={submitting || fields.connection_method === "provision_in_cluster"}
         >
           {submitting ? "Creating…" : "Create connector"}
         </button>
@@ -221,8 +390,8 @@ function InfrastructureConnectorCreateForm({
   );
 }
 
-export function InfrastructureConnectorsSection() {
-  const [state, setState] = useState<SectionState>({ kind: "loading" });
+export function ConnectorsSection() {
+  const [state, setState] = useState<PageState>({ kind: "loading" });
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pingResults, setPingResults] = useState<Record<string, string>>({});
@@ -232,7 +401,7 @@ export function InfrastructureConnectorsSection() {
     if (!options?.silent) {
       setState({ kind: "loading" });
     }
-    return listAdapters()
+    return listConnectors()
       .then((connectors) => {
         setState({ kind: "success", connectors });
         return connectors;
@@ -243,7 +412,7 @@ export function InfrastructureConnectorsSection() {
             ? error.message
             : error instanceof Error
               ? error.message
-              : "Failed to load infrastructure connectors";
+              : "Failed to load connectors";
         setState({ kind: "error", message });
         throw error;
       });
@@ -251,7 +420,7 @@ export function InfrastructureConnectorsSection() {
 
   useEffect(() => {
     let cancelled = false;
-    listAdapters()
+    listConnectors()
       .then((connectors) => {
         if (!cancelled) {
           setState({ kind: "success", connectors });
@@ -267,7 +436,7 @@ export function InfrastructureConnectorsSection() {
               ? error.message
               : error instanceof Error
                 ? error.message
-                : "Failed to load infrastructure connectors";
+                : "Failed to load connectors";
           setState({ kind: "error", message });
         }
       });
@@ -281,11 +450,11 @@ export function InfrastructureConnectorsSection() {
     void loadConnectors({ silent: true });
   }
 
-  async function handleStatusTransition(connectorId: string, nextStatus: TechnologyAdapterStatus) {
+  async function handleStatusTransition(connectorId: string, nextStatus: ConnectorStatus) {
     setActionError(null);
     setPendingId(connectorId);
     try {
-      await updateAdapterStatus(connectorId, nextStatus);
+      await updateConnectorStatus(connectorId, nextStatus);
       await loadConnectors();
     } catch (error: unknown) {
       const message =
@@ -304,10 +473,10 @@ export function InfrastructureConnectorsSection() {
     setActionError(null);
     setPendingId(connectorId);
     try {
-      const result = await pingAdapter(connectorId);
+      const result = await pingConnector(connectorId);
       setPingResults((current) => ({
         ...current,
-        [connectorId]: `${result.status} (${result.technology})`,
+        [connectorId]: `${result.status} (${result.connector_type})`,
       }));
     } catch (error: unknown) {
       const message =
@@ -326,28 +495,10 @@ export function InfrastructureConnectorsSection() {
   const hasConnectors = state.kind === "success" && state.connectors.length > 0;
 
   return (
-    <section className="connectors-page__section" aria-labelledby="infra-connectors-heading">
-      <div className="connectors-page__section-header">
-        <div>
-          <h2 id="infra-connectors-heading">Infrastructure connectors</h2>
-          <p className="platform-page__hint">
-            Database, object storage, vector store, and other technology endpoints.
-          </p>
-        </div>
-        {state.kind === "success" && !showCreateForm && (
-          <button
-            type="button"
-            className="platform-page__button platform-page__button--primary"
-            onClick={() => setShowCreateForm(true)}
-          >
-            New infrastructure connector
-          </button>
-        )}
-      </div>
-
+    <>
       {state.kind === "loading" && (
         <p className="platform-page__status" role="status">
-          Loading infrastructure connectors…
+          Loading connectors…
         </p>
       )}
 
@@ -365,7 +516,7 @@ export function InfrastructureConnectorsSection() {
 
       {isEmpty && (
         <div className="platform-page__empty" role="status">
-          <p>No infrastructure connectors yet.</p>
+          <p>No connectors yet.</p>
           {!showCreateForm && (
             <button
               type="button"
@@ -378,10 +529,22 @@ export function InfrastructureConnectorsSection() {
         </div>
       )}
 
+      {state.kind === "success" && !showCreateForm && hasConnectors && (
+        <div className="connectors-page__section-header">
+          <button
+            type="button"
+            className="platform-page__button platform-page__button--primary"
+            onClick={() => setShowCreateForm(true)}
+          >
+            New connector
+          </button>
+        </div>
+      )}
+
       {showCreateForm && (
         <div className="platform-page__create-panel">
-          <h3 className="platform-page__create-title">New infrastructure connector</h3>
-          <InfrastructureConnectorCreateForm
+          <h2 className="platform-page__create-title">New connector</h2>
+          <ConnectorCreateForm
             onCreated={handleCreated}
             onCancel={isEmpty ? undefined : () => setShowCreateForm(false)}
           />
@@ -395,6 +558,7 @@ export function InfrastructureConnectorsSection() {
               <tr>
                 <th scope="col">Title</th>
                 <th scope="col">Type</th>
+                <th scope="col">Vendor</th>
                 <th scope="col">Key</th>
                 <th scope="col">Status</th>
                 <th scope="col">Created</th>
@@ -406,10 +570,24 @@ export function InfrastructureConnectorsSection() {
                 <tr key={connector.id}>
                   <td>{connector.title}</td>
                   <td>
-                    <code className="platform-table__code">{connector.technology_type}</code>
+                    <code className="platform-table__code">
+                      {CONNECTOR_TYPE_LABELS[connector.connector_type]}
+                    </code>
                   </td>
                   <td>
-                    <code className="platform-table__code">{connector.adapter_key}</code>
+                    {(() => {
+                      const vendorId = readConnectorVendor(connector.connector_configuration);
+                      return vendorId ? (
+                        <code className="platform-table__code">
+                          {getVendorLabel(connector.connector_type, vendorId)}
+                        </code>
+                      ) : (
+                        "—"
+                      );
+                    })()}
+                  </td>
+                  <td>
+                    <code className="platform-table__code">{connector.connector_key}</code>
                   </td>
                   <td>
                     <span className={statusClassName(connector.status)}>{connector.status}</span>
@@ -422,7 +600,7 @@ export function InfrastructureConnectorsSection() {
                   <td>{formatDate(connector.created_at)}</td>
                   <td>
                     <div className="platform-table__actions">
-                      {canPingAdapter(connector) && (
+                      {canPingConnector(connector) && (
                         <button
                           type="button"
                           className="platform-page__button platform-table__action"
@@ -432,7 +610,7 @@ export function InfrastructureConnectorsSection() {
                           Ping
                         </button>
                       )}
-                      {getNextAdapterStatuses(connector.status).map((nextStatus) => (
+                      {getNextConnectorStatuses(connector.status).map((nextStatus) => (
                         <button
                           key={nextStatus}
                           type="button"
@@ -440,7 +618,7 @@ export function InfrastructureConnectorsSection() {
                           disabled={pendingId === connector.id}
                           onClick={() => void handleStatusTransition(connector.id, nextStatus)}
                         >
-                          {getAdapterStatusActionLabel(nextStatus)}
+                          {getConnectorStatusActionLabel(nextStatus)}
                         </button>
                       ))}
                     </div>
@@ -451,6 +629,9 @@ export function InfrastructureConnectorsSection() {
           </table>
         </div>
       )}
-    </section>
+    </>
   );
 }
+
+/** @deprecated Use ConnectorsSection */
+export const InfrastructureConnectorsSection = ConnectorsSection;

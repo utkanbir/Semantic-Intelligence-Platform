@@ -48,9 +48,9 @@ class OntologyDefinition(Base):
         DateTime(timezone=True), nullable=True
     )
     ontology_definition: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    semantic_connector_id: Mapped[UUID | None] = mapped_column(
+    connector_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("semantic_connectors.id", ondelete="SET NULL"),
+        ForeignKey("technology_adapters.id", ondelete="SET NULL"),
         nullable=True,
     )
     artifact_uri: Mapped[str | None] = mapped_column(String(512), nullable=True)

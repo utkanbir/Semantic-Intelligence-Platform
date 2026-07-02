@@ -36,7 +36,6 @@ from app.modules.governance.api.routes import router as policies_router
 from app.modules.knowledge_graph.api.routes import router as knowledge_graphs_router
 from app.modules.ontology.api.routes import router as ontologies_router
 from app.modules.products.api.routes import router as products_router
-from app.modules.semantic_connectors.api.routes import router as semantic_connectors_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health_router, prefix="/health", tags=["health"])
@@ -62,10 +61,6 @@ api_v1_router.include_router(
     tags=["knowledge-graphs"],
 )
 api_v1_router.include_router(adapters_router, prefix="/adapters", tags=["adapters"])
-api_v1_router.include_router(
-    semantic_connectors_router,
-    prefix="/semantic-connectors",
-    tags=["semantic-connectors"],
-)
+api_v1_router.include_router(adapters_router, prefix="/connectors", tags=["connectors"])
 api_v1_router.include_router(agent_runs_router, prefix="/agent-runs", tags=["agent-runs"])
 api_v1_router.include_router(policies_router, prefix="/policies", tags=["governance"])

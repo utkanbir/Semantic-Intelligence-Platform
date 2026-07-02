@@ -1,6 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { InfrastructureConnectorsSection } from "./InfrastructureConnectorsSection";
-import { SemanticConnectorsSection } from "./SemanticConnectorsSection";
+import { ConnectorsSection } from "./InfrastructureConnectorsSection";
 
 export function ConnectorsPage() {
   return (
@@ -9,15 +8,13 @@ export function ConnectorsPage() {
         <div>
           <h1 id="connectors-heading">Connectors</h1>
           <p className="platform-page__lead">
-            Register platform connectors by type — database, object storage, knowledge graph,
-            ontology store, and more. Infrastructure connectors expose endpoints; semantic
-            connectors bind ontology and knowledge-graph roles to active infrastructure.
+            Register platform connectors by type — database, object storage, file system, and
+            ontology / knowledge graph.
           </p>
         </div>
       </header>
 
-      <InfrastructureConnectorsSection />
-      <SemanticConnectorsSection />
+      <ConnectorsSection />
     </div>
   );
 }

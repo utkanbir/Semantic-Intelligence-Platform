@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import { importOntology } from "../api/ontologies";
 import {
-  listSemanticConnectors,
-  type SemanticConnectorResponse,
-} from "../api/semanticConnectors";
+  listConnectors,
+  CONNECTOR_TYPE_LABELS,
+  type ConnectorResponse,
+} from "../api/adapters";
 
 interface OntologyStudioPageProps {
   applicationId: string;
@@ -14,7 +15,7 @@ interface OntologyStudioPageProps {
 type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; connectors: SemanticConnectorResponse[] }
+  | { kind: "ready"; connectors: ConnectorResponse[] }
   | { kind: "imported"; ontologyId: string; artifactUri: string | null | undefined };
 
 export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
@@ -30,7 +31,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   useEffect(() => {
     let cancelled = false;
 
-    listSemanticConnectors({ connectorType: "ontology_store", activeOnly: true })
+    listConnectors({
+      connectorType: "ontology_knowledge_graph",
+      status: "Active",
+    })
       .then((connectors) => {
         if (!cancelled) {
           setState({ kind: "ready", connectors });
@@ -73,7 +77,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       const ontology = await importOntology({
         application_id: applicationId,
         title: trimmedTitle,
-        semantic_connector_id: connectorId,
+        connector_id: connectorId,
         source_format: sourceFormat.trim() || "owl",
         source_content: trimmedContent,
         ...(createdByValue ? { created_by: createdByValue } : {}),
@@ -153,7 +157,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         <div>
           <h2 id="ontology-studio-heading">Ontology Studio</h2>
           <p className="agent-runs-page__lead">
-            Import OWL content through a platform semantic connector. Each import creates a
+            Import OWL content through a platform connector. Each import creates a
             SemanticTransaction with trace steps visible in Audit trace.
           </p>
         </div>
@@ -162,8 +166,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       {connectors.length === 0 ? (
         <div className="agent-runs-page__empty" role="status">
           <p>
-            No active ontology_store connectors. Create one under Platform → Connectors
-            → Semantic connectors (requires an Active MinIO infrastructure connector).
+            No active ontology / knowledge graph connectors. Create one under Platform →
+            Connectors, activate it, then return here to import.
           </p>
         </div>
       ) : (
@@ -181,7 +185,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             />
           </div>
           <div className="platform-page__field">
-            <label htmlFor="ontology-import-connector">Semantic connector</label>
+            <label htmlFor="ontology-import-connector">Connector</label>
             <select
               id="ontology-import-connector"
               value={connectorId}
@@ -189,7 +193,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             >
               {connectors.map((connector) => (
                 <option key={connector.id} value={connector.id}>
-                  {connector.title} ({connector.connector_key})
+                  {connector.title} ({connector.connector_key}) —{" "}
+                  {CONNECTOR_TYPE_LABELS[connector.connector_type]}
                 </option>
               ))}
             </select>

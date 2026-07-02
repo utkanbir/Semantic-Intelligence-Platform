@@ -33,7 +33,7 @@ def _to_domain(ontology_orm: OntologyDefinitionORM) -> OntologyDefinition:
         published_at=ontology_orm.published_at,
         version_created_at=ontology_orm.version_created_at,
         ontology_definition=ontology_orm.ontology_definition or {},
-        semantic_connector_id=ontology_orm.semantic_connector_id,
+        connector_id=ontology_orm.connector_id,
         artifact_uri=ontology_orm.artifact_uri,
         source_format=ontology_orm.source_format,
     )
@@ -62,7 +62,7 @@ class SqlAlchemyOntologyDefinitionRepository(OntologyDefinitionRepository):
             published_at=ontology.published_at,
             version_created_at=ontology.version_created_at,
             ontology_definition=ontology.ontology_definition,
-            semantic_connector_id=ontology.semantic_connector_id,
+            connector_id=ontology.connector_id,
             artifact_uri=ontology.artifact_uri,
             source_format=ontology.source_format,
         )
@@ -104,7 +104,7 @@ class SqlAlchemyOntologyDefinitionRepository(OntologyDefinitionRepository):
         ontology_orm.published_at = ontology.published_at
         ontology_orm.version_created_at = ontology.version_created_at
         ontology_orm.ontology_definition = ontology.ontology_definition
-        ontology_orm.semantic_connector_id = ontology.semantic_connector_id
+        ontology_orm.connector_id = ontology.connector_id
         ontology_orm.artifact_uri = ontology.artifact_uri
         ontology_orm.source_format = ontology.source_format
 

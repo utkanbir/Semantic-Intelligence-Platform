@@ -37,10 +37,10 @@ from app.modules.ontology.services.ontology_service import (
     InvalidOntologyDefinitionVersionForkError,
     OntologyDefinitionNotFoundError,
     OntologyService,
-    SemanticConnectorNotFoundError,
+    ConnectorNotFoundError,
 )
-from app.modules.semantic_connectors.repositories.sqlalchemy_repository import (
-    SqlAlchemySemanticConnectorRepository,
+from app.modules.adapters.repositories.sqlalchemy_repository import (
+    SqlAlchemyTechnologyAdapterRepository,
 )
 
 router = APIRouter()
@@ -72,7 +72,7 @@ def _get_service(db: Session) -> OntologyService:
     return OntologyService(
         SqlAlchemyOntologyDefinitionRepository(db),
         SqlAlchemyApplicationRepository(db),
-        SqlAlchemySemanticConnectorRepository(db),
+        SqlAlchemyTechnologyAdapterRepository(db),
         SqlAlchemyOntologyTransactionRecorder(db),
     )
 
@@ -89,7 +89,7 @@ def create_ontology(
             created_by=payload.created_by,
             description=payload.description,
             ontology_definition=payload.ontology_definition,
-            semantic_connector_id=payload.semantic_connector_id,
+            connector_id=payload.connector_id,
         )
     except ApplicationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
@@ -109,7 +109,7 @@ def import_ontology(
         ontology = service.import_ontology(
             application_id=payload.application_id,
             title=payload.title,
-            semantic_connector_id=payload.semantic_connector_id,
+            connector_id=payload.connector_id,
             source_format=payload.source_format,
             source_content=payload.source_content,
             created_by=payload.created_by,
@@ -117,7 +117,7 @@ def import_ontology(
         )
     except ApplicationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except SemanticConnectorNotFoundError as error:
+    except ConnectorNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except InvalidOntologyConnectorError as error:
         raise HTTPException(

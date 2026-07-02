@@ -24,7 +24,7 @@ export interface OntologyDefinitionResponse {
   published_at: string | null;
   version_created_at: string | null;
   ontology_definition: Record<string, unknown>;
-  semantic_connector_id?: string | null;
+  connector_id?: string | null;
   artifact_uri?: string | null;
   source_format?: string | null;
 }
@@ -64,7 +64,7 @@ export function createOntology(
 export interface OntologyDefinitionImportRequest {
   application_id: string;
   title: string;
-  semantic_connector_id: string;
+  connector_id: string;
   source_format: string;
   source_content: string;
   created_by?: string;

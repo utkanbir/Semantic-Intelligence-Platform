@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules.adapters.domain.enums import TechnologyAdapterStatus, TechnologyType
+from app.modules.adapters.domain.enums import TechnologyAdapterStatus, ConnectorType
 from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.adapters.repositories.orm_models import (
@@ -19,7 +19,7 @@ from app.modules.adapters.repositories.orm_models import (
 def _to_domain(adapter_orm: TechnologyAdapterORM) -> TechnologyAdapter:
     return TechnologyAdapter(
         id=adapter_orm.id,
-        technology_type=TechnologyType(adapter_orm.technology_type),
+        technology_type=ConnectorType(adapter_orm.connector_type),
         adapter_key=adapter_orm.adapter_key,
         status=TechnologyAdapterStatus(adapter_orm.status),
         title=adapter_orm.title,
@@ -44,7 +44,7 @@ class SqlAlchemyTechnologyAdapterRepository(TechnologyAdapterRepository):
     def create(self, adapter: TechnologyAdapter) -> TechnologyAdapter:
         adapter_orm = TechnologyAdapterORM(
             id=adapter.id,
-            technology_type=adapter.technology_type.value,
+            connector_type=adapter.technology_type.value,
             adapter_key=adapter.adapter_key,
             status=adapter.status.value,
             title=adapter.title,
@@ -66,15 +66,15 @@ class SqlAlchemyTechnologyAdapterRepository(TechnologyAdapterRepository):
     def list_all(
         self,
         *,
-        technology_type: str | None = None,
+        connector_type: str | None = None,
         status: str | None = None,
     ) -> Sequence[TechnologyAdapter]:
         statement = select(TechnologyAdapterORM).order_by(
             TechnologyAdapterORM.created_at.desc()
         )
-        if technology_type is not None:
+        if connector_type is not None:
             statement = statement.where(
-                TechnologyAdapterORM.technology_type == technology_type
+                TechnologyAdapterORM.connector_type == connector_type
             )
         if status is not None:
             statement = statement.where(TechnologyAdapterORM.status == status)
@@ -91,11 +91,11 @@ class SqlAlchemyTechnologyAdapterRepository(TechnologyAdapterRepository):
         adapter_orm = self._session.scalars(statement).first()
         return _to_domain(adapter_orm) if adapter_orm else None
 
-    def get_active_by_technology_type(
-        self, technology_type: str
+    def get_active_by_connector_type(
+        self, connector_type: str
     ) -> TechnologyAdapter | None:
         statement = select(TechnologyAdapterORM).where(
-            TechnologyAdapterORM.technology_type == technology_type,
+            TechnologyAdapterORM.connector_type == connector_type,
             TechnologyAdapterORM.status == TechnologyAdapterStatus.ACTIVE.value,
         )
         adapter_orm = self._session.scalars(statement).first()
@@ -105,7 +105,7 @@ class SqlAlchemyTechnologyAdapterRepository(TechnologyAdapterRepository):
         adapter_orm = self._session.get(TechnologyAdapterORM, adapter.id)
         if adapter_orm is None:
             return None
-        adapter_orm.technology_type = adapter.technology_type.value
+        adapter_orm.connector_type = adapter.technology_type.value
         adapter_orm.adapter_key = adapter.adapter_key
         adapter_orm.status = adapter.status.value
         adapter_orm.title = adapter.title

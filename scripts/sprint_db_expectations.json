@@ -556,9 +556,17 @@
       ]
     },
     "27": {
-      "label": "Ontology Semantic Transaction v1",
-      "alembic_head": "20260702_0016",
-      "new_tables": ["semantic_connectors"],
+      "label": "Ontology Semantic Transaction v1 (unified Connectors)",
+      "alembic_head": "20260704_0018",
+      "new_tables": [],
+      "column_changes": [
+        "semantic_transactions.application_id",
+        "ontology_definitions.connector_id",
+        "ontology_definitions.artifact_uri",
+        "ontology_definitions.source_format",
+        "technology_adapters.connector_type (renamed from technology_type)"
+      ],
+      "dropped_tables": ["semantic_connectors"],
       "cumulative_tables": [
         "alembic_version",
         "applications",
@@ -575,8 +583,7 @@
         "knowledge_graph_registries",
         "technology_adapters",
         "agent_runs",
-        "policy_definitions",
-        "semantic_connectors"
+        "policy_definitions"
       ]
     }
   }

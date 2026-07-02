@@ -6,16 +6,13 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
+from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.domain.models import OntologyDefinition
 from app.modules.ontology.ports.interfaces import OntologyTransactionRecorder
 from app.modules.ontology.repositories.interfaces import OntologyDefinitionRepository
-from app.modules.semantic_connectors.domain.enums import (
-    SemanticConnectorStatus,
-    SemanticConnectorType,
-)
-from app.modules.semantic_connectors.repositories.interfaces import SemanticConnectorRepository
 
 UNSET = object()
 
@@ -48,12 +45,12 @@ class InvalidOntologyDefinitionVersionForkError(Exception):
     """Raised when an ontology version fork is not allowed."""
 
 
-class SemanticConnectorNotFoundError(Exception):
-    """Raised when the selected semantic connector does not exist."""
+class ConnectorNotFoundError(Exception):
+    """Raised when the selected connector does not exist."""
 
 
 class InvalidOntologyConnectorError(Exception):
-    """Raised when the semantic connector is not eligible for ontology import."""
+    """Raised when the connector is not eligible for ontology import."""
 
 
 class _NoOpTransactionRecorder:
@@ -75,7 +72,7 @@ class OntologyService:
         self,
         repository: OntologyDefinitionRepository,
         application_repository: ApplicationRepository,
-        connector_repository: SemanticConnectorRepository | None = None,
+        connector_repository: TechnologyAdapterRepository | None = None,
         transaction_recorder: OntologyTransactionRecorder | None = None,
     ) -> None:
         self._repository = repository
@@ -91,7 +88,7 @@ class OntologyService:
         created_by: str | None = None,
         description: str | None = None,
         ontology_definition: dict[str, Any] | None = None,
-        semantic_connector_id: UUID | None = None,
+        connector_id: UUID | None = None,
     ) -> OntologyDefinition:
         if self._application_repository.get(application_id) is None:
             raise ApplicationNotFoundError("Application not found")
@@ -113,7 +110,7 @@ class OntologyService:
             created_at=now,
             updated_at=now,
             ontology_definition=definition,
-            semantic_connector_id=semantic_connector_id,
+            connector_id=connector_id,
         )
         created = self._repository.create(ontology)
         self._record_transaction(
@@ -132,7 +129,7 @@ class OntologyService:
         *,
         application_id: UUID,
         title: str,
-        semantic_connector_id: UUID,
+        connector_id: UUID,
         source_format: str,
         source_content: str,
         created_by: str | None = None,
@@ -140,12 +137,12 @@ class OntologyService:
     ) -> OntologyDefinition:
         if self._application_repository.get(application_id) is None:
             raise ApplicationNotFoundError("Application not found")
-        connector = self._require_ontology_connector(semantic_connector_id)
+        connector = self._require_ontology_connector(connector_id)
 
         now = datetime.now(UTC)
         ontology_id = uuid4()
         artifact_uri = (
-            f"{connector.connector_key}://{application_id}/{ontology_id}/"
+            f"{connector.adapter_key}://{application_id}/{ontology_id}/"
             f"artifact.{source_format.lstrip('.')}"
         )
         definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
@@ -167,7 +164,7 @@ class OntologyService:
             created_at=now,
             updated_at=now,
             ontology_definition=definition,
-            semantic_connector_id=semantic_connector_id,
+            connector_id=connector_id,
             artifact_uri=artifact_uri,
             source_format=source_format,
         )
@@ -177,7 +174,7 @@ class OntologyService:
             ontology=created,
             steps=[
                 ("validate_request", "Validated ontology import request"),
-                ("resolve_connector", f"Resolved connector {connector.connector_key}"),
+                ("resolve_connector", f"Resolved connector {connector.adapter_key}"),
                 ("persist_metadata", "Persisted ontology metadata"),
                 ("persist_artifact", f"Stub artifact persisted at {artifact_uri}"),
                 ("finalize", "Ontology import completed"),
@@ -243,7 +240,7 @@ class OntologyService:
                 if ontology_definition is UNSET
                 else cast(dict[str, Any], ontology_definition)
             ),
-            semantic_connector_id=current.semantic_connector_id,
+            connector_id=current.connector_id,
             artifact_uri=current.artifact_uri,
             source_format=current.source_format,
         )
@@ -300,7 +297,7 @@ class OntologyService:
             published_at=published_at,
             version_created_at=current.version_created_at,
             ontology_definition=current.ontology_definition,
-            semantic_connector_id=current.semantic_connector_id,
+            connector_id=current.connector_id,
             artifact_uri=current.artifact_uri,
             source_format=current.source_format,
         )
@@ -357,7 +354,7 @@ class OntologyService:
             updated_at=now,
             version_created_at=now,
             ontology_definition=definition,
-            semantic_connector_id=parent.semantic_connector_id,
+            connector_id=parent.connector_id,
             artifact_uri=parent.artifact_uri,
             source_format=parent.source_format,
         )
@@ -375,15 +372,15 @@ class OntologyService:
 
     def _require_ontology_connector(self, connector_id: UUID):
         if self._connector_repository is None:
-            raise SemanticConnectorNotFoundError("Semantic connector repository unavailable")
+            raise ConnectorNotFoundError("Connector repository unavailable")
         connector = self._connector_repository.get(connector_id)
         if connector is None:
-            raise SemanticConnectorNotFoundError("Semantic connector not found")
-        if connector.status != SemanticConnectorStatus.ACTIVE:
-            raise InvalidOntologyConnectorError("Semantic connector must be Active")
-        if connector.connector_type != SemanticConnectorType.ONTOLOGY_STORE:
+            raise ConnectorNotFoundError("Connector not found")
+        if connector.status != TechnologyAdapterStatus.ACTIVE:
+            raise InvalidOntologyConnectorError("Connector must be Active")
+        if connector.technology_type != ConnectorType.ONTOLOGY_KNOWLEDGE_GRAPH:
             raise InvalidOntologyConnectorError(
-                "Ontology import requires an ontology_store connector"
+                "Ontology import requires an ontology/knowledge graph connector"
             )
         return connector
 

@@ -28,7 +28,7 @@ class OntologyDefinitionResponse(BaseModel):
     published_at: datetime | None = None
     version_created_at: datetime | None = None
     ontology_definition: dict[str, Any]
-    semantic_connector_id: UUID | None = None
+    connector_id: UUID | None = None
     artifact_uri: str | None = None
     source_format: str | None = None
 
@@ -39,13 +39,13 @@ class OntologyDefinitionCreateRequest(BaseModel):
     created_by: str | None = Field(default=None, max_length=255)
     description: str | None = None
     ontology_definition: dict[str, Any] | None = None
-    semantic_connector_id: UUID | None = None
+    connector_id: UUID | None = None
 
 
 class OntologyDefinitionImportRequest(BaseModel):
     application_id: UUID
     title: str = Field(min_length=1, max_length=255)
-    semantic_connector_id: UUID
+    connector_id: UUID
     source_format: str = Field(min_length=1, max_length=50)
     source_content: str = Field(min_length=1)
     created_by: str | None = Field(default=None, max_length=255)
@@ -85,7 +85,7 @@ def to_ontology_definition_response(
         published_at=ontology.published_at,
         version_created_at=ontology.version_created_at,
         ontology_definition=ontology.ontology_definition,
-        semantic_connector_id=ontology.semantic_connector_id,
+        connector_id=ontology.connector_id,
         artifact_uri=ontology.artifact_uri,
         source_format=ontology.source_format,
     )
