@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAsset, listAssets, type AssetRecordResponse } from "./assets";
+import { createAsset, getAsset, listAssets, type AssetRecordResponse } from "./assets";
 
 const mockAsset: AssetRecordResponse = {
   id: "asset-1",
@@ -75,6 +75,46 @@ describe("assets API", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/assets/asset-1",
       expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("createAsset calls POST with payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockAsset), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      createAsset({
+        application_id: "app-1",
+        asset_type: "Blueprint",
+        resource_type: "Blueprint",
+        resource_id: "bp-1",
+        title: "Customer Blueprint",
+        created_by: "alice@example.com",
+        description: "Primary blueprint",
+        metadata: { version: 1 },
+      }),
+    ).resolves.toEqual(mockAsset);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/assets",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          application_id: "app-1",
+          asset_type: "Blueprint",
+          resource_type: "Blueprint",
+          resource_id: "bp-1",
+          title: "Customer Blueprint",
+          created_by: "alice@example.com",
+          description: "Primary blueprint",
+          metadata: { version: 1 },
+        }),
         headers: expect.any(Headers),
       }),
     );

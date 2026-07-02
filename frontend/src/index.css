@@ -1233,6 +1233,7 @@ body {
 .agents-page__create-panel,
 .ontologies-page__create-panel,
 .knowledge-graphs-page__create-panel,
+.assets-page__create-panel,
 .agent-runs-page__trigger-panel {
   margin-bottom: 1.5rem;
   padding: 1.5rem;
@@ -1245,6 +1246,7 @@ body {
 .agents-page__create-title,
 .ontologies-page__create-title,
 .knowledge-graphs-page__create-title,
+.assets-page__create-title,
 .agent-runs-page__trigger-title {
   margin: 0 0 1rem;
   font-size: 1rem;
@@ -1255,6 +1257,7 @@ body {
 .agents-page__form,
 .ontologies-page__form,
 .knowledge-graphs-page__form,
+.assets-page__form,
 .agent-runs-page__form {
   display: flex;
   flex-direction: column;
@@ -1266,7 +1269,8 @@ body {
 .products-page__empty .products-page__form,
 .agents-page__empty .agents-page__form,
 .ontologies-page__empty .ontologies-page__form,
-.knowledge-graphs-page__empty .knowledge-graphs-page__form {
+.knowledge-graphs-page__empty .knowledge-graphs-page__form,
+.assets-page__empty .assets-page__form {
   max-width: 28rem;
   margin-left: auto;
   margin-right: auto;
@@ -1276,6 +1280,7 @@ body {
 .agents-page__field,
 .ontologies-page__field,
 .knowledge-graphs-page__field,
+.assets-page__field,
 .agent-runs-page__field {
   display: flex;
   flex-direction: column;
@@ -1286,6 +1291,7 @@ body {
 .agents-page__field label,
 .ontologies-page__field label,
 .knowledge-graphs-page__field label,
+.assets-page__field label,
 .agent-runs-page__field label {
   font-size: 0.875rem;
   font-weight: 600;
@@ -1296,6 +1302,7 @@ body {
 .agents-page__optional,
 .ontologies-page__optional,
 .knowledge-graphs-page__optional,
+.assets-page__optional,
 .agent-runs-page__optional {
   font-weight: 400;
   color: #6b6b80;
@@ -1309,6 +1316,9 @@ body {
 .ontologies-page__field textarea,
 .knowledge-graphs-page__field input,
 .knowledge-graphs-page__field textarea,
+.assets-page__field input,
+.assets-page__field textarea,
+.assets-page__field select,
 .agent-runs-page__field input,
 .agent-runs-page__field select {
   width: 100%;
@@ -1328,6 +1338,9 @@ body {
 .ontologies-page__field textarea:focus,
 .knowledge-graphs-page__field input:focus,
 .knowledge-graphs-page__field textarea:focus,
+.assets-page__field input:focus,
+.assets-page__field textarea:focus,
+.assets-page__field select:focus,
 .agent-runs-page__field input:focus,
 .agent-runs-page__field select:focus {
   outline: 2px solid #4a6fa5;
@@ -1343,6 +1356,9 @@ body {
 .ontologies-page__field textarea[aria-invalid="true"],
 .knowledge-graphs-page__field input[aria-invalid="true"],
 .knowledge-graphs-page__field textarea[aria-invalid="true"],
+.assets-page__field input[aria-invalid="true"],
+.assets-page__field textarea[aria-invalid="true"],
+.assets-page__field select[aria-invalid="true"],
 .agent-runs-page__field input[aria-invalid="true"],
 .agent-runs-page__field select[aria-invalid="true"] {
   border-color: #c45c5c;
@@ -1352,6 +1368,7 @@ body {
 .agents-page__field-error,
 .ontologies-page__field-error,
 .knowledge-graphs-page__field-error,
+.assets-page__field-error,
 .agent-runs-page__field-error {
   margin: 0;
   font-size: 0.8125rem;
@@ -1362,6 +1379,7 @@ body {
 .agents-page__form-actions,
 .ontologies-page__form-actions,
 .knowledge-graphs-page__form-actions,
+.assets-page__form-actions,
 .agent-runs-page__form-actions {
   display: flex;
   justify-content: flex-end;
@@ -1372,6 +1390,7 @@ body {
 .agents-page__button,
 .ontologies-page__button,
 .knowledge-graphs-page__button,
+.assets-page__button,
 .agent-runs-page__button {
   padding: 0.5rem 1rem;
   border-radius: 6px;
@@ -1386,6 +1405,7 @@ body {
 .agents-page__button:disabled,
 .ontologies-page__button:disabled,
 .knowledge-graphs-page__button:disabled,
+.assets-page__button:disabled,
 .agent-runs-page__button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -1395,6 +1415,7 @@ body {
 .agents-page__button--primary,
 .ontologies-page__button--primary,
 .knowledge-graphs-page__button--primary,
+.assets-page__button--primary,
 .agent-runs-page__button--primary {
   color: #fff;
   background: #1a1a2e;
@@ -1405,6 +1426,7 @@ body {
 .agents-page__button--primary:hover:not(:disabled),
 .ontologies-page__button--primary:hover:not(:disabled),
 .knowledge-graphs-page__button--primary:hover:not(:disabled),
+.assets-page__button--primary:hover:not(:disabled),
 .agent-runs-page__button--primary:hover:not(:disabled) {
   background: #2d2d44;
 }
@@ -1412,7 +1434,8 @@ body {
 .products-page__button--secondary,
 .agents-page__button--secondary,
 .ontologies-page__button--secondary,
-.knowledge-graphs-page__button--secondary {
+.knowledge-graphs-page__button--secondary,
+.assets-page__button--secondary {
   color: #1a1a2e;
   background: #fff;
   border-color: #c8ccd4;
@@ -1421,7 +1444,8 @@ body {
 .products-page__button--secondary:hover:not(:disabled),
 .agents-page__button--secondary:hover:not(:disabled),
 .ontologies-page__button--secondary:hover:not(:disabled),
-.knowledge-graphs-page__button--secondary:hover:not(:disabled) {
+.knowledge-graphs-page__button--secondary:hover:not(:disabled),
+.assets-page__button--secondary:hover:not(:disabled) {
   background: #f8f9fb;
 }
 
