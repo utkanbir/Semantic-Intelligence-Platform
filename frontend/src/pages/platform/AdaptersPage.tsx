@@ -269,6 +269,9 @@ export function AdaptersPage() {
       .then((adapters) => {
         if (!cancelled) {
           setState({ kind: "success", adapters });
+          if (adapters.length === 0) {
+            setShowCreateForm(true);
+          }
         }
       })
       .catch((error: unknown) => {
@@ -347,7 +350,7 @@ export function AdaptersPage() {
             external systems.
           </p>
         </div>
-        {hasAdapters && !showCreateForm && (
+        {state.kind === "success" && !showCreateForm && (
           <button
             type="button"
             className="platform-page__button platform-page__button--primary"
@@ -379,15 +382,28 @@ export function AdaptersPage() {
       {isEmpty && (
         <div className="platform-page__empty" role="status">
           <p>No adapters yet.</p>
-          <p className="platform-page__hint">Create your first technology adapter to get started.</p>
-          <AdapterCreateForm onCreated={handleCreated} />
+          <p className="platform-page__hint">
+            Create your first technology adapter to get started.
+          </p>
+          {!showCreateForm && (
+            <button
+              type="button"
+              className="platform-page__button platform-page__button--primary platform-page__empty-action"
+              onClick={() => setShowCreateForm(true)}
+            >
+              Create adapter
+            </button>
+          )}
         </div>
       )}
 
-      {hasAdapters && showCreateForm && (
+      {showCreateForm && (
         <div className="platform-page__create-panel">
           <h2 className="platform-page__create-title">New adapter</h2>
-          <AdapterCreateForm onCreated={handleCreated} onCancel={() => setShowCreateForm(false)} />
+          <AdapterCreateForm
+            onCreated={handleCreated}
+            onCancel={isEmpty ? undefined : () => setShowCreateForm(false)}
+          />
         </div>
       )}
 

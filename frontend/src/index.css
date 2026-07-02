@@ -358,6 +358,10 @@ body {
   color: #6b6b80;
 }
 
+.platform-page__empty-action {
+  margin-top: 1rem;
+}
+
 .platform-page__optional {
   font-weight: 400;
   color: #6b6b80;
