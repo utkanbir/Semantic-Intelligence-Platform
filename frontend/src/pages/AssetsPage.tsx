@@ -3,8 +3,12 @@ import { ApiError } from "../api";
 import {
   ASSET_TYPES,
   createAsset,
+  getAssetStatusActionLabel,
+  getNextAssetStatuses,
   listAssets,
+  updateAssetStatus,
   type AssetRecordResponse,
+  type AssetRecordStatus,
   type AssetType,
 } from "../api/assets";
 
@@ -319,6 +323,8 @@ interface AssetsPageProps {
 export function AssetsPage({ applicationId }: AssetsPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingAssetId, setPendingAssetId] = useState<string | null>(null);
 
   const loadAssets = useCallback(() => {
     setState({ kind: "loading" });
@@ -371,6 +377,25 @@ export function AssetsPage({ applicationId }: AssetsPageProps) {
     void loadAssets();
   }
 
+  async function handleStatusTransition(assetId: string, nextStatus: AssetRecordStatus) {
+    setActionError(null);
+    setPendingAssetId(assetId);
+    try {
+      await updateAssetStatus(assetId, nextStatus);
+      await loadAssets();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update asset status";
+      setActionError(message);
+    } finally {
+      setPendingAssetId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.assets.length === 0;
   const hasAssets = state.kind === "success" && state.assets.length > 0;
 
@@ -407,6 +432,12 @@ export function AssetsPage({ applicationId }: AssetsPageProps) {
         </div>
       )}
 
+      {actionError && (
+        <div className="assets-page__error assets-page__action-error" role="alert">
+          {actionError}
+        </div>
+      )}
+
       {isEmpty && (
         <div className="assets-page__empty" role="status">
           <p>No assets registered yet.</p>
@@ -436,6 +467,7 @@ export function AssetsPage({ applicationId }: AssetsPageProps) {
                 <th scope="col">Resource type</th>
                 <th scope="col">Status</th>
                 <th scope="col">Created at</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -448,6 +480,24 @@ export function AssetsPage({ applicationId }: AssetsPageProps) {
                     <span className={statusClassName(asset.status)}>{asset.status}</span>
                   </td>
                   <td>{formatDate(asset.created_at)}</td>
+                  <td>
+                    <div className="assets-table__actions">
+                      {getNextAssetStatuses(asset.status).map((nextStatus) => (
+                        <button
+                          key={nextStatus}
+                          type="button"
+                          className="assets-page__button assets-page__button--secondary assets-table__action"
+                          disabled={pendingAssetId === asset.id}
+                          onClick={() => void handleStatusTransition(asset.id, nextStatus)}
+                        >
+                          {getAssetStatusActionLabel(nextStatus)}
+                        </button>
+                      ))}
+                      {getNextAssetStatuses(asset.status).length === 0 && (
+                        <span className="assets-table__no-actions">—</span>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

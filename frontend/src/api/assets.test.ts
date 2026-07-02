@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAsset, getAsset, listAssets, type AssetRecordResponse } from "./assets";
+import {
+  createAsset,
+  getAsset,
+  getAssetStatusActionLabel,
+  getNextAssetStatuses,
+  listAssets,
+  updateAssetStatus,
+  type AssetRecordResponse,
+} from "./assets";
 
 const mockAsset: AssetRecordResponse = {
   id: "asset-1",
@@ -115,6 +123,42 @@ describe("assets API", () => {
           description: "Primary blueprint",
           metadata: { version: 1 },
         }),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("getNextAssetStatuses matches backend transitions", () => {
+    expect(getNextAssetStatuses("Draft")).toEqual(["Active"]);
+    expect(getNextAssetStatuses("Active")).toEqual(["Published", "Draft"]);
+    expect(getNextAssetStatuses("Published")).toEqual(["Deprecated"]);
+    expect(getNextAssetStatuses("Deprecated")).toEqual(["Retired", "Active"]);
+    expect(getNextAssetStatuses("Retired")).toEqual([]);
+  });
+
+  it("getAssetStatusActionLabel returns action labels", () => {
+    expect(getAssetStatusActionLabel("Active")).toBe("Activate");
+    expect(getAssetStatusActionLabel("Published")).toBe("Publish");
+    expect(getAssetStatusActionLabel("Draft")).toBe("Revert to Draft");
+    expect(getAssetStatusActionLabel("Deprecated")).toBe("Deprecate");
+    expect(getAssetStatusActionLabel("Retired")).toBe("Retire");
+  });
+
+  it("updateAssetStatus calls PATCH with status body", async () => {
+    const updated = { ...mockAsset, status: "Published" as const };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(updated), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(updateAssetStatus("asset-1", "Published")).resolves.toEqual(updated);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/assets/asset-1/status",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ status: "Published" }),
         headers: expect.any(Headers),
       }),
     );
