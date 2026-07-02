@@ -2,6 +2,8 @@ import { apiFetch } from "./client";
 
 export type AssetType = "Application" | "DiscoverySession" | "Blueprint";
 
+export const ASSET_TYPES: AssetType[] = ["Application", "DiscoverySession", "Blueprint"];
+
 export type AssetRecordStatus =
   | "Draft"
   | "Active"
@@ -24,6 +26,17 @@ export interface AssetRecordResponse {
   metadata: Record<string, unknown> | null;
 }
 
+export interface AssetRecordCreateRequest {
+  application_id: string;
+  asset_type: AssetType;
+  resource_type: string;
+  resource_id: string;
+  title: string;
+  created_by?: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export function listAssets(
   applicationId: string,
   assetType?: AssetType,
@@ -37,6 +50,13 @@ export function listAssets(
 
 export function getAsset(assetId: string): Promise<AssetRecordResponse> {
   return apiFetch<AssetRecordResponse>(`/assets/${assetId}`);
+}
+
+export function createAsset(payload: AssetRecordCreateRequest): Promise<AssetRecordResponse> {
+  return apiFetch<AssetRecordResponse>("/assets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 const ASSET_NEXT_STATUSES: Record<AssetRecordStatus, AssetRecordStatus[]> = {
