@@ -98,3 +98,16 @@ export function updateAgentStatus(
     body: JSON.stringify({ status }),
   });
 }
+
+const FORKABLE_AGENT_STATUSES: AgentDefinitionStatus[] = ["Active", "Versioned"];
+
+export function canForkAgent(agent: AgentDefinitionResponse): boolean {
+  return FORKABLE_AGENT_STATUSES.includes(agent.status);
+}
+
+export function forkAgentVersion(agentId: string): Promise<AgentDefinitionResponse> {
+  return apiFetch<AgentDefinitionResponse>(`/agents/${agentId}/versions`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}

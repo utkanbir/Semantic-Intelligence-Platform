@@ -1,7 +1,9 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api";
 import {
+  canForkOntology,
   createOntology,
+  forkOntologyVersion,
   getNextOntologyStatuses,
   getOntologyStatusActionLabel,
   listOntologies,
@@ -9,6 +11,7 @@ import {
   type OntologyDefinitionResponse,
   type OntologyDefinitionStatus,
 } from "../api/ontologies";
+import { formatVersionChain } from "../utils/versionChain";
 
 type PageState =
   | { kind: "loading" }
@@ -308,6 +311,25 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
     }
   }
 
+  async function handleForkVersion(ontologyId: string) {
+    setActionError(null);
+    setPendingOntologyId(ontologyId);
+    try {
+      await forkOntologyVersion(ontologyId);
+      await loadOntologies();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to create ontology version";
+      setActionError(message);
+    } finally {
+      setPendingOntologyId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.ontologies.length === 0;
   const hasOntologies = state.kind === "success" && state.ontologies.length > 0;
 
@@ -390,10 +412,20 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                   <td>
                     <span className={statusClassName(ontology.status)}>{ontology.status}</span>
                   </td>
-                  <td>{ontology.version_number}</td>
+                  <td>{formatVersionChain(ontology, state.ontologies)}</td>
                   <td>{formatDate(ontology.created_at)}</td>
                   <td>
                     <div className="ontologies-table__actions">
+                      {canForkOntology(ontology) && (
+                        <button
+                          type="button"
+                          className="ontologies-page__button ontologies-page__button--secondary ontologies-table__action"
+                          disabled={pendingOntologyId === ontology.id}
+                          onClick={() => void handleForkVersion(ontology.id)}
+                        >
+                          New version
+                        </button>
+                      )}
                       {getNextOntologyStatuses(ontology.status).map((nextStatus) => (
                         <button
                           key={nextStatus}
@@ -405,9 +437,10 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                           {getOntologyStatusActionLabel(nextStatus)}
                         </button>
                       ))}
-                      {getNextOntologyStatuses(ontology.status).length === 0 && (
-                        <span className="ontologies-table__no-actions">—</span>
-                      )}
+                      {getNextOntologyStatuses(ontology.status).length === 0 &&
+                        !canForkOntology(ontology) && (
+                          <span className="ontologies-table__no-actions">—</span>
+                        )}
                     </div>
                   </td>
                 </tr>

@@ -14,6 +14,10 @@ vi.mock("../api/ontologies", () => ({
   getOntology: vi.fn(),
   createOntology: vi.fn(),
   updateOntologyStatus: vi.fn(),
+  forkOntologyVersion: vi.fn(),
+  canForkOntology: vi.fn((ontology: { status: string }) =>
+    ["Published", "Versioned"].includes(ontology.status),
+  ),
   getNextOntologyStatuses: vi.fn((status: string) => {
     const map: Record<string, string[]> = {
       Draft: ["Validated"],

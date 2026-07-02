@@ -1,7 +1,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../api";
 import {
+  canForkAgent,
   createAgent,
+  forkAgentVersion,
   getAgentStatusActionLabel,
   getNextAgentStatuses,
   listAgents,
@@ -15,6 +17,7 @@ import {
   listProducts,
   type PublishedDataProductResponse,
 } from "../api/products";
+import { formatVersionChain } from "../utils/versionChain";
 
 type PageState =
   | { kind: "loading" }
@@ -477,6 +480,25 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
     }
   }
 
+  async function handleForkVersion(agentId: string) {
+    setActionError(null);
+    setPendingAgentId(agentId);
+    try {
+      await forkAgentVersion(agentId);
+      await loadAgents();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to create agent version";
+      setActionError(message);
+    } finally {
+      setPendingAgentId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.agents.length === 0;
   const hasAgents = state.kind === "success" && state.agents.length > 0;
 
@@ -577,7 +599,7 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
                   <td className="agents-table__bindings">
                     {formatBoundProducts(agent, productTitleById)}
                   </td>
-                  <td>{agent.version_number}</td>
+                  <td>{formatVersionChain(agent, state.agents)}</td>
                   <td>{formatDate(agent.created_at)}</td>
                   <td>
                     <div className="agents-table__actions">
@@ -589,6 +611,16 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
                           onClick={() => setEditingAgent(agent)}
                         >
                           Edit bindings
+                        </button>
+                      )}
+                      {canForkAgent(agent) && (
+                        <button
+                          type="button"
+                          className="agents-page__button agents-page__button--secondary agents-table__action"
+                          disabled={pendingAgentId === agent.id}
+                          onClick={() => void handleForkVersion(agent.id)}
+                        >
+                          New version
                         </button>
                       )}
                       {getNextAgentStatuses(agent.status).map((nextStatus) => (
@@ -603,7 +635,8 @@ export function AgentsPage({ applicationId }: AgentsPageProps) {
                         </button>
                       ))}
                       {getNextAgentStatuses(agent.status).length === 0 &&
-                        !canEditBindings(agent.status) && (
+                        !canEditBindings(agent.status) &&
+                        !canForkAgent(agent) && (
                           <span className="agents-table__no-actions">—</span>
                         )}
                     </div>

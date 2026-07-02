@@ -97,6 +97,10 @@
     "23": {
       "label": "Console Product Asset Binding",
       "issues": [240, 241, 242, 243]
+    },
+    "24": {
+      "label": "Console Version Fork UI",
+      "issues": [245, 246, 247, 248]
     }
   }
 }

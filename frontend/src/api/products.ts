@@ -93,3 +93,18 @@ export const CONSUMABLE_PRODUCT_STATUSES: PublishedDataProductStatus[] = [
 export function isConsumableProduct(product: PublishedDataProductResponse): boolean {
   return CONSUMABLE_PRODUCT_STATUSES.includes(product.status);
 }
+
+const FORKABLE_PRODUCT_STATUSES: PublishedDataProductStatus[] = ["Published", "Versioned"];
+
+export function canForkProduct(product: PublishedDataProductResponse): boolean {
+  return FORKABLE_PRODUCT_STATUSES.includes(product.status);
+}
+
+export function forkProductVersion(
+  productId: string,
+): Promise<PublishedDataProductResponse> {
+  return apiFetch<PublishedDataProductResponse>(`/products/${productId}/versions`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}

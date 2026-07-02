@@ -12,6 +12,10 @@ vi.mock("../api/blueprints", () => ({
   listBlueprints: vi.fn(),
   createBlueprint: vi.fn(),
   updateBlueprintStatus: vi.fn(),
+  forkBlueprintVersion: vi.fn(),
+  canForkBlueprint: vi.fn((blueprint: { status: string }) =>
+    ["Approved", "Versioned"].includes(blueprint.status),
+  ),
   getNextBlueprintStatuses: vi.fn((status: string) => {
     const map: Record<string, string[]> = {
       Draft: ["Review"],
@@ -38,6 +42,7 @@ const mockBlueprint: BlueprintResponse = {
   id: "bp-1",
   application_id: "app-1",
   version_number: 1,
+  previous_version_id: null,
   status: "Draft",
   title: "Q2 Platform Blueprint",
   goal: null,

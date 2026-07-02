@@ -1,7 +1,9 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api";
 import {
+  canForkBlueprint,
   createBlueprint,
+  forkBlueprintVersion,
   getBlueprintStatusActionLabel,
   getNextBlueprintStatuses,
   listBlueprints,
@@ -9,6 +11,7 @@ import {
   type BlueprintResponse,
   type BlueprintStatus,
 } from "../api/blueprints";
+import { formatVersionChain } from "../utils/versionChain";
 
 type PageState =
   | { kind: "loading" }
@@ -282,6 +285,25 @@ export function BlueprintPage({ applicationId }: BlueprintPageProps) {
     }
   }
 
+  async function handleForkVersion(blueprintId: string) {
+    setActionError(null);
+    setPendingBlueprintId(blueprintId);
+    try {
+      await forkBlueprintVersion(blueprintId);
+      await loadBlueprints();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to create blueprint version";
+      setActionError(message);
+    } finally {
+      setPendingBlueprintId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.blueprints.length === 0;
   const hasBlueprints = state.kind === "success" && state.blueprints.length > 0;
 
@@ -366,10 +388,20 @@ export function BlueprintPage({ applicationId }: BlueprintPageProps) {
                       {blueprint.status}
                     </span>
                   </td>
-                  <td>{blueprint.version_number}</td>
+                  <td>{formatVersionChain(blueprint, state.blueprints)}</td>
                   <td>{formatDate(blueprint.created_at)}</td>
                   <td>
                     <div className="blueprint-table__actions">
+                      {canForkBlueprint(blueprint) && (
+                        <button
+                          type="button"
+                          className="blueprint-page__button blueprint-page__button--secondary blueprint-table__action"
+                          disabled={pendingBlueprintId === blueprint.id}
+                          onClick={() => void handleForkVersion(blueprint.id)}
+                        >
+                          New version
+                        </button>
+                      )}
                       {getNextBlueprintStatuses(blueprint.status).map((nextStatus) => (
                         <button
                           key={nextStatus}
@@ -383,9 +415,10 @@ export function BlueprintPage({ applicationId }: BlueprintPageProps) {
                           {getBlueprintStatusActionLabel(nextStatus)}
                         </button>
                       ))}
-                      {getNextBlueprintStatuses(blueprint.status).length === 0 && (
-                        <span className="blueprint-table__no-actions">—</span>
-                      )}
+                      {getNextBlueprintStatuses(blueprint.status).length === 0 &&
+                        !canForkBlueprint(blueprint) && (
+                          <span className="blueprint-table__no-actions">—</span>
+                        )}
                     </div>
                   </td>
                 </tr>
