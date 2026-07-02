@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  canEditProductBindings,
   canForkProduct,
   forkProductVersion,
+  updateProduct,
   type PublishedDataProductResponse,
 } from "./products";
 
@@ -41,6 +43,13 @@ describe("products version fork API", () => {
     expect(canForkProduct({ ...mockProduct, status: "Draft" })).toBe(false);
   });
 
+  it("canEditProductBindings allows Draft, Certified, and Published", () => {
+    expect(canEditProductBindings({ ...mockProduct, status: "Draft" })).toBe(true);
+    expect(canEditProductBindings({ ...mockProduct, status: "Certified" })).toBe(true);
+    expect(canEditProductBindings({ ...mockProduct, status: "Published" })).toBe(true);
+    expect(canEditProductBindings({ ...mockProduct, status: "Versioned" })).toBe(false);
+  });
+
   it("forkProductVersion POSTs to versions endpoint", async () => {
     const forked = {
       ...mockProduct,
@@ -62,6 +71,27 @@ describe("products version fork API", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({}),
+      }),
+    );
+  });
+
+  it("updateProduct PATCHes product endpoint", async () => {
+    const updated = { ...mockProduct, source_asset_record_ids: ["asset-1"] };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(updated), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      updateProduct("prod-1", { source_asset_record_ids: ["asset-1"] }),
+    ).resolves.toEqual(updated);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/products/prod-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ source_asset_record_ids: ["asset-1"] }),
       }),
     );
   });

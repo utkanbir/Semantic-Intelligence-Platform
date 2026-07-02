@@ -92,3 +92,26 @@ export function updateKnowledgeGraphStatus(
     body: JSON.stringify({ status }),
   });
 }
+
+export interface KnowledgeGraphRegistryUpdateRequest {
+  title?: string;
+  description?: string | null;
+  graph_metadata?: Record<string, unknown>;
+  bound_ontology_ids?: string[];
+}
+
+export function updateKnowledgeGraph(
+  registryId: string,
+  payload: KnowledgeGraphRegistryUpdateRequest,
+): Promise<KnowledgeGraphRegistryResponse> {
+  return apiFetch<KnowledgeGraphRegistryResponse>(`/knowledge-graphs/${registryId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function canEditKnowledgeGraphBindings(
+  registry: KnowledgeGraphRegistryResponse,
+): boolean {
+  return registry.status !== "Archived";
+}

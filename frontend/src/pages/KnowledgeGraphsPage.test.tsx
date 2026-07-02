@@ -4,6 +4,7 @@ import { ApiError } from "../api";
 import {
   createKnowledgeGraph,
   listKnowledgeGraphs,
+  updateKnowledgeGraph,
   updateKnowledgeGraphStatus,
   type KnowledgeGraphRegistryResponse,
 } from "../api/knowledgeGraphs";
@@ -14,7 +15,11 @@ vi.mock("../api/knowledgeGraphs", () => ({
   listKnowledgeGraphs: vi.fn(),
   getKnowledgeGraph: vi.fn(),
   createKnowledgeGraph: vi.fn(),
+  updateKnowledgeGraph: vi.fn(),
   updateKnowledgeGraphStatus: vi.fn(),
+  canEditKnowledgeGraphBindings: vi.fn((registry: { status: string }) =>
+    registry.status !== "Archived",
+  ),
   getNextKnowledgeGraphStatuses: vi.fn((status: string) => {
     const map: Record<string, string[]> = {
       Created: ["Populated"],
@@ -100,6 +105,7 @@ describe("KnowledgeGraphsPage", () => {
     vi.mocked(listKnowledgeGraphs).mockReset();
     vi.mocked(listOntologies).mockReset();
     vi.mocked(createKnowledgeGraph).mockReset();
+    vi.mocked(updateKnowledgeGraph).mockReset();
     vi.mocked(updateKnowledgeGraphStatus).mockReset();
     vi.mocked(listOntologies).mockResolvedValue([mockOntology]);
   });
@@ -123,6 +129,50 @@ describe("KnowledgeGraphsPage", () => {
     expect(listKnowledgeGraphs).toHaveBeenCalledWith("app-1");
     expect(listOntologies).toHaveBeenCalledWith("app-1");
     expect(screen.getByText("Populated")).toBeInTheDocument();
+    expect(screen.getByText("1: Customer Ontology")).toBeInTheDocument();
+  });
+
+  it("shows bound ontologies in knowledge graphs table", async () => {
+    vi.mocked(listKnowledgeGraphs).mockResolvedValue([mockRegistry]);
+
+    render(<KnowledgeGraphsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Customer Knowledge Graph")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("1: Customer Ontology")).toBeInTheDocument();
+  });
+
+  it("edits KG ontology bindings via dialog", async () => {
+    const updatedRegistry: KnowledgeGraphRegistryResponse = {
+      ...mockRegistry,
+      bound_ontology_ids: [],
+    };
+    vi.mocked(listKnowledgeGraphs)
+      .mockResolvedValueOnce([mockRegistry])
+      .mockResolvedValueOnce([updatedRegistry]);
+    vi.mocked(updateKnowledgeGraph).mockResolvedValue(updatedRegistry);
+
+    render(<KnowledgeGraphsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Edit bindings" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit bindings" }));
+    fireEvent.click(screen.getByLabelText(/Customer Ontology/));
+    fireEvent.click(screen.getByRole("button", { name: "Save bindings" }));
+
+    await waitFor(() => {
+      expect(updateKnowledgeGraph).toHaveBeenCalledWith("kg-1", {
+        bound_ontology_ids: [],
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("None")).toBeInTheDocument();
+    });
   });
 
   it("renders empty state with create form", async () => {

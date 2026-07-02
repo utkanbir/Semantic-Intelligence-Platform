@@ -1,10 +1,12 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../api";
 import {
+  canEditKnowledgeGraphBindings,
   createKnowledgeGraph,
   getKnowledgeGraphStatusActionLabel,
   getNextKnowledgeGraphStatuses,
   listKnowledgeGraphs,
+  updateKnowledgeGraph,
   updateKnowledgeGraphStatus,
   type KnowledgeGraphRegistryResponse,
   type KnowledgeGraphRegistryStatus,
@@ -33,6 +35,19 @@ function statusClassName(
   status: KnowledgeGraphRegistryResponse["status"],
 ): string {
   return `knowledge-graphs-table__status knowledge-graphs-table__status--${status.toLowerCase()}`;
+}
+
+function formatBoundOntologies(
+  registry: KnowledgeGraphRegistryResponse,
+  ontologyTitleById: Map<string, string>,
+): string {
+  if (registry.bound_ontology_ids.length === 0) {
+    return "None";
+  }
+  const titles = registry.bound_ontology_ids.map(
+    (id) => ontologyTitleById.get(id) ?? id,
+  );
+  return `${registry.bound_ontology_ids.length}: ${titles.join(", ")}`;
 }
 
 interface OntologyBindingsFieldProps {
@@ -265,6 +280,94 @@ function KnowledgeGraphCreateForm({
   );
 }
 
+interface KnowledgeGraphBindingsDialogProps {
+  registry: KnowledgeGraphRegistryResponse;
+  ontologies: OntologyDefinitionResponse[];
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function KnowledgeGraphBindingsDialog({
+  registry,
+  ontologies,
+  onClose,
+  onSaved,
+}: KnowledgeGraphBindingsDialogProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>(registry.bound_ontology_ids);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSave() {
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      await updateKnowledgeGraph(registry.id, { bound_ontology_ids: selectedIds });
+      onSaved();
+      onClose();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update knowledge graph bindings";
+      setSubmitError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <dialog
+      className="agents-page__dialog"
+      open
+      aria-labelledby={`kg-bindings-dialog-title-${registry.id}`}
+    >
+      <div className="agents-page__dialog-panel">
+        <h3
+          id={`kg-bindings-dialog-title-${registry.id}`}
+          className="agents-page__dialog-title"
+        >
+          Edit bindings — {registry.title}
+        </h3>
+        <p className="agents-page__dialog-lead">
+          Select ontology definitions bound to this knowledge graph registry.
+        </p>
+        <OntologyBindingsField
+          idPrefix={`kg-bindings-${registry.id}`}
+          ontologies={ontologies}
+          selectedIds={selectedIds}
+          onChange={setSelectedIds}
+          disabled={submitting}
+        />
+        {submitError && (
+          <div className="knowledge-graphs-page__error" role="alert">
+            {submitError}
+          </div>
+        )}
+        <div className="knowledge-graphs-page__form-actions">
+          <button
+            type="button"
+            className="knowledge-graphs-page__button knowledge-graphs-page__button--secondary"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="knowledge-graphs-page__button knowledge-graphs-page__button--primary"
+            onClick={() => void handleSave()}
+            disabled={submitting}
+          >
+            {submitting ? "Saving…" : "Save bindings"}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
 interface KnowledgeGraphsPageProps {
   applicationId: string;
 }
@@ -273,8 +376,18 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [ontologies, setOntologies] = useState<OntologyDefinitionResponse[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingRegistry, setEditingRegistry] =
+    useState<KnowledgeGraphRegistryResponse | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingRegistryId, setPendingRegistryId] = useState<string | null>(null);
+
+  const ontologyTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ontology of ontologies) {
+      map.set(ontology.id, ontology.title);
+    }
+    return map;
+  }, [ontologies]);
 
   const loadRegistries = useCallback(() => {
     setState({ kind: "loading" });
@@ -325,6 +438,10 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
 
   function handleCreated() {
     setShowCreateForm(false);
+    void loadRegistries();
+  }
+
+  function handleBindingsSaved() {
     void loadRegistries();
   }
 
@@ -421,6 +538,15 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
         </div>
       )}
 
+      {editingRegistry && (
+        <KnowledgeGraphBindingsDialog
+          registry={editingRegistry}
+          ontologies={ontologies}
+          onClose={() => setEditingRegistry(null)}
+          onSaved={handleBindingsSaved}
+        />
+      )}
+
       {hasRegistries && (
         <div className="knowledge-graphs-page__table-wrap">
           <table className="knowledge-graphs-table">
@@ -428,6 +554,7 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
               <tr>
                 <th scope="col">Title</th>
                 <th scope="col">Status</th>
+                <th scope="col">Bound ontologies</th>
                 <th scope="col">Created at</th>
                 <th scope="col">Populated at</th>
                 <th scope="col">Actions</th>
@@ -440,10 +567,23 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
                   <td>
                     <span className={statusClassName(registry.status)}>{registry.status}</span>
                   </td>
+                  <td className="knowledge-graphs-table__bindings">
+                    {formatBoundOntologies(registry, ontologyTitleById)}
+                  </td>
                   <td>{formatDate(registry.created_at)}</td>
                   <td>{formatDate(registry.populated_at)}</td>
                   <td>
                     <div className="knowledge-graphs-table__actions">
+                      {canEditKnowledgeGraphBindings(registry) && (
+                        <button
+                          type="button"
+                          className="knowledge-graphs-page__button knowledge-graphs-page__button--secondary knowledge-graphs-table__action"
+                          disabled={pendingRegistryId === registry.id}
+                          onClick={() => setEditingRegistry(registry)}
+                        >
+                          Edit bindings
+                        </button>
+                      )}
                       {getNextKnowledgeGraphStatuses(registry.status).map((nextStatus) => (
                         <button
                           key={nextStatus}
@@ -455,9 +595,10 @@ export function KnowledgeGraphsPage({ applicationId }: KnowledgeGraphsPageProps)
                           {getKnowledgeGraphStatusActionLabel(nextStatus)}
                         </button>
                       ))}
-                      {getNextKnowledgeGraphStatuses(registry.status).length === 0 && (
-                        <span className="knowledge-graphs-table__no-actions">—</span>
-                      )}
+                      {getNextKnowledgeGraphStatuses(registry.status).length === 0 &&
+                        !canEditKnowledgeGraphBindings(registry) && (
+                          <span className="knowledge-graphs-table__no-actions">—</span>
+                        )}
                     </div>
                   </td>
                 </tr>

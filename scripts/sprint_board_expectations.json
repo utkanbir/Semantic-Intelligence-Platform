@@ -101,6 +101,10 @@
     "24": {
       "label": "Console Version Fork UI",
       "issues": [245, 246, 247, 248]
+    },
+    "25": {
+      "label": "Console Bindings Edit",
+      "issues": [250, 251, 252, 253]
     }
   }
 }
