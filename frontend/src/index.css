@@ -1656,21 +1656,24 @@ body {
   color: #6b6b80;
 }
 
-.agents-table__bindings {
+.agents-table__bindings,
+.products-table__bindings {
   max-width: 16rem;
   font-size: 0.8125rem;
   color: #4a4a68;
 }
 
 .agents-page__bindings-fieldset,
-.knowledge-graphs-page__bindings-fieldset {
+.knowledge-graphs-page__bindings-fieldset,
+.products-page__bindings-fieldset {
   margin: 0;
   padding: 0;
   border: none;
 }
 
 .agents-page__bindings-fieldset legend,
-.knowledge-graphs-page__bindings-fieldset legend {
+.knowledge-graphs-page__bindings-fieldset legend,
+.products-page__bindings-fieldset legend {
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
@@ -1678,7 +1681,8 @@ body {
 }
 
 .agents-page__bindings-list,
-.knowledge-graphs-page__bindings-list {
+.knowledge-graphs-page__bindings-list,
+.products-page__bindings-list {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1688,7 +1692,8 @@ body {
 }
 
 .agents-page__bindings-option,
-.knowledge-graphs-page__bindings-option {
+.knowledge-graphs-page__bindings-option,
+.products-page__bindings-option {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
@@ -1697,13 +1702,15 @@ body {
 }
 
 .agents-page__bindings-status,
-.knowledge-graphs-page__bindings-status {
+.knowledge-graphs-page__bindings-status,
+.products-page__bindings-status {
   font-size: 0.75rem;
   color: #6b6b80;
 }
 
 .agents-page__bindings-hint,
-.knowledge-graphs-page__bindings-hint {
+.knowledge-graphs-page__bindings-hint,
+.products-page__bindings-hint {
   margin: 0;
   font-size: 0.875rem;
   color: #6b6b80;

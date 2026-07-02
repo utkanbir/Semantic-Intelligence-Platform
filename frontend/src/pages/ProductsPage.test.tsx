@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { listAssets, type AssetRecordResponse } from "../api/assets";
 import {
   createProduct,
   listProducts,
@@ -33,6 +34,32 @@ vi.mock("../api/products", () => ({
     return labels[status] ?? status;
   }),
 }));
+
+vi.mock("../api/assets", () => ({
+  listAssets: vi.fn(),
+}));
+
+const mockAsset: AssetRecordResponse = {
+  id: "asset-1",
+  application_id: "app-1",
+  asset_type: "Blueprint",
+  resource_type: "blueprint",
+  resource_id: "bp-1",
+  status: "Active",
+  title: "Customer Blueprint",
+  description: null,
+  created_by: "alice@example.com",
+  created_at: "2025-06-01T10:00:00Z",
+  updated_at: "2025-06-01T10:00:00Z",
+  metadata: null,
+};
+
+const secondAsset: AssetRecordResponse = {
+  ...mockAsset,
+  id: "asset-2",
+  asset_type: "DiscoverySession",
+  title: "Discovery Session A",
+};
 
 const mockProduct: PublishedDataProductResponse = {
   id: "prod-1",
@@ -77,6 +104,8 @@ describe("ProductsPage", () => {
     vi.mocked(listProducts).mockReset();
     vi.mocked(createProduct).mockReset();
     vi.mocked(updateProductStatus).mockReset();
+    vi.mocked(listAssets).mockReset();
+    vi.mocked(listAssets).mockResolvedValue([mockAsset, secondAsset]);
   });
 
   it("renders loading then products table", async () => {
@@ -96,6 +125,7 @@ describe("ProductsPage", () => {
     });
 
     expect(listProducts).toHaveBeenCalledWith("app-1");
+    expect(listAssets).toHaveBeenCalledWith("app-1");
     expect(screen.getByText("Published")).toBeInTheDocument();
   });
 
@@ -137,6 +167,65 @@ describe("ProductsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("New Product")).toBeInTheDocument();
     });
+  });
+
+  it("creates product with source asset bindings from empty state", async () => {
+    const productWithAssets: PublishedDataProductResponse = {
+      ...newProduct,
+      source_asset_record_ids: ["asset-1", "asset-2"],
+    };
+    vi.mocked(listProducts)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([productWithAssets]);
+    vi.mocked(createProduct).mockResolvedValue(productWithAssets);
+
+    render(<ProductsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Create product")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New Product" } });
+    fireEvent.click(screen.getByLabelText(/Customer Blueprint/));
+    fireEvent.click(screen.getByLabelText(/Discovery Session A/));
+    fireEvent.click(screen.getByRole("button", { name: "Create product" }));
+
+    await waitFor(() => {
+      expect(createProduct).toHaveBeenCalledWith({
+        application_id: "app-1",
+        title: "New Product",
+        product_definition: {},
+        source_asset_record_ids: ["asset-1", "asset-2"],
+      });
+    });
+  });
+
+  it("shows source asset bindings in products table", async () => {
+    const boundProduct: PublishedDataProductResponse = {
+      ...mockProduct,
+      source_asset_record_ids: ["asset-1", "asset-2"],
+    };
+    vi.mocked(listProducts).mockResolvedValue([boundProduct]);
+
+    render(<ProductsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Customer 360 Product")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("2: Customer Blueprint, Discovery Session A")).toBeInTheDocument();
+  });
+
+  it("shows None when product has no source asset bindings", async () => {
+    vi.mocked(listProducts).mockResolvedValue([mockProduct]);
+
+    render(<ProductsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Customer 360 Product")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("None")).toBeInTheDocument();
   });
 
   it("shows New product panel when list has items", async () => {
