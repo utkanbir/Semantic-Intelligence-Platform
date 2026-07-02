@@ -11,6 +11,7 @@ export interface BlueprintResponse {
   id: string;
   application_id: string;
   version_number: number;
+  previous_version_id: string | null;
   status: BlueprintStatus;
   title: string;
   goal: string | null;
@@ -76,5 +77,18 @@ export function updateBlueprintStatus(
   return apiFetch<BlueprintResponse>(`/blueprints/${blueprintId}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  });
+}
+
+const FORKABLE_BLUEPRINT_STATUSES: BlueprintStatus[] = ["Approved", "Versioned"];
+
+export function canForkBlueprint(blueprint: BlueprintResponse): boolean {
+  return FORKABLE_BLUEPRINT_STATUSES.includes(blueprint.status);
+}
+
+export function forkBlueprintVersion(blueprintId: string): Promise<BlueprintResponse> {
+  return apiFetch<BlueprintResponse>(`/blueprints/${blueprintId}/versions`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }

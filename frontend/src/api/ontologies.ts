@@ -95,3 +95,18 @@ export function updateOntologyStatus(
     body: JSON.stringify({ status }),
   });
 }
+
+const FORKABLE_ONTOLOGY_STATUSES: OntologyDefinitionStatus[] = ["Published", "Versioned"];
+
+export function canForkOntology(ontology: OntologyDefinitionResponse): boolean {
+  return FORKABLE_ONTOLOGY_STATUSES.includes(ontology.status);
+}
+
+export function forkOntologyVersion(
+  ontologyId: string,
+): Promise<OntologyDefinitionResponse> {
+  return apiFetch<OntologyDefinitionResponse>(`/ontologies/${ontologyId}/versions`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}

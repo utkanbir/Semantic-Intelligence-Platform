@@ -224,6 +224,7 @@ describe("ApplicationDetailPage", () => {
         id: "bp-1",
         application_id: "app-1",
         version_number: 2,
+        previous_version_id: null,
         status: "Approved",
         title: "Blueprint A",
         goal: null,

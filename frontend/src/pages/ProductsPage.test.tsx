@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listAssets, type AssetRecordResponse } from "../api/assets";
 import {
   createProduct,
+  forkProductVersion,
   listProducts,
   updateProductStatus,
   type PublishedDataProductResponse,
@@ -13,6 +14,10 @@ vi.mock("../api/products", () => ({
   listProducts: vi.fn(),
   createProduct: vi.fn(),
   updateProductStatus: vi.fn(),
+  forkProductVersion: vi.fn(),
+  canForkProduct: vi.fn((product: { status: string }) =>
+    ["Published", "Versioned"].includes(product.status),
+  ),
   getNextProductStatuses: vi.fn((status: string) => {
     const map: Record<string, string[]> = {
       Draft: ["Certified"],
@@ -104,6 +109,7 @@ describe("ProductsPage", () => {
     vi.mocked(listProducts).mockReset();
     vi.mocked(createProduct).mockReset();
     vi.mocked(updateProductStatus).mockReset();
+    vi.mocked(forkProductVersion).mockReset();
     vi.mocked(listAssets).mockReset();
     vi.mocked(listAssets).mockResolvedValue([mockAsset, secondAsset]);
   });
@@ -296,6 +302,37 @@ describe("ProductsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Invalid transition");
+    });
+  });
+
+  it("forks published product via New version action", async () => {
+    const forkedProduct: PublishedDataProductResponse = {
+      ...mockProduct,
+      id: "prod-2",
+      version_number: 2,
+      previous_version_id: "prod-1",
+      status: "Draft",
+      published_at: null,
+    };
+    vi.mocked(listProducts)
+      .mockResolvedValueOnce([mockProduct])
+      .mockResolvedValueOnce([mockProduct, forkedProduct]);
+    vi.mocked(forkProductVersion).mockResolvedValue(forkedProduct);
+
+    render(<ProductsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New version" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New version" }));
+
+    await waitFor(() => {
+      expect(forkProductVersion).toHaveBeenCalledWith("prod-1");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("2 ← 1")).toBeInTheDocument();
     });
   });
 

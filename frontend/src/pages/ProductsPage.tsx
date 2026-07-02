@@ -2,7 +2,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../api";
 import { listAssets, type AssetRecordResponse } from "../api/assets";
 import {
+  canForkProduct,
   createProduct,
+  forkProductVersion,
   getNextProductStatuses,
   getProductStatusActionLabel,
   listProducts,
@@ -10,6 +12,7 @@ import {
   type PublishedDataProductResponse,
   type PublishedDataProductStatus,
 } from "../api/products";
+import { formatVersionChain } from "../utils/versionChain";
 
 type PageState =
   | { kind: "loading" }
@@ -376,6 +379,25 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
     }
   }
 
+  async function handleForkVersion(productId: string) {
+    setActionError(null);
+    setPendingProductId(productId);
+    try {
+      await forkProductVersion(productId);
+      await loadProducts();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to create product version";
+      setActionError(message);
+    } finally {
+      setPendingProductId(null);
+    }
+  }
+
   const isEmpty = state.kind === "success" && state.products.length === 0;
   const hasProducts = state.kind === "success" && state.products.length > 0;
 
@@ -467,10 +489,20 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
                   <td className="products-table__bindings">
                     {formatBoundSourceAssets(product, assetTitleById)}
                   </td>
-                  <td>{product.version_number}</td>
+                  <td>{formatVersionChain(product, state.products)}</td>
                   <td>{formatDate(product.published_at ?? product.created_at)}</td>
                   <td>
                     <div className="products-table__actions">
+                      {canForkProduct(product) && (
+                        <button
+                          type="button"
+                          className="products-page__button products-page__button--secondary products-table__action"
+                          disabled={pendingProductId === product.id}
+                          onClick={() => void handleForkVersion(product.id)}
+                        >
+                          New version
+                        </button>
+                      )}
                       {getNextProductStatuses(product.status).map((nextStatus) => (
                         <button
                           key={nextStatus}
@@ -482,9 +514,10 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
                           {getProductStatusActionLabel(nextStatus)}
                         </button>
                       ))}
-                      {getNextProductStatuses(product.status).length === 0 && (
-                        <span className="products-table__no-actions">—</span>
-                      )}
+                      {getNextProductStatuses(product.status).length === 0 &&
+                        !canForkProduct(product) && (
+                          <span className="products-table__no-actions">—</span>
+                        )}
                     </div>
                   </td>
                 </tr>

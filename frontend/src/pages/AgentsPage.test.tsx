@@ -15,6 +15,10 @@ vi.mock("../api/agents", () => ({
   createAgent: vi.fn(),
   updateAgent: vi.fn(),
   updateAgentStatus: vi.fn(),
+  forkAgentVersion: vi.fn(),
+  canForkAgent: vi.fn((agent: { status: string }) =>
+    ["Active", "Versioned"].includes(agent.status),
+  ),
   getNextAgentStatuses: vi.fn((status: string) => {
     const map: Record<string, string[]> = {
       Draft: ["Approved"],
