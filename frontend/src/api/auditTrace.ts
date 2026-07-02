@@ -16,10 +16,30 @@ export interface SemanticTransactionResponse {
   resource_id: string;
   created_at: string;
   trace_steps: TraceStepResponse[];
+  application_id?: string | null;
+}
+
+export interface ApplicationAuditTraceQuery {
+  resourceType?: string;
+  transactionTypePrefix?: string;
 }
 
 export function listAuditTraces(resourceId: string): Promise<SemanticTransactionResponse[]> {
   const params = new URLSearchParams({ resource_id: resourceId });
+  return apiFetch<SemanticTransactionResponse[]>(`/audit-traces?${params}`);
+}
+
+export function listApplicationAuditTraces(
+  applicationId: string,
+  query: ApplicationAuditTraceQuery = {},
+): Promise<SemanticTransactionResponse[]> {
+  const params = new URLSearchParams({ application_id: applicationId });
+  if (query.resourceType) {
+    params.set("resource_type", query.resourceType);
+  }
+  if (query.transactionTypePrefix) {
+    params.set("transaction_type_prefix", query.transactionTypePrefix);
+  }
   return apiFetch<SemanticTransactionResponse[]>(`/audit-traces?${params}`);
 }
 

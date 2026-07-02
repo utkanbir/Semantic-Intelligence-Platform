@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  canPingAdapter,
-  createAdapter,
-  getNextAdapterStatuses,
-  pingAdapter,
-  updateAdapterStatus,
-  type TechnologyAdapterResponse,
+  canPingConnector,
+  createConnector,
+  getNextConnectorStatuses,
+  pingConnector,
+  updateConnectorStatus,
+  type ConnectorResponse,
 } from "./adapters";
 
-const mockAdapter: TechnologyAdapterResponse = {
-  id: "adapter-1",
-  technology_type: "postgresql",
-  adapter_key: "primary-db",
+const mockConnector: ConnectorResponse = {
+  id: "connector-1",
+  connector_type: "database",
+  connector_key: "primary-db",
   status: "Active",
-  title: "Primary PostgreSQL",
+  title: "Primary Database",
   description: null,
   created_by: "admin",
   created_at: "2025-06-01T10:00:00Z",
@@ -22,10 +22,10 @@ const mockAdapter: TechnologyAdapterResponse = {
   activated_at: "2025-06-03T10:00:00Z",
   deprecated_at: null,
   retired_at: null,
-  adapter_configuration: {},
+  connector_configuration: {},
 };
 
-describe("adapters API", () => {
+describe("connectors API", () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -37,18 +37,18 @@ describe("adapters API", () => {
     fetchMock.mockReset();
   });
 
-  it("getNextAdapterStatuses maps Registered to Configured", () => {
-    expect(getNextAdapterStatuses("Registered")).toEqual(["Configured"]);
-    expect(getNextAdapterStatuses("Active")).toEqual(["Deprecated"]);
+  it("getNextConnectorStatuses maps Registered to Configured", () => {
+    expect(getNextConnectorStatuses("Registered")).toEqual(["Configured"]);
+    expect(getNextConnectorStatuses("Active")).toEqual(["Deprecated"]);
   });
 
-  it("canPingAdapter allows Active only", () => {
-    expect(canPingAdapter({ ...mockAdapter, status: "Active" })).toBe(true);
-    expect(canPingAdapter({ ...mockAdapter, status: "Registered" })).toBe(false);
+  it("canPingConnector allows Active only", () => {
+    expect(canPingConnector({ ...mockConnector, status: "Active" })).toBe(true);
+    expect(canPingConnector({ ...mockConnector, status: "Registered" })).toBe(false);
   });
 
-  it("createAdapter POSTs to adapters endpoint", async () => {
-    const created = { ...mockAdapter, status: "Registered" as const };
+  it("createConnector POSTs to connectors endpoint", async () => {
+    const created = { ...mockConnector, status: "Registered" as const };
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify(created), {
         status: 201,
@@ -57,38 +57,38 @@ describe("adapters API", () => {
     );
 
     await expect(
-      createAdapter({
-        technology_type: "openmetadata",
-        adapter_key: "om-dev",
-        title: "OpenMetadata Dev",
+      createConnector({
+        connector_type: "ontology_knowledge_graph",
+        connector_key: "ontology-dev",
+        title: "Ontology Store",
       }),
     ).resolves.toEqual(created);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/adapters",
+      "/api/v1/connectors",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          technology_type: "openmetadata",
-          adapter_key: "om-dev",
-          title: "OpenMetadata Dev",
+          connector_type: "ontology_knowledge_graph",
+          connector_key: "ontology-dev",
+          title: "Ontology Store",
         }),
       }),
     );
   });
 
-  it("updateAdapterStatus PATCHes status endpoint", async () => {
+  it("updateConnectorStatus PATCHes status endpoint", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ ...mockAdapter, status: "Configured" }), {
+      new Response(JSON.stringify({ ...mockConnector, status: "Configured" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
     );
 
-    await updateAdapterStatus("adapter-1", "Configured");
+    await updateConnectorStatus("connector-1", "Configured");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/adapters/adapter-1/status",
+      "/api/v1/connectors/connector-1/status",
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ status: "Configured" }),
@@ -96,21 +96,21 @@ describe("adapters API", () => {
     );
   });
 
-  it("pingAdapter POSTs to ping endpoint", async () => {
+  it("pingConnector POSTs to ping endpoint", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ status: "ok", technology: "postgresql" }), {
+      new Response(JSON.stringify({ status: "ok", connector_type: "database" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
     );
 
-    await expect(pingAdapter("adapter-1")).resolves.toEqual({
+    await expect(pingConnector("connector-1")).resolves.toEqual({
       status: "ok",
-      technology: "postgresql",
+      connector_type: "database",
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/adapters/adapter-1/ping",
+      "/api/v1/connectors/connector-1/ping",
       expect.objectContaining({ method: "POST" }),
     );
   });

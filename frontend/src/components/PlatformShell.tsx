@@ -10,7 +10,7 @@ type BackendConnectionStatus = "loading" | "connected" | "disconnected";
 
 const PLATFORM_NAV = [
   { to: "/", label: "Overview", end: true },
-  { to: "/adapters", label: "Adapters", end: true },
+  { to: "/connectors", label: "Connectors", end: true },
   { to: "/governance", label: "Governance", end: true },
   { to: "/audit-trace", label: "Audit Trace", end: true },
 ] as const;

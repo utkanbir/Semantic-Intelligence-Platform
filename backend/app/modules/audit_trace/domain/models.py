@@ -29,3 +29,4 @@ class SemanticTransactionRecord:
     resource_id: str
     created_at: datetime
     trace_steps: list[TraceStep]
+    application_id: UUID | None = None

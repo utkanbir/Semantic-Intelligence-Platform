@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from typing import Protocol
+from uuid import UUID
 
 
-class TraceRecorder(Protocol):
-    """Outbound port for recording semantic transactions."""
+class OntologyTransactionRecorder(Protocol):
+    """Outbound port for orchestrated ontology semantic transactions."""
 
-    def record_transaction(
+    def record_orchestrated(
         self,
         *,
         transaction_type: str,
-        resource_type: str,
         resource_id: str,
+        application_id: UUID,
+        steps: list[tuple[str, str | None]],
     ) -> None:
-        """Persist one semantic transaction record."""
+        """Persist one semantic transaction with trace steps."""

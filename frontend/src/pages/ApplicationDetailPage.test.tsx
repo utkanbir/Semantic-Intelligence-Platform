@@ -7,7 +7,7 @@ import {
 } from "../api/applications";
 import { listAgents } from "../api/agents";
 import { listAgentRuns, getAgentRun } from "../api/agentRuns";
-import { listAuditTraces } from "../api/auditTrace";
+import { listApplicationAuditTraces } from "../api/auditTrace";
 import { listAssets } from "../api/assets";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
@@ -67,7 +67,7 @@ vi.mock("../api/agentRuns", () => ({
 }));
 
 vi.mock("../api/auditTrace", () => ({
-  listAuditTraces: vi.fn(),
+  listApplicationAuditTraces: vi.fn(),
 }));
 
 vi.mock("../api/assets", async (importOriginal) => {
@@ -154,8 +154,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listAgentRuns).mockReset();
     vi.mocked(listAgentRuns).mockResolvedValue([]);
     vi.mocked(getAgentRun).mockReset();
-    vi.mocked(listAuditTraces).mockReset();
-    vi.mocked(listAuditTraces).mockResolvedValue([]);
+    vi.mocked(listApplicationAuditTraces).mockReset();
+    vi.mocked(listApplicationAuditTraces).mockResolvedValue([]);
     vi.mocked(listOntologies).mockReset();
     vi.mocked(listOntologies).mockResolvedValue([]);
     vi.mocked(listKnowledgeGraphs).mockReset();
@@ -501,12 +501,13 @@ describe("ApplicationDetailPage", () => {
   });
 
   it("navigates to audit trace list", async () => {
-    vi.mocked(listAuditTraces).mockResolvedValue([
+    vi.mocked(listApplicationAuditTraces).mockResolvedValue([
       {
         id: "txn-1",
-        transaction_type: "CREATE",
-        resource_type: "Application",
-        resource_id: "app-1",
+        transaction_type: "ontology.created",
+        resource_type: "OntologyDefinition",
+        resource_id: "ont-1",
+        application_id: "app-1",
         created_at: "2025-06-01T10:00:00Z",
         trace_steps: [],
       },
@@ -521,10 +522,13 @@ describe("ApplicationDetailPage", () => {
     fireEvent.click(screen.getByRole("link", { name: "Audit trace" }));
 
     await waitFor(() => {
-      expect(screen.getByText("CREATE")).toBeInTheDocument();
+      expect(screen.getByText("ontology.created")).toBeInTheDocument();
     });
 
-    expect(listAuditTraces).toHaveBeenCalledWith("app-1");
+    expect(listApplicationAuditTraces).toHaveBeenCalledWith("app-1", {
+      resourceType: "OntologyDefinition",
+      transactionTypePrefix: "ontology",
+    });
     expect(screen.getByRole("heading", { name: "Audit trace" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });

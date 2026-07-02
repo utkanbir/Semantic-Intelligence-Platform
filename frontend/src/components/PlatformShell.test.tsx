@@ -52,9 +52,9 @@ describe("PlatformShell", () => {
     );
 
     expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: "Adapters" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Connectors" })).toHaveAttribute(
       "href",
-      "/adapters",
+      "/connectors",
     );
     expect(screen.getByRole("link", { name: "Governance" })).toHaveAttribute(
       "href",

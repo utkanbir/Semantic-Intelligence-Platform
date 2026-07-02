@@ -9,6 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.infrastructure.database import get_db
+from app.modules.adapters.repositories.sqlalchemy_repository import (
+    SqlAlchemyTechnologyAdapterRepository,
+)
 from app.modules.applications.repositories.sqlalchemy_repository import (
     SqlAlchemyApplicationRepository,
 )
@@ -17,6 +20,7 @@ from app.modules.audit_trace.repositories.sqlalchemy_repository import (
 )
 from app.modules.ontology.api.schemas import (
     OntologyDefinitionCreateRequest,
+    OntologyDefinitionImportRequest,
     OntologyDefinitionResponse,
     OntologyDefinitionStatusUpdateRequest,
     OntologyDefinitionUpdateRequest,
@@ -30,7 +34,9 @@ from app.modules.ontology.repositories.sqlalchemy_repository import (
 from app.modules.ontology.services.ontology_service import (
     UNSET,
     ApplicationNotFoundError,
+    ConnectorNotFoundError,
     ImmutableOntologyDefinitionError,
+    InvalidOntologyConnectorError,
     InvalidOntologyDefinitionStatusTransitionError,
     InvalidOntologyDefinitionVersionForkError,
     OntologyDefinitionNotFoundError,
@@ -41,21 +47,24 @@ router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-class SqlAlchemyTraceRecorderAdapter:
+class SqlAlchemyOntologyTransactionRecorder:
     def __init__(self, session: Session) -> None:
         self._repository = SqlAlchemyAuditTraceRepository(session)
 
-    def record_transaction(
+    def record_orchestrated(
         self,
         *,
         transaction_type: str,
-        resource_type: str,
         resource_id: str,
+        application_id: UUID,
+        steps: list[tuple[str, str | None]],
     ) -> None:
-        self._repository.record_transaction(
+        self._repository.record_transaction_with_steps(
             transaction_type=transaction_type,
-            resource_type=resource_type,
+            resource_type="OntologyDefinition",
             resource_id=resource_id,
+            application_id=application_id,
+            steps=steps,
         )
 
 
@@ -63,7 +72,8 @@ def _get_service(db: Session) -> OntologyService:
     return OntologyService(
         SqlAlchemyOntologyDefinitionRepository(db),
         SqlAlchemyApplicationRepository(db),
-        SqlAlchemyTraceRecorderAdapter(db),
+        SqlAlchemyTechnologyAdapterRepository(db),
+        SqlAlchemyOntologyTransactionRecorder(db),
     )
 
 
@@ -79,9 +89,41 @@ def create_ontology(
             created_by=payload.created_by,
             description=payload.description,
             ontology_definition=payload.ontology_definition,
+            connector_id=payload.connector_id,
         )
     except ApplicationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    return to_ontology_definition_response(ontology)
+
+
+@router.post(
+    "/import",
+    response_model=OntologyDefinitionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def import_ontology(
+    payload: OntologyDefinitionImportRequest, db: DbSession
+) -> OntologyDefinitionResponse:
+    service = _get_service(db)
+    try:
+        ontology = service.import_ontology(
+            application_id=payload.application_id,
+            title=payload.title,
+            connector_id=payload.connector_id,
+            source_format=payload.source_format,
+            source_content=payload.source_content,
+            created_by=payload.created_by,
+            description=payload.description,
+        )
+    except ApplicationNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ConnectorNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidOntologyConnectorError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     return to_ontology_definition_response(ontology)
 
 

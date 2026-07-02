@@ -109,6 +109,10 @@
     "26": {
       "label": "Console Platform Adapters",
       "issues": [255, 256, 257, 258]
+    },
+    "27": {
+      "label": "Ontology Semantic Transaction v1",
+      "issues": [260, 261, 262, 263]
     }
   }
 }

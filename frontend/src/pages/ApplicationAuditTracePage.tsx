@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../api";
 import {
-  listAuditTraces,
+  listApplicationAuditTraces,
   type SemanticTransactionResponse,
   type TraceStepResponse,
 } from "../api/auditTrace";
@@ -49,11 +49,16 @@ interface ApplicationAuditTracePageProps {
 
 export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTracePageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
+  const [ontologyOnly, setOntologyOnly] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
-    listAuditTraces(applicationId)
+    const query = ontologyOnly
+      ? { resourceType: "OntologyDefinition", transactionTypePrefix: "ontology" }
+      : {};
+
+    listApplicationAuditTraces(applicationId, query)
       .then((transactions) => {
         if (!cancelled) {
           setState({ kind: "success", transactions });
@@ -74,7 +79,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
     return () => {
       cancelled = true;
     };
-  }, [applicationId]);
+  }, [applicationId, ontologyOnly]);
 
   const isEmpty = state.kind === "success" && state.transactions.length === 0;
   const hasTransactions = state.kind === "success" && state.transactions.length > 0;
@@ -88,6 +93,14 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
             Semantic transactions recorded for this application.
           </p>
         </div>
+        <label className="agent-runs-page__filter">
+          <input
+            type="checkbox"
+            checked={ontologyOnly}
+            onChange={(event) => setOntologyOnly(event.target.checked)}
+          />
+          Ontology transactions only
+        </label>
       </div>
 
       {state.kind === "loading" && (

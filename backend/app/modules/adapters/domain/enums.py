@@ -5,15 +5,17 @@ from __future__ import annotations
 from enum import StrEnum
 
 
-class TechnologyType(StrEnum):
-    """Supported technology adapter types (Sprint 8 MVP)."""
+class ConnectorType(StrEnum):
+    """Platform connector types."""
 
-    POSTGRESQL = "postgresql"
-    MINIO = "minio"
-    FUSEKI = "fuseki"
-    QDRANT = "qdrant"
-    OPENMETADATA = "openmetadata"
-    OPENAI = "openai"
+    DATABASE = "database"
+    OBJECT_STORAGE = "object_storage"
+    FILE_SYSTEM = "file_system"
+    ONTOLOGY_KNOWLEDGE_GRAPH = "ontology_knowledge_graph"
+
+
+# Backward-compatible alias for internal imports during transition.
+TechnologyType = ConnectorType
 
 
 class TechnologyAdapterStatus(StrEnum):
