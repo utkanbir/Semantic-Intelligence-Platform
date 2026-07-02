@@ -2133,3 +2133,123 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.assets-page h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.assets-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.assets-page__header .assets-page__lead {
+  margin-bottom: 0;
+}
+
+.assets-page__lead {
+  margin: 0 0 1.5rem;
+  color: #4a4a68;
+  max-width: 42rem;
+  font-size: 0.9375rem;
+}
+
+.assets-page__status {
+  margin: 0;
+  color: #4a4a68;
+}
+
+.assets-page__error {
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #e8b4b4;
+  background: #fff5f5;
+  color: #8b3a3a;
+}
+
+.assets-page__empty {
+  padding: 2rem;
+  border: 1px dashed #c8ccd4;
+  border-radius: 8px;
+  background: #fafbfc;
+  text-align: center;
+  color: #4a4a68;
+}
+
+.assets-page__empty p {
+  margin: 0;
+}
+
+.assets-page__hint {
+  margin-top: 0.5rem !important;
+  font-size: 0.875rem;
+  color: #6b6b80;
+}
+
+.assets-page__table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.assets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.assets-table th,
+.assets-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e8ebf0;
+}
+
+.assets-table th {
+  font-weight: 600;
+  color: #4a4a68;
+  background: #f8f9fb;
+}
+
+.assets-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.assets-table__status {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.assets-table__status--draft {
+  color: #5c4a1f;
+  background: #f3ecd8;
+}
+
+.assets-table__status--active {
+  color: #1f5c38;
+  background: #d8f3e4;
+}
+
+.assets-table__status--published {
+  color: #2d4a7c;
+  background: #dce8f8;
+}
+
+.assets-table__status--deprecated {
+  color: #6b4a1f;
+  background: #f0e6d8;
+}
+
+.assets-table__status--retired {
+  color: #6b6b80;
+  background: #eceef2;
+}
