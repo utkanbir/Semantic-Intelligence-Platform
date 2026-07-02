@@ -1657,7 +1657,8 @@ body {
 }
 
 .agents-table__bindings,
-.products-table__bindings {
+.products-table__bindings,
+.knowledge-graphs-table__bindings {
   max-width: 16rem;
   font-size: 0.8125rem;
   color: #4a4a68;

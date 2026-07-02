@@ -2,12 +2,14 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../api";
 import { listAssets, type AssetRecordResponse } from "../api/assets";
 import {
+  canEditProductBindings,
   canForkProduct,
   createProduct,
   forkProductVersion,
   getNextProductStatuses,
   getProductStatusActionLabel,
   listProducts,
+  updateProduct,
   updateProductStatus,
   type PublishedDataProductResponse,
   type PublishedDataProductStatus,
@@ -273,6 +275,94 @@ function ProductCreateForm({
   );
 }
 
+interface ProductBindingsDialogProps {
+  product: PublishedDataProductResponse;
+  assets: AssetRecordResponse[];
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function ProductBindingsDialog({
+  product,
+  assets,
+  onClose,
+  onSaved,
+}: ProductBindingsDialogProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>(product.source_asset_record_ids);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSave() {
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      await updateProduct(product.id, { source_asset_record_ids: selectedIds });
+      onSaved();
+      onClose();
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to update product bindings";
+      setSubmitError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <dialog
+      className="agents-page__dialog"
+      open
+      aria-labelledby={`product-bindings-dialog-title-${product.id}`}
+    >
+      <div className="agents-page__dialog-panel">
+        <h3
+          id={`product-bindings-dialog-title-${product.id}`}
+          className="agents-page__dialog-title"
+        >
+          Edit bindings — {product.title}
+        </h3>
+        <p className="agents-page__dialog-lead">
+          Select source assets for this published data product.
+        </p>
+        <SourceAssetBindingsField
+          idPrefix={`product-bindings-${product.id}`}
+          assets={assets}
+          selectedIds={selectedIds}
+          onChange={setSelectedIds}
+          disabled={submitting}
+        />
+        {submitError && (
+          <div className="products-page__error" role="alert">
+            {submitError}
+          </div>
+        )}
+        <div className="products-page__form-actions">
+          <button
+            type="button"
+            className="products-page__button products-page__button--secondary"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="products-page__button products-page__button--primary"
+            onClick={() => void handleSave()}
+            disabled={submitting}
+          >
+            {submitting ? "Saving…" : "Save bindings"}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
 interface ProductsPageProps {
   applicationId: string;
 }
@@ -281,6 +371,9 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [assets, setAssets] = useState<AssetRecordResponse[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<PublishedDataProductResponse | null>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
 
@@ -355,6 +448,10 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
     setShowCreateForm(false);
     void loadProducts();
     void loadAssets();
+  }
+
+  function handleBindingsSaved() {
+    void loadProducts();
   }
 
   async function handleStatusTransition(
@@ -466,6 +563,15 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
         </div>
       )}
 
+      {editingProduct && (
+        <ProductBindingsDialog
+          product={editingProduct}
+          assets={assets}
+          onClose={() => setEditingProduct(null)}
+          onSaved={handleBindingsSaved}
+        />
+      )}
+
       {hasProducts && (
         <div className="products-page__table-wrap">
           <table className="products-table">
@@ -493,6 +599,16 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
                   <td>{formatDate(product.published_at ?? product.created_at)}</td>
                   <td>
                     <div className="products-table__actions">
+                      {canEditProductBindings(product) && (
+                        <button
+                          type="button"
+                          className="products-page__button products-page__button--secondary products-table__action"
+                          disabled={pendingProductId === product.id}
+                          onClick={() => setEditingProduct(product)}
+                        >
+                          Edit bindings
+                        </button>
+                      )}
                       {canForkProduct(product) && (
                         <button
                           type="button"
@@ -515,7 +631,8 @@ export function ProductsPage({ applicationId }: ProductsPageProps) {
                         </button>
                       ))}
                       {getNextProductStatuses(product.status).length === 0 &&
-                        !canForkProduct(product) && (
+                        !canForkProduct(product) &&
+                        !canEditProductBindings(product) && (
                           <span className="products-table__no-actions">—</span>
                         )}
                     </div>

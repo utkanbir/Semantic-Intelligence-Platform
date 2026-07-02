@@ -84,6 +84,33 @@ export function updateProductStatus(
   });
 }
 
+export interface PublishedDataProductUpdateRequest {
+  title?: string;
+  description?: string | null;
+  product_definition?: Record<string, unknown>;
+  source_asset_record_ids?: string[];
+}
+
+export function updateProduct(
+  productId: string,
+  payload: PublishedDataProductUpdateRequest,
+): Promise<PublishedDataProductResponse> {
+  return apiFetch<PublishedDataProductResponse>(`/products/${productId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function canEditProductBindings(
+  product: PublishedDataProductResponse,
+): boolean {
+  return (
+    product.status === "Draft" ||
+    product.status === "Certified" ||
+    product.status === "Published"
+  );
+}
+
 /** D-003: agents may bind only Published or Versioned products. */
 export const CONSUMABLE_PRODUCT_STATUSES: PublishedDataProductStatus[] = [
   "Published",

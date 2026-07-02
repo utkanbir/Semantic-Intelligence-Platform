@@ -5,6 +5,7 @@ import {
   createProduct,
   forkProductVersion,
   listProducts,
+  updateProduct,
   updateProductStatus,
   type PublishedDataProductResponse,
 } from "../api/products";
@@ -13,8 +14,12 @@ import { ProductsPage } from "./ProductsPage";
 vi.mock("../api/products", () => ({
   listProducts: vi.fn(),
   createProduct: vi.fn(),
+  updateProduct: vi.fn(),
   updateProductStatus: vi.fn(),
   forkProductVersion: vi.fn(),
+  canEditProductBindings: vi.fn((product: { status: string }) =>
+    ["Draft", "Certified", "Published"].includes(product.status),
+  ),
   canForkProduct: vi.fn((product: { status: string }) =>
     ["Published", "Versioned"].includes(product.status),
   ),
@@ -109,6 +114,7 @@ describe("ProductsPage", () => {
     vi.mocked(listProducts).mockReset();
     vi.mocked(createProduct).mockReset();
     vi.mocked(updateProductStatus).mockReset();
+    vi.mocked(updateProduct).mockReset();
     vi.mocked(forkProductVersion).mockReset();
     vi.mocked(listAssets).mockReset();
     vi.mocked(listAssets).mockResolvedValue([mockAsset, secondAsset]);
@@ -302,6 +308,37 @@ describe("ProductsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Invalid transition");
+    });
+  });
+
+  it("edits product source asset bindings via dialog", async () => {
+    const updatedProduct: PublishedDataProductResponse = {
+      ...mockProduct,
+      source_asset_record_ids: ["asset-2"],
+    };
+    vi.mocked(listProducts)
+      .mockResolvedValueOnce([mockProduct])
+      .mockResolvedValueOnce([updatedProduct]);
+    vi.mocked(updateProduct).mockResolvedValue(updatedProduct);
+
+    render(<ProductsPage applicationId="app-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Edit bindings" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit bindings" }));
+    fireEvent.click(screen.getByLabelText(/Discovery Session A/));
+    fireEvent.click(screen.getByRole("button", { name: "Save bindings" }));
+
+    await waitFor(() => {
+      expect(updateProduct).toHaveBeenCalledWith("prod-1", {
+        source_asset_record_ids: ["asset-2"],
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("1: Discovery Session A")).toBeInTheDocument();
     });
   });
 
