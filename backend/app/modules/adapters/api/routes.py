@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Annotated
 from uuid import UUID
 
@@ -64,7 +65,7 @@ class SqlAlchemyTraceRecorderAdapter:
         transaction_type: str,
         resource_type: str,
         resource_id: str,
-        steps: list[tuple[str, str | None]],
+        steps: Sequence[tuple[str, str | None]],
     ) -> None:
         self._repository.record_transaction_with_steps(
             transaction_type=transaction_type,
