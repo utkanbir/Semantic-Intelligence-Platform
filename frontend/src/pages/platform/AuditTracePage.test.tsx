@@ -46,15 +46,17 @@ describe("AuditTracePage", () => {
     render(<AuditTracePage />);
 
     expect(listAuditTraces).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Load audit traces by resource ID")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Load semantic transactions by resource ID"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Enter an application ID or other resource ID to list semantic transactions",
+        "Enter an application ID or other resource ID to list related semantic transactions",
       ),
     ).toBeInTheDocument();
   });
 
-  it("loads audit traces when resource ID is submitted", async () => {
+  it("loads semantic transactions when resource ID is submitted", async () => {
     vi.mocked(listAuditTraces).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -67,9 +69,9 @@ describe("AuditTracePage", () => {
     fireEvent.change(screen.getByLabelText("Resource ID"), {
       target: { value: "app-1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
-    expect(screen.getByText("Loading audit traces…")).toBeInTheDocument();
+    expect(screen.getByText("Loading semantic transactions…")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText("CREATE")).toBeInTheDocument();
@@ -84,7 +86,7 @@ describe("AuditTracePage", () => {
   it("shows validation error when resource ID is empty", async () => {
     render(<AuditTracePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Resource ID is required");
     expect(listAuditTraces).not.toHaveBeenCalled();
@@ -98,10 +100,12 @@ describe("AuditTracePage", () => {
     fireEvent.change(screen.getByLabelText("Resource ID"), {
       target: { value: "app-1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
-      expect(screen.getByText("No audit traces yet.")).toBeInTheDocument();
+      expect(
+        screen.getByText("No semantic transactions found for this resource ID."),
+      ).toBeInTheDocument();
     });
   });
 
@@ -113,7 +117,7 @@ describe("AuditTracePage", () => {
     fireEvent.change(screen.getByLabelText("Resource ID"), {
       target: { value: "app-1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Server error");

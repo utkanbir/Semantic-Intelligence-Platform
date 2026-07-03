@@ -10,6 +10,7 @@ import { ApplicationShell } from "../components/ApplicationShell";
 import { AgentsPage } from "./AgentsPage";
 import { AgentRunsPage } from "./AgentRunsPage";
 import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
+import { ApplicationSemanticTransactionDetailPage } from "./ApplicationSemanticTransactionDetailPage";
 import { AssetsPage } from "./AssetsPage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
@@ -114,6 +115,25 @@ function AgentRunDetailRoute({ applicationId }: { applicationId: string }) {
   return <AgentRunDetailPage applicationId={applicationId} runId={runId} />;
 }
 
+function SemanticTransactionDetailRoute({ applicationId }: { applicationId: string }) {
+  const { transactionId } = useParams<{ transactionId: string }>();
+
+  if (!transactionId) {
+    return (
+      <div className="agent-runs-page__error" role="alert">
+        Transaction ID is required
+      </div>
+    );
+  }
+
+  return (
+    <ApplicationSemanticTransactionDetailPage
+      applicationId={applicationId}
+      transactionId={transactionId}
+    />
+  );
+}
+
 export function ApplicationDetailPage() {
   const { applicationId } = useParams<{ applicationId: string }>();
   const [state, setState] = useState<PageState>({ kind: "loading" });
@@ -210,6 +230,10 @@ export function ApplicationDetailPage() {
         <Route
           path="audit-trace"
           element={<ApplicationAuditTracePage applicationId={application.id} />}
+        />
+        <Route
+          path="audit-trace/:transactionId"
+          element={<SemanticTransactionDetailRoute applicationId={application.id} />}
         />
       </Routes>
     </ApplicationShell>

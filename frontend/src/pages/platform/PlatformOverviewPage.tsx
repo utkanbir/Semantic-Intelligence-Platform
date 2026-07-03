@@ -5,7 +5,7 @@ const SUMMARY_CARDS = [
     to: "/platform",
     label: "Platform",
     description: "Cross-cutting framework capabilities shared across all applications.",
-    hint: "Connectors, governance, audit trace",
+    hint: "Connectors, governance, semantic transactions",
   },
   {
     to: "/applications",
@@ -20,8 +20,8 @@ export function PlatformOverviewPage() {
     <section className="platform-page">
       <h1>Platform overview</h1>
       <p className="platform-page__lead">
-        Manage platform-wide framework services—connectors, governance, and audit
-        trace—or switch to Applications to work inside an application workspace.
+        Manage platform-wide framework services—connectors, governance, and semantic
+        transactions—or switch to Applications to work inside an application workspace.
       </p>
       <div className="platform-page__summary">
         {SUMMARY_CARDS.map((card) => (

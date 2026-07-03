@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import {
   listApplicationAuditTraces,
   type SemanticTransactionResponse,
-  type TraceStepResponse,
 } from "../api/auditTrace";
 
 type PageState =
@@ -21,35 +21,13 @@ function formatDate(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-function TraceStepsSummary({ steps }: { steps: TraceStepResponse[] }) {
-  if (steps.length === 0) {
-    return <span>0</span>;
-  }
-
-  return (
-    <details className="audit-trace-steps">
-      <summary>{steps.length}</summary>
-      <ol className="audit-trace-steps__list">
-        {steps.map((step) => (
-          <li key={step.id} className="audit-trace-steps__item">
-            <span className="audit-trace-steps__type">{step.step_type}</span>
-            {step.message && (
-              <span className="audit-trace-steps__message">{step.message}</span>
-            )}
-          </li>
-        ))}
-      </ol>
-    </details>
-  );
-}
-
 interface ApplicationAuditTracePageProps {
   applicationId: string;
 }
 
 export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTracePageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
-  const [ontologyOnly, setOntologyOnly] = useState(true);
+  const [ontologyOnly, setOntologyOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,7 +49,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
               ? error.message
               : error instanceof Error
                 ? error.message
-                : "Failed to load audit traces";
+                : "Failed to load semantic transactions";
           setState({ kind: "error", message });
         }
       });
@@ -85,12 +63,15 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
   const hasTransactions = state.kind === "success" && state.transactions.length > 0;
 
   return (
-    <section className="agent-runs-page" aria-labelledby="application-audit-trace-heading">
+    <section
+      className="agent-runs-page"
+      aria-labelledby="application-semantic-transactions-heading"
+    >
       <div className="agent-runs-page__header">
         <div>
-          <h2 id="application-audit-trace-heading">Audit trace</h2>
+          <h2 id="application-semantic-transactions-heading">Semantic transactions</h2>
           <p className="agent-runs-page__lead">
-            Semantic transactions recorded for this application.
+            Recorded operations and trace steps for this application.
           </p>
         </div>
         <label className="agent-runs-page__filter">
@@ -105,7 +86,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
 
       {state.kind === "loading" && (
         <p className="agent-runs-page__status" role="status" aria-live="polite">
-          Loading audit traces…
+          Loading semantic transactions…
         </p>
       )}
 
@@ -117,7 +98,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
 
       {isEmpty && (
         <div className="agent-runs-page__empty" role="status">
-          <p>No audit traces yet.</p>
+          <p>No semantic transactions yet.</p>
         </div>
       )}
 
@@ -135,11 +116,16 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
             <tbody>
               {state.transactions.map((transaction) => (
                 <tr key={transaction.id}>
-                  <td>{transaction.transaction_type}</td>
-                  <td>{transaction.resource_type}</td>
                   <td>
-                    <TraceStepsSummary steps={transaction.trace_steps} />
+                    <Link
+                      to={`/applications/${applicationId}/audit-trace/${transaction.id}`}
+                      className="agent-runs-table__link"
+                    >
+                      {transaction.transaction_type}
+                    </Link>
                   </td>
+                  <td>{transaction.resource_type}</td>
+                  <td>{transaction.trace_steps.length}</td>
                   <td>{formatDate(transaction.created_at)}</td>
                 </tr>
               ))}

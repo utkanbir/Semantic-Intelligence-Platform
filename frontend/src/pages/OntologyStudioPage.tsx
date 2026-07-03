@@ -17,7 +17,7 @@ type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "ready"; connectors: ConnectorResponse[] }
-  | { kind: "imported"; ontologyId: string; artifactUri: string | null | undefined };
+  | { kind: "imported"; ontologyId: string; artifactUri: string | null | undefined; semanticTransactionId: string | null | undefined };
 
 export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
@@ -87,6 +87,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         kind: "imported",
         ontologyId: ontology.id,
         artifactUri: ontology.artifact_uri,
+        semanticTransactionId: ontology.semantic_transaction_id ?? null,
       });
     } catch (error: unknown) {
       const message =
@@ -142,8 +143,21 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             </p>
           )}
           <p>
-            <Link to={`../ontology`}>View ontologies</Link> ·{" "}
-            <Link to={`../audit-trace`}>View semantic transactions</Link>
+            <Link to={`../ontology`}>View ontologies</Link>
+            {state.semanticTransactionId && (
+              <>
+                {" · "}
+                <Link to={`../audit-trace/${state.semanticTransactionId}`}>
+                  View semantic transaction
+                </Link>
+              </>
+            )}
+            {!state.semanticTransactionId && (
+              <>
+                {" · "}
+                <Link to={`../audit-trace`}>View semantic transactions</Link>
+              </>
+            )}
           </p>
         </div>
       </section>
@@ -159,7 +173,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           <h2 id="ontology-studio-heading">Ontology Studio</h2>
           <p className="agent-runs-page__lead">
             Import OWL content through a platform connector. Each import creates a
-            SemanticTransaction with trace steps visible in Audit trace.
+            SemanticTransaction with trace steps visible in Semantic transactions.
           </p>
         </div>
       </div>

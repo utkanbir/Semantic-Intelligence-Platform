@@ -12,7 +12,7 @@ const PLATFORM_NAV = [
   { to: "/", label: "Overview", end: true },
   { to: "/connectors", label: "Connectors", end: true },
   { to: "/governance", label: "Governance", end: true },
-  { to: "/audit-trace", label: "Audit Trace", end: true },
+  { to: "/audit-trace", label: "Semantic Transactions", end: true },
 ] as const;
 
 function connectionLabel(status: BackendConnectionStatus): string {

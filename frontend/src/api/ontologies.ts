@@ -27,6 +27,7 @@ export interface OntologyDefinitionResponse {
   connector_id?: string | null;
   artifact_uri?: string | null;
   source_format?: string | null;
+  semantic_transaction_id?: string | null;
 }
 
 export function listOntologies(

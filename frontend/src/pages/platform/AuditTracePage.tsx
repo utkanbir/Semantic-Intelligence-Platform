@@ -3,7 +3,6 @@ import { ApiError } from "../../api";
 import {
   listAuditTraces,
   type SemanticTransactionResponse,
-  type TraceStepResponse,
 } from "../../api/auditTrace";
 
 type PageState =
@@ -20,28 +19,6 @@ function formatDate(iso: string | null): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(iso));
-}
-
-function TraceStepsSummary({ steps }: { steps: TraceStepResponse[] }) {
-  if (steps.length === 0) {
-    return <span>0</span>;
-  }
-
-  return (
-    <details className="audit-trace-steps">
-      <summary>{steps.length}</summary>
-      <ol className="audit-trace-steps__list">
-        {steps.map((step) => (
-          <li key={step.id} className="audit-trace-steps__item">
-            <span className="audit-trace-steps__type">{step.step_type}</span>
-            {step.message && (
-              <span className="audit-trace-steps__message">{step.message}</span>
-            )}
-          </li>
-        ))}
-      </ol>
-    </details>
-  );
 }
 
 export function AuditTracePage() {
@@ -61,7 +38,7 @@ export function AuditTracePage() {
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to load audit traces";
+            : "Failed to load semantic transactions";
       setState({ kind: "error", message });
     }
   }
@@ -83,25 +60,26 @@ export function AuditTracePage() {
   const hasTransactions = state.kind === "success" && state.transactions.length > 0;
 
   return (
-    <section className="platform-page" aria-labelledby="audit-trace-heading">
-      <h1 id="audit-trace-heading">Audit trace</h1>
+    <section className="platform-page" aria-labelledby="semantic-transactions-heading">
+      <h1 id="semantic-transactions-heading">Semantic transactions</h1>
       <p className="platform-page__lead">
-        Browse semantic transactions and trace steps across the platform.
+        Search platform-wide semantic transactions by resource ID. Each transaction records
+        what changed and the ordered trace steps that executed.
       </p>
 
       <form
         className="platform-page__filter-form"
         onSubmit={handleSubmit}
-        aria-label="Load audit traces by resource ID"
+        aria-label="Load semantic transactions by resource ID"
       >
         <div className="platform-page__field">
-          <label htmlFor="audit-trace-resource-id">Resource ID</label>
+          <label htmlFor="semantic-transactions-resource-id">Resource ID</label>
           <p className="platform-page__field-hint">
-            Enter an application ID or other resource ID to list semantic transactions
+            Enter an application ID or other resource ID to list related semantic transactions
           </p>
           <div className="platform-page__field-row">
             <input
-              id="audit-trace-resource-id"
+              id="semantic-transactions-resource-id"
               name="resource_id"
               type="text"
               value={resourceId}
@@ -113,7 +91,7 @@ export function AuditTracePage() {
               }}
               aria-invalid={resourceIdError ? true : undefined}
               aria-describedby={
-                resourceIdError ? "audit-trace-resource-id-error" : undefined
+                resourceIdError ? "semantic-transactions-resource-id-error" : undefined
               }
               disabled={state.kind === "loading"}
             />
@@ -122,12 +100,12 @@ export function AuditTracePage() {
               className="platform-page__button platform-page__button--primary"
               disabled={state.kind === "loading"}
             >
-              {state.kind === "loading" ? "Loading…" : "Load"}
+              {state.kind === "loading" ? "Loading…" : "Search"}
             </button>
           </div>
           {resourceIdError && (
             <p
-              id="audit-trace-resource-id-error"
+              id="semantic-transactions-resource-id-error"
               className="platform-page__field-error"
               role="alert"
             >
@@ -139,7 +117,7 @@ export function AuditTracePage() {
 
       {state.kind === "loading" && (
         <p className="platform-page__status" role="status" aria-live="polite">
-          Loading audit traces…
+          Loading semantic transactions…
         </p>
       )}
 
@@ -151,7 +129,7 @@ export function AuditTracePage() {
 
       {isEmpty && (
         <div className="platform-page__empty" role="status">
-          <p>No audit traces yet.</p>
+          <p>No semantic transactions found for this resource ID.</p>
         </div>
       )}
 
@@ -175,9 +153,7 @@ export function AuditTracePage() {
                   <td>
                     <code className="platform-table__code">{transaction.resource_id}</code>
                   </td>
-                  <td>
-                    <TraceStepsSummary steps={transaction.trace_steps} />
-                  </td>
+                  <td>{transaction.trace_steps.length}</td>
                   <td>{formatDate(transaction.created_at)}</td>
                 </tr>
               ))}

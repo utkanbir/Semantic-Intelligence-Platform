@@ -500,7 +500,7 @@ describe("ApplicationDetailPage", () => {
     );
   });
 
-  it("navigates to audit trace list", async () => {
+  it("navigates to semantic transactions list", async () => {
     vi.mocked(listApplicationAuditTraces).mockResolvedValue([
       {
         id: "txn-1",
@@ -519,17 +519,14 @@ describe("ApplicationDetailPage", () => {
       expect(screen.getByRole("heading", { name: "Demo App" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("link", { name: "Audit trace" }));
+    fireEvent.click(screen.getByRole("link", { name: "Semantic transactions" }));
 
     await waitFor(() => {
       expect(screen.getByText("ontology.created")).toBeInTheDocument();
     });
 
-    expect(listApplicationAuditTraces).toHaveBeenCalledWith("app-1", {
-      resourceType: "OntologyDefinition",
-      transactionTypePrefix: "ontology",
-    });
-    expect(screen.getByRole("heading", { name: "Audit trace" })).toBeInTheDocument();
+    expect(listApplicationAuditTraces).toHaveBeenCalledWith("app-1", {});
+    expect(screen.getByRole("heading", { name: "Semantic transactions" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
