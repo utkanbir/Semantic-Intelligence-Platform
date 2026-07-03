@@ -440,9 +440,6 @@ export function ConnectorsSection() {
       .then((connectors) => {
         if (!cancelled) {
           setState({ kind: "success", connectors });
-          if (connectors.length === 0) {
-            setShowCreateForm(true);
-          }
         }
       })
       .catch((error: unknown) => {
@@ -546,37 +543,6 @@ export function ConnectorsSection() {
       {isEmpty && (
         <div className="platform-page__empty" role="status">
           <p>No connectors yet.</p>
-          {!showCreateForm && (
-            <button
-              type="button"
-              className="platform-page__button platform-page__button--primary platform-page__empty-action"
-              onClick={() => setShowCreateForm(true)}
-            >
-              Create connector
-            </button>
-          )}
-        </div>
-      )}
-
-      {state.kind === "success" && !showCreateForm && hasConnectors && (
-        <div className="connectors-page__section-header">
-          <button
-            type="button"
-            className="platform-page__button platform-page__button--primary"
-            onClick={() => setShowCreateForm(true)}
-          >
-            New connector
-          </button>
-        </div>
-      )}
-
-      {showCreateForm && (
-        <div className="platform-page__create-panel">
-          <h2 className="platform-page__create-title">New connector</h2>
-          <ConnectorCreateForm
-            onCreated={handleCreated}
-            onCancel={isEmpty ? undefined : () => setShowCreateForm(false)}
-          />
         </div>
       )}
 
@@ -656,6 +622,28 @@ export function ConnectorsSection() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {state.kind === "success" && !showCreateForm && (
+        <div className="connectors-page__section-actions">
+          <button
+            type="button"
+            className="platform-page__button platform-page__button--primary"
+            onClick={() => setShowCreateForm(true)}
+          >
+            New connector
+          </button>
+        </div>
+      )}
+
+      {showCreateForm && (
+        <div className="platform-page__create-panel">
+          <h2 className="platform-page__create-title">New connector</h2>
+          <ConnectorCreateForm
+            onCreated={handleCreated}
+            onCancel={() => setShowCreateForm(false)}
+          />
         </div>
       )}
     </>

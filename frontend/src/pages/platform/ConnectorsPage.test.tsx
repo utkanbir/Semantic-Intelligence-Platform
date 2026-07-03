@@ -132,9 +132,10 @@ describe("ConnectorsPage", () => {
     expect(listConnectors).toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Connectors" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Semantic connectors" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
   });
 
-  it("renders empty state with create form", async () => {
+  it("renders empty state with New connector button", async () => {
     vi.mocked(listConnectors).mockResolvedValue([]);
 
     render(<ConnectorsPage />);
@@ -143,7 +144,42 @@ describe("ConnectorsPage", () => {
       expect(screen.getByText("No connectors yet.")).toBeInTheDocument();
     });
 
+    expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Create connector")).not.toBeInTheDocument();
+  });
+
+  it("shows create form after clicking New connector on empty list", async () => {
+    vi.mocked(listConnectors).mockResolvedValue([]);
+
+    render(<ConnectorsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
+
     expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("allows cancel on create form when list is empty", async () => {
+    vi.mocked(listConnectors).mockResolvedValue([]);
+
+    render(<ConnectorsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
+    expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByLabelText("Create connector")).not.toBeInTheDocument();
+    expect(screen.getByText("No connectors yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
   });
 
   it("creates connector with vendor and connection details", async () => {
@@ -153,6 +189,12 @@ describe("ConnectorsPage", () => {
     vi.mocked(createConnector).mockResolvedValue(newConnector);
 
     render(<ConnectorsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
@@ -206,6 +248,12 @@ describe("ConnectorsPage", () => {
     render(<ConnectorsPage />);
 
     await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
+
+    await waitFor(() => {
       expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
     });
 
@@ -248,6 +296,12 @@ describe("ConnectorsPage", () => {
     vi.mocked(listConnectors).mockResolvedValue([]);
 
     render(<ConnectorsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Connector vendor")).toBeInTheDocument();
