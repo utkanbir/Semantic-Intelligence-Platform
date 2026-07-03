@@ -7,6 +7,7 @@ import {
   CONNECTOR_TYPE_LABELS,
   type ConnectorResponse,
 } from "../api/adapters";
+import { getVendorLabel, readConnectorVendor } from "../connectors/catalog";
 
 interface OntologyStudioPageProps {
   applicationId: string;
@@ -191,12 +192,20 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               value={connectorId}
               onChange={(event) => setConnectorId(event.target.value)}
             >
-              {connectors.map((connector) => (
-                <option key={connector.id} value={connector.id}>
-                  {connector.title} ({connector.connector_key}) —{" "}
-                  {CONNECTOR_TYPE_LABELS[connector.connector_type]}
-                </option>
-              ))}
+              {connectors.map((connector) => {
+                const vendorId = readConnectorVendor(connector.connector_configuration);
+                const vendorLabel = vendorId
+                  ? getVendorLabel(connector.connector_type, vendorId)
+                  : null;
+                const label = vendorLabel
+                  ? `${connector.title} — ${vendorLabel}`
+                  : connector.title;
+                return (
+                  <option key={connector.id} value={connector.id}>
+                    {label} ({CONNECTOR_TYPE_LABELS[connector.connector_type]})
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="platform-page__field">

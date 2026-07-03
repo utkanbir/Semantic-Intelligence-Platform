@@ -50,7 +50,6 @@ interface CreateFormFields {
   vendor: string;
   connection_method: ConnectionMethod;
   connection: Record<string, string>;
-  connector_key: string;
   title: string;
   description: string;
   created_by: string;
@@ -73,13 +72,11 @@ function ConnectorCreateForm({
     vendor: initialVendor,
     connection_method: "existing_instance",
     connection: emptyConnectionValues(initialVendor),
-    connector_key: "",
     title: "",
     description: "",
     created_by: "",
   });
   const [titleError, setTitleError] = useState<string | null>(null);
-  const [keyError, setKeyError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -133,13 +130,6 @@ function ConnectorCreateForm({
     }
     setTitleError(null);
 
-    const trimmedKey = fields.connector_key.trim();
-    if (!trimmedKey) {
-      setKeyError("Connector key is required");
-      return;
-    }
-    setKeyError(null);
-
     if (!isProvision) {
       const missingRequired = connectionFields.find(
         (field) => field.required && !fields.connection[field.id]?.trim(),
@@ -163,7 +153,6 @@ function ConnectorCreateForm({
       const createdBy = fields.created_by.trim();
       const created = await createConnector({
         connector_type: fields.connector_type,
-        connector_key: trimmedKey,
         title: trimmedTitle,
         connector_configuration: buildConnectorConfiguration(
           fields.vendor,
@@ -307,26 +296,6 @@ function ConnectorCreateForm({
           the cluster after you create the connector.
         </div>
       )}
-
-      <div className="platform-page__field">
-        <label htmlFor="connector-key">Connector key</label>
-        <input
-          id="connector-key"
-          value={fields.connector_key}
-          onChange={(event) => {
-            setFields((current) => ({ ...current, connector_key: event.target.value }));
-            if (keyError) {
-              setKeyError(null);
-            }
-          }}
-          aria-invalid={keyError ? true : undefined}
-        />
-        {keyError && (
-          <p className="platform-page__field-error" role="alert">
-            {keyError}
-          </p>
-        )}
-      </div>
 
       <div className="platform-page__field">
         <label htmlFor="connector-title">Title</label>

@@ -31,7 +31,7 @@ class TechnologyAdapterResponse(BaseModel):
 
 class TechnologyAdapterCreateRequest(BaseModel):
     connector_type: ConnectorType
-    connector_key: str = Field(min_length=1, max_length=255)
+    connector_key: str | None = Field(default=None, max_length=255)
     title: str = Field(min_length=1, max_length=255)
     created_by: str | None = Field(default=None, max_length=255)
     description: str | None = None

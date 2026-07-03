@@ -74,7 +74,7 @@ export function listConnectors(options?: {
 
 export interface ConnectorCreateRequest {
   connector_type: ConnectorType;
-  connector_key: string;
+  connector_key?: string;
   title: string;
   created_by?: string;
   description?: string;
