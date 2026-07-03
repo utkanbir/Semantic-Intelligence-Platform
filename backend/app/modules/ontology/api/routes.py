@@ -8,7 +8,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.infrastructure.adapters.fuseki import FusekiImportError
+from app.infrastructure.adapters.knowledge_graph_resolver import (
+    UnsupportedKnowledgeGraphVendorError,
+    resolve_knowledge_graph_port,
+)
 from app.infrastructure.database import get_db
+from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.sqlalchemy_repository import (
     SqlAlchemyTechnologyAdapterRepository,
 )
@@ -34,14 +40,17 @@ from app.modules.ontology.repositories.sqlalchemy_repository import (
 from app.modules.ontology.services.ontology_service import (
     UNSET,
     ApplicationNotFoundError,
+    ApplicationWorkspaceNotFoundError,
     ConnectorNotFoundError,
     ImmutableOntologyDefinitionError,
     InvalidOntologyConnectorError,
     InvalidOntologyDefinitionStatusTransitionError,
     InvalidOntologyDefinitionVersionForkError,
+    OntologyArtifactPersistError,
     OntologyDefinitionNotFoundError,
     OntologyService,
 )
+from app.shared.ports.knowledge_graph import KnowledgeGraphPort
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
@@ -58,8 +67,8 @@ class SqlAlchemyOntologyTransactionRecorder:
         resource_id: str,
         application_id: UUID,
         steps: list[tuple[str, str | None]],
-    ) -> None:
-        self._repository.record_transaction_with_steps(
+    ) -> UUID:
+        return self._repository.record_transaction_with_steps(
             transaction_type=transaction_type,
             resource_type="OntologyDefinition",
             resource_id=resource_id,
@@ -68,12 +77,44 @@ class SqlAlchemyOntologyTransactionRecorder:
         )
 
 
+class _BoundaryKnowledgeGraphPort:
+    """Maps infrastructure import failures to ontology domain errors."""
+
+    def __init__(self, port: KnowledgeGraphPort) -> None:
+        self._port = port
+
+    def ping(self) -> dict[str, str]:
+        return self._port.ping()
+
+    def import_data(
+        self, *, dataset: str, content: str, content_type: str
+    ) -> dict[str, str]:
+        try:
+            return self._port.import_data(
+                dataset=dataset,
+                content=content,
+                content_type=content_type,
+            )
+        except FusekiImportError as error:
+            raise OntologyArtifactPersistError(str(error)) from error
+
+
+class _SqlAlchemyKnowledgeGraphPortResolver:
+    def resolve(self, connector: TechnologyAdapter) -> KnowledgeGraphPort:
+        try:
+            port = resolve_knowledge_graph_port(connector)
+        except UnsupportedKnowledgeGraphVendorError as error:
+            raise InvalidOntologyConnectorError(str(error)) from error
+        return _BoundaryKnowledgeGraphPort(port)
+
+
 def _get_service(db: Session) -> OntologyService:
     return OntologyService(
         SqlAlchemyOntologyDefinitionRepository(db),
         SqlAlchemyApplicationRepository(db),
         SqlAlchemyTechnologyAdapterRepository(db),
         SqlAlchemyOntologyTransactionRecorder(db),
+        _SqlAlchemyKnowledgeGraphPortResolver(),
     )
 
 
@@ -106,7 +147,7 @@ def import_ontology(
 ) -> OntologyDefinitionResponse:
     service = _get_service(db)
     try:
-        ontology = service.import_ontology(
+        ontology, semantic_transaction_id = service.import_ontology(
             application_id=payload.application_id,
             title=payload.title,
             connector_id=payload.connector_id,
@@ -117,6 +158,8 @@ def import_ontology(
         )
     except ApplicationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ApplicationWorkspaceNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except ConnectorNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except InvalidOntologyConnectorError as error:
@@ -124,7 +167,14 @@ def import_ontology(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
         ) from error
-    return to_ontology_definition_response(ontology)
+    except OntologyArtifactPersistError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
+    return to_ontology_definition_response(
+        ontology, semantic_transaction_id=semantic_transaction_id
+    )
 
 
 @router.get("", response_model=list[OntologyDefinitionResponse])
