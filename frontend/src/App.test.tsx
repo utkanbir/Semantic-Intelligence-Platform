@@ -55,6 +55,20 @@ describe("App", () => {
     });
   });
 
+  it("loads platform hub at /platform", async () => {
+    render(<App />);
+
+    fireEvent.click(
+      screen.getByRole("link", { name: /Connectors, governance, audit trace/i }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Platform" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View and provision connectors/i })).toHaveAttribute(
+      "href",
+      "/connectors",
+    );
+  });
+
   it("loads applications list at /applications", async () => {
     render(<App />);
 
