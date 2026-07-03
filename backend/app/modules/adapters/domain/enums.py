@@ -26,3 +26,18 @@ class TechnologyAdapterStatus(StrEnum):
     ACTIVE = "Active"
     DEPRECATED = "Deprecated"
     RETIRED = "Retired"
+
+
+class ConnectionMethod(StrEnum):
+    """How a connector reaches its backing technology."""
+
+    EXISTING_INSTANCE = "existing_instance"
+    PROVISION_IN_CLUSTER = "provision_in_cluster"
+
+
+class ProvisionStatus(StrEnum):
+    """In-cluster connector provisioning lifecycle."""
+
+    PROVISIONING = "provisioning"
+    PROVISIONED = "provisioned"
+    FAILED = "failed"

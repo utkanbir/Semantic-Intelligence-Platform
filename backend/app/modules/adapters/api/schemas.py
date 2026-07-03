@@ -53,6 +53,14 @@ class AdapterPingResponse(BaseModel):
     connector_type: str
 
 
+class ConnectorProvisionResponse(BaseModel):
+    connector_id: UUID
+    status: str
+    endpoint: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+
+
 def to_technology_adapter_response(
     adapter: TechnologyAdapter,
 ) -> TechnologyAdapterResponse:
