@@ -39,6 +39,11 @@ export const VENDORS_BY_CONNECTOR_TYPE: Record<ConnectorType, ConnectorVendor[]>
     { id: "neo4j", label: "Neo4j" },
     { id: "filesystem", label: "Filesystem store" },
   ],
+  vector_database: [
+    { id: "qdrant", label: "Qdrant" },
+    { id: "pgvector", label: "pgvector" },
+    { id: "weaviate", label: "Weaviate" },
+  ],
 };
 
 const DEFAULT_CONNECTION_FIELDS: ConnectionField[] = [
@@ -123,6 +128,23 @@ export const CONNECTION_FIELDS_BY_VENDOR: Record<string, ConnectionField[]> = {
   ],
   filesystem: [
     { id: "base_path", label: "Store path", placeholder: "/var/ontology", required: true },
+  ],
+  qdrant: [
+    ...DEFAULT_CONNECTION_FIELDS,
+    { id: "collection", label: "Collection", required: true },
+    { id: "api_key", label: "API key", inputType: "password" },
+  ],
+  pgvector: [
+    ...DEFAULT_CONNECTION_FIELDS,
+    { id: "database", label: "Database", required: true },
+    { id: "schema", label: "Schema", placeholder: "public" },
+    { id: "username", label: "Username" },
+    { id: "password", label: "Password", inputType: "password" },
+  ],
+  weaviate: [
+    { id: "endpoint", label: "Endpoint URL", placeholder: "http://weaviate:8080", required: true },
+    { id: "class_name", label: "Class name", required: true },
+    { id: "api_key", label: "API key", inputType: "password" },
   ],
 };
 

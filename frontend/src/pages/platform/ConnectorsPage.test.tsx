@@ -203,7 +203,9 @@ describe("ConnectorsPage", () => {
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Dev PostgreSQL" } });
     fireEvent.change(screen.getByLabelText("Host"), { target: { value: "localhost" } });
     fireEvent.change(document.getElementById("connection-port")!, { target: { value: "5432" } });
-    fireEvent.change(screen.getByLabelText("Database"), { target: { value: "sip_db" } });
+    fireEvent.change(document.getElementById("connection-database")!, {
+      target: { value: "sip_db" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create connector" }));
 
     await waitFor(() => {
@@ -255,9 +257,7 @@ describe("ConnectorsPage", () => {
       expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Connector type"), {
-      target: { value: "object_storage" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Object storage" }));
     fireEvent.click(screen.getByLabelText("Provision in cluster"));
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Cluster MinIO" } });
     fireEvent.click(screen.getByRole("button", { name: "Create connector" }));
@@ -300,17 +300,34 @@ describe("ConnectorsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "New connector" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Connector vendor")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "PostgreSQL", pressed: true })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("option", { name: "PostgreSQL" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ontology / knowledge graph" }));
 
-    fireEvent.change(screen.getByLabelText("Connector type"), {
-      target: { value: "ontology_knowledge_graph" },
-    });
-
-    expect(screen.getByRole("option", { name: "Apache Jena Fuseki" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apache Jena Fuseki", pressed: true })).toBeInTheDocument();
     expect(screen.getByLabelText("SPARQL endpoint URL")).toBeInTheDocument();
+  });
+
+  it("selects vector database type and vendor via icon tiles", async () => {
+    vi.mocked(listConnectors).mockResolvedValue([]);
+
+    render(<ConnectorsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Vector database" }));
+    expect(screen.getByRole("button", { name: "Vector database", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Qdrant", pressed: true })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Weaviate" }));
+    expect(screen.getByRole("button", { name: "Weaviate", pressed: true })).toBeInTheDocument();
+    expect(screen.getByLabelText("Endpoint URL")).toBeInTheDocument();
+    expect(screen.getByLabelText("Class name")).toBeInTheDocument();
   });
 
   it("configures registered connector via lifecycle action", async () => {

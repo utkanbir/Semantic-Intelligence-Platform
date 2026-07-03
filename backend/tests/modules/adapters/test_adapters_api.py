@@ -188,6 +188,38 @@ def test_create_adapter_auto_key_collision_appends_suffix(client: TestClient) ->
     assert second.json()["connector_key"] == "dev-postgresql-2"
 
 
+def test_create_vector_database_connector_and_ping(client: TestClient) -> None:
+    create = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "vector_database",
+            "connector_key": f"dev-vector-{uuid4()}",
+            "title": "Dev Vector Store",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "qdrant",
+                "connection_method": "existing_instance",
+                "connection": {"host": "qdrant.local", "port": "6333", "collection": "embeddings"},
+            },
+        },
+    )
+    assert create.status_code == 201
+    body = create.json()
+    assert body["connector_type"] == "vector_database"
+    adapter_id = body["id"]
+
+    for next_status in ("Configured", "Active"):
+        patch = client.patch(
+            f"/api/v1/connectors/{adapter_id}/status",
+            json={"status": next_status},
+        )
+        assert patch.status_code == 200
+
+    ping = client.post(f"/api/v1/connectors/{adapter_id}/ping")
+    assert ping.status_code == 200
+    assert ping.json() == {"status": "ok", "connector_type": "vector_database"}
+
+
 def test_create_adapter_accepts_explicit_connector_key(client: TestClient) -> None:
     explicit_key = f"custom-key-{uuid4()}"
     response = client.post(

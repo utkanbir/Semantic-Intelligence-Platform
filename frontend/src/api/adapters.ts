@@ -4,7 +4,8 @@ export type ConnectorType =
   | "database"
   | "object_storage"
   | "file_system"
-  | "ontology_knowledge_graph";
+  | "ontology_knowledge_graph"
+  | "vector_database";
 
 export type ConnectorStatus =
   | "Registered"
@@ -48,6 +49,7 @@ export const CONNECTOR_TYPES: ConnectorType[] = [
   "object_storage",
   "file_system",
   "ontology_knowledge_graph",
+  "vector_database",
 ];
 
 export const CONNECTOR_TYPE_LABELS: Record<ConnectorType, string> = {
@@ -55,6 +57,7 @@ export const CONNECTOR_TYPE_LABELS: Record<ConnectorType, string> = {
   object_storage: "Object storage",
   file_system: "File system",
   ontology_knowledge_graph: "Ontology / knowledge graph",
+  vector_database: "Vector database",
 };
 
 export function listConnectors(options?: {

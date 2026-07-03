@@ -12,6 +12,7 @@ class ConnectorType(StrEnum):
     OBJECT_STORAGE = "object_storage"
     FILE_SYSTEM = "file_system"
     ONTOLOGY_KNOWLEDGE_GRAPH = "ontology_knowledge_graph"
+    VECTOR_DATABASE = "vector_database"
 
 
 # Backward-compatible alias for internal imports during transition.

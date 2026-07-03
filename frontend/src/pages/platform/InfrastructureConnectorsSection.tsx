@@ -2,7 +2,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../../api";
 import {
   CONNECTOR_TYPE_LABELS,
-  CONNECTOR_TYPES,
   createConnector,
   getConnectorStatusActionLabel,
   getNextConnectorStatuses,
@@ -16,13 +15,14 @@ import {
   type ConnectorStatus,
   type ConnectorType,
 } from "../../api/adapters";
+import { ConnectorTypePicker } from "../../connectors/ConnectorTypePicker";
+import { ConnectorVendorPicker } from "../../connectors/ConnectorVendorPicker";
 import {
   buildConnectorConfiguration,
   getConnectionFields,
   getDefaultVendor,
   getVendorLabel,
   readConnectorVendor,
-  VENDORS_BY_CONNECTOR_TYPE,
   type ConnectionMethod,
 } from "../../connectors/catalog";
 
@@ -81,7 +81,6 @@ function ConnectorCreateForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const vendors = VENDORS_BY_CONNECTOR_TYPE[fields.connector_type];
   const connectionFields = useMemo(
     () => getConnectionFields(fields.vendor),
     [fields.vendor],
@@ -187,39 +186,18 @@ function ConnectorCreateForm({
       onSubmit={(event) => void handleSubmit(event)}
       aria-label="Create connector"
     >
-      <div className="platform-page__field">
-        <label htmlFor="connector-type">Connector type</label>
-        <select
-          id="connector-type"
-          value={fields.connector_type}
-          onChange={(event) =>
-            handleConnectorTypeChange(event.target.value as ConnectorType)
-          }
-          disabled={submitting}
-        >
-          {CONNECTOR_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {CONNECTOR_TYPE_LABELS[type]}
-            </option>
-          ))}
-        </select>
-      </div>
+      <ConnectorTypePicker
+        value={fields.connector_type}
+        onChange={handleConnectorTypeChange}
+        disabled={submitting}
+      />
 
-      <div className="platform-page__field">
-        <label htmlFor="connector-vendor">Connector vendor</label>
-        <select
-          id="connector-vendor"
-          value={fields.vendor}
-          onChange={(event) => handleVendorChange(event.target.value)}
-          disabled={submitting}
-        >
-          {vendors.map((vendor) => (
-            <option key={vendor.id} value={vendor.id}>
-              {vendor.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <ConnectorVendorPicker
+        connectorType={fields.connector_type}
+        value={fields.vendor}
+        onChange={handleVendorChange}
+        disabled={submitting}
+      />
 
       <fieldset className="platform-page__fieldset">
         <legend>Connection method</legend>
