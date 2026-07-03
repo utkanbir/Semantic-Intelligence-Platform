@@ -6,6 +6,8 @@ resources:
   - backend
   - frontend
   - postgres
+  - minio
+  - fuseki
   - ingress
 
 labels:

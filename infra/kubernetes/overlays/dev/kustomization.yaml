@@ -6,6 +6,8 @@ namespace: sip-dev
 resources:
   - ../../base
 
+# S28-01: MinIO (sip-minio) and Fuseki (sip-fuseki) connector stacks included via base kustomization.
+
 labels:
   - pairs:
       environment: dev

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sip-fuseki
+spec:
+  selector:
+    app.kubernetes.io/name: sip-fuseki
+  ports:
+    - name: http
+      port: 3030
+      targetPort: http
