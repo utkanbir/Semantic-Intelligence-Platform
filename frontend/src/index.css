@@ -590,6 +590,76 @@ body {
   color: #4a4a68;
 }
 
+.semantic-transaction-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 2px solid #e8ebf0;
+}
+
+.semantic-transaction-timeline__item {
+  position: relative;
+  padding: 0 0 1.25rem 1.25rem;
+}
+
+.semantic-transaction-timeline__item::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 0.35rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6366f1;
+}
+
+.semantic-transaction-timeline__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.semantic-transaction-timeline__step-number {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.semantic-transaction-timeline__type {
+  font-weight: 600;
+}
+
+.semantic-transaction-timeline__time {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.semantic-transaction-timeline__message {
+  margin: 0;
+  color: #4a4a68;
+  font-size: 0.875rem;
+}
+
+.semantic-transaction-timeline__empty {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.agent-runs-table__link {
+  color: #6366f1;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.agent-runs-table__link:hover {
+  text-decoration: underline;
+}
+
 .platform-table {
   width: 100%;
   border-collapse: collapse;

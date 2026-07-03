@@ -60,7 +60,7 @@ describe("PlatformShell", () => {
       "href",
       "/governance",
     );
-    expect(screen.getByRole("link", { name: "Audit Trace" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Semantic Transactions" })).toHaveAttribute(
       "href",
       "/audit-trace",
     );

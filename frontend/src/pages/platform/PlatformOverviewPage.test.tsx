@@ -12,7 +12,7 @@ describe("PlatformOverviewPage", () => {
     );
 
     const platformLink = screen.getByRole("link", {
-      name: /Connectors, governance, audit trace/i,
+      name: /Connectors, governance, semantic transactions/i,
     });
     expect(platformLink).toHaveAttribute("href", "/platform");
 

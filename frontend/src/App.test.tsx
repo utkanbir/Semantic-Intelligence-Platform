@@ -59,7 +59,7 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(
-      screen.getByRole("link", { name: /Connectors, governance, audit trace/i }),
+      screen.getByRole("link", { name: /Connectors, governance, semantic transactions/i }),
     );
 
     expect(screen.getByRole("heading", { name: "Platform" })).toBeInTheDocument();

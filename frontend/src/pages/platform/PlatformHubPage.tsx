@@ -15,9 +15,9 @@ const PLATFORM_SECTIONS = [
   },
   {
     to: "/audit-trace",
-    label: "Audit Trace",
+    label: "Semantic Transactions",
     description: "Review semantic transactions and trace steps across platform activity.",
-    hint: "Search audit trace",
+    hint: "Search semantic transactions",
   },
 ] as const;
 
@@ -27,7 +27,7 @@ export function PlatformHubPage() {
       <h1 id="platform-hub-heading">Platform</h1>
       <p className="platform-page__lead">
         Cross-cutting framework capabilities shared across all applications—connectors,
-        governance, and audit trace.
+        governance, and semantic transactions.
       </p>
       <div className="platform-page__summary">
         {PLATFORM_SECTIONS.map((section) => (

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { PlatformHubPage } from "./PlatformHubPage";
 
 describe("PlatformHubPage", () => {
-  it("renders navigable tiles for Connectors, Governance, and Audit Trace", () => {
+  it("renders navigable tiles for Connectors, Governance, and Semantic Transactions", () => {
     render(
       <MemoryRouter>
         <PlatformHubPage />
@@ -21,7 +21,7 @@ describe("PlatformHubPage", () => {
       "href",
       "/governance",
     );
-    expect(screen.getByRole("link", { name: /Search audit trace/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Search semantic transactions/i })).toHaveAttribute(
       "href",
       "/audit-trace",
     );
