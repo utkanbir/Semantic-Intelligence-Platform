@@ -35,6 +35,14 @@ export interface ConnectorPingResponse {
   connector_type: string;
 }
 
+export interface ConnectorProvisionResponse {
+  connector_id: string;
+  status: string;
+  endpoint: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 export const CONNECTOR_TYPES: ConnectorType[] = [
   "database",
   "object_storage",
@@ -122,6 +130,14 @@ export function canPingConnector(connector: ConnectorResponse): boolean {
 
 export function pingConnector(connectorId: string): Promise<ConnectorPingResponse> {
   return apiFetch<ConnectorPingResponse>(`/connectors/${connectorId}/ping`, {
+    method: "POST",
+  });
+}
+
+export function provisionConnector(
+  connectorId: string,
+): Promise<ConnectorProvisionResponse> {
+  return apiFetch<ConnectorProvisionResponse>(`/connectors/${connectorId}/provision`, {
     method: "POST",
   });
 }

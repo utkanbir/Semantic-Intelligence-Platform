@@ -5,6 +5,7 @@ import {
   createConnector,
   listConnectors,
   pingConnector,
+  provisionConnector,
   updateConnectorStatus,
   type ConnectorResponse,
 } from "../../api/adapters";
@@ -16,6 +17,7 @@ vi.mock("../../api/adapters", async (importOriginal) => {
     ...actual,
     listConnectors: vi.fn(),
     createConnector: vi.fn(),
+    provisionConnector: vi.fn(),
     updateConnectorStatus: vi.fn(),
     pingConnector: vi.fn(),
     canPingConnector: vi.fn((connector: { status: string }) => connector.status === "Active"),
@@ -87,10 +89,25 @@ const newConnector: ConnectorResponse = {
   },
 };
 
+const provisionedConnector: ConnectorResponse = {
+  ...registeredConnector,
+  id: "connector-prov-1",
+  title: "Cluster MinIO",
+  connector_key: "cluster-minio",
+  connector_type: "object_storage",
+  connector_configuration: {
+    schema_version: "2",
+    vendor: "minio",
+    connection_method: "provision_in_cluster",
+    connection: {},
+  },
+};
+
 describe("ConnectorsPage", () => {
   beforeEach(() => {
     vi.mocked(listConnectors).mockReset();
     vi.mocked(createConnector).mockReset();
+    vi.mocked(provisionConnector).mockReset();
     vi.mocked(updateConnectorStatus).mockReset();
     vi.mocked(pingConnector).mockReset();
   });
@@ -171,6 +188,60 @@ describe("ConnectorsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Dev PostgreSQL")).toBeInTheDocument();
     });
+  });
+
+  it("creates and provisions connector in cluster", async () => {
+    vi.mocked(listConnectors)
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([provisionedConnector]);
+    vi.mocked(createConnector).mockResolvedValue(provisionedConnector);
+    vi.mocked(provisionConnector).mockResolvedValue({
+      connector_id: "connector-prov-1",
+      status: "provisioned",
+      endpoint: "http://minio.sip-dev.svc:9000",
+      started_at: "2025-06-01T10:00:00Z",
+      completed_at: "2025-06-01T10:00:05Z",
+    });
+
+    render(<ConnectorsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Connector type"), {
+      target: { value: "object_storage" },
+    });
+    fireEvent.click(screen.getByLabelText("Provision in cluster"));
+    fireEvent.change(screen.getByLabelText("Connector key"), { target: { value: "cluster-minio" } });
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Cluster MinIO" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create connector" }));
+
+    await waitFor(() => {
+      expect(createConnector).toHaveBeenCalledWith({
+        connector_type: "object_storage",
+        connector_key: "cluster-minio",
+        title: "Cluster MinIO",
+        connector_configuration: {
+          schema_version: "2",
+          vendor: "minio",
+          connection_method: "provision_in_cluster",
+          connection: {},
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(provisionConnector).toHaveBeenCalledWith("connector-prov-1");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Connector provisioned/)).toBeInTheDocument();
+      expect(screen.getByText("provisioned")).toBeInTheDocument();
+      expect(screen.getByText("http://minio.sip-dev.svc:9000")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText("Host")).not.toBeInTheDocument();
   });
 
   it("updates vendor options when connector type changes", async () => {
