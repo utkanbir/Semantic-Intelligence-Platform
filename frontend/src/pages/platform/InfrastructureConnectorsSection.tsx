@@ -8,8 +8,10 @@ import {
   getNextConnectorStatuses,
   listConnectors,
   pingConnector,
+  provisionConnector,
   updateConnectorStatus,
   canPingConnector,
+  type ConnectorProvisionResponse,
   type ConnectorResponse,
   type ConnectorStatus,
   type ConnectorType,
@@ -62,7 +64,7 @@ function ConnectorCreateForm({
   onCreated,
   onCancel,
 }: {
-  onCreated: () => void;
+  onCreated: (provisionResult?: ConnectorProvisionResponse) => void;
   onCancel?: () => void;
 }) {
   const initialVendor = getDefaultVendor("database");
@@ -122,10 +124,7 @@ function ConnectorCreateForm({
     event.preventDefault();
     setSubmitError(null);
 
-    if (fields.connection_method === "provision_in_cluster") {
-      setSubmitError("Provisioned in cluster is not available yet. Choose an existing instance.");
-      return;
-    }
+    const isProvision = fields.connection_method === "provision_in_cluster";
 
     const trimmedTitle = fields.title.trim();
     if (!trimmedTitle) {
@@ -141,24 +140,28 @@ function ConnectorCreateForm({
     }
     setKeyError(null);
 
-    const missingRequired = connectionFields.find(
-      (field) => field.required && !fields.connection[field.id]?.trim(),
-    );
-    if (missingRequired) {
-      setConnectionError(`${missingRequired.label} is required`);
-      return;
+    if (!isProvision) {
+      const missingRequired = connectionFields.find(
+        (field) => field.required && !fields.connection[field.id]?.trim(),
+      );
+      if (missingRequired) {
+        setConnectionError(`${missingRequired.label} is required`);
+        return;
+      }
+      setConnectionError(null);
     }
-    setConnectionError(null);
 
-    const trimmedConnection = Object.fromEntries(
-      Object.entries(fields.connection).map(([key, value]) => [key, value.trim()]),
-    );
+    const trimmedConnection = isProvision
+      ? {}
+      : Object.fromEntries(
+          Object.entries(fields.connection).map(([key, value]) => [key, value.trim()]),
+        );
 
     setSubmitting(true);
     try {
       const description = fields.description.trim();
       const createdBy = fields.created_by.trim();
-      await createConnector({
+      const created = await createConnector({
         connector_type: fields.connector_type,
         connector_key: trimmedKey,
         title: trimmedTitle,
@@ -170,7 +173,12 @@ function ConnectorCreateForm({
         ...(description ? { description } : {}),
         ...(createdBy ? { created_by: createdBy } : {}),
       });
-      onCreated();
+      if (isProvision) {
+        const provisionResult = await provisionConnector(created.id);
+        onCreated(provisionResult);
+      } else {
+        onCreated();
+      }
     } catch (error: unknown) {
       const message =
         error instanceof ApiError
@@ -244,7 +252,7 @@ function ConnectorCreateForm({
             />
             Connect to existing instance
           </label>
-          <label htmlFor="connection-method-provision" className="platform-page__radio--disabled">
+          <label htmlFor="connection-method-provision">
             <input
               id="connection-method-provision"
               type="radio"
@@ -257,9 +265,9 @@ function ConnectorCreateForm({
                   connection_method: "provision_in_cluster",
                 }))
               }
-              disabled
+              disabled={submitting}
             />
-            Provision in cluster <span className="platform-page__optional">(coming soon)</span>
+            Provision in cluster
           </label>
         </div>
       </fieldset>
@@ -295,7 +303,8 @@ function ConnectorCreateForm({
 
       {fields.connection_method === "provision_in_cluster" && (
         <div className="platform-page__hint" role="status">
-          Kubernetes provisioning will be available in a future sprint.
+          A {getVendorLabel(fields.connector_type, fields.vendor)} instance will be provisioned in
+          the cluster after you create the connector.
         </div>
       )}
 
@@ -381,9 +390,13 @@ function ConnectorCreateForm({
         <button
           type="submit"
           className="platform-page__button platform-page__button--primary"
-          disabled={submitting || fields.connection_method === "provision_in_cluster"}
+          disabled={submitting}
         >
-          {submitting ? "Creating…" : "Create connector"}
+          {submitting
+            ? fields.connection_method === "provision_in_cluster"
+              ? "Provisioning…"
+              : "Creating…"
+            : "Create connector"}
         </button>
       </div>
     </form>
@@ -394,6 +407,9 @@ export function ConnectorsSection() {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [provisionSuccess, setProvisionSuccess] = useState<ConnectorProvisionResponse | null>(
+    null,
+  );
   const [pingResults, setPingResults] = useState<Record<string, string>>({});
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -445,8 +461,9 @@ export function ConnectorsSection() {
     };
   }, []);
 
-  function handleCreated() {
+  function handleCreated(provisionResult?: ConnectorProvisionResponse) {
     setShowCreateForm(false);
+    setProvisionSuccess(provisionResult ?? null);
     void loadConnectors({ silent: true });
   }
 
@@ -511,6 +528,18 @@ export function ConnectorsSection() {
       {actionError && (
         <div className="platform-page__error platform-page__action-error" role="alert">
           {actionError}
+        </div>
+      )}
+
+      {provisionSuccess && (
+        <div className="platform-page__hint" role="status" aria-live="polite">
+          Connector provisioned — status: <strong>{provisionSuccess.status}</strong>
+          {provisionSuccess.endpoint && (
+            <>
+              {" "}
+              · endpoint: <code className="platform-table__code">{provisionSuccess.endpoint}</code>
+            </>
+          )}
         </div>
       )}
 

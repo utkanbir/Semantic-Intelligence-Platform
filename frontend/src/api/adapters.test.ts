@@ -4,6 +4,7 @@ import {
   createConnector,
   getNextConnectorStatuses,
   pingConnector,
+  provisionConnector,
   updateConnectorStatus,
   type ConnectorResponse,
 } from "./adapters";
@@ -111,6 +112,29 @@ describe("connectors API", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/connectors/connector-1/ping",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("provisionConnector POSTs to provision endpoint", async () => {
+    const provisionResult = {
+      connector_id: "connector-1",
+      status: "provisioned",
+      endpoint: "http://minio.sip-dev.svc:9000",
+      started_at: "2025-06-01T10:00:00Z",
+      completed_at: "2025-06-01T10:00:05Z",
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(provisionResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(provisionConnector("connector-1")).resolves.toEqual(provisionResult);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/connectors/connector-1/provision",
       expect.objectContaining({ method: "POST" }),
     );
   });
