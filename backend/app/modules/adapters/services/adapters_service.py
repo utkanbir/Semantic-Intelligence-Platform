@@ -14,6 +14,7 @@ from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.ports.interfaces import TraceRecorder
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.adapters.services.adapter_stubs import AdapterFactory
+from app.modules.adapters.services.connector_key import resolve_unique_connector_key
 from app.modules.adapters.services.connector_provision import (
     build_provision_block,
     is_idempotent_provision_status,
@@ -101,25 +102,32 @@ class AdaptersService:
         self,
         *,
         technology_type: ConnectorType,
-        adapter_key: str,
+        adapter_key: str | None = None,
         title: str,
         created_by: str | None = None,
         description: str | None = None,
         adapter_configuration: dict[str, Any] | None = None,
     ) -> TechnologyAdapter:
-        if self._repository.get_by_key(adapter_key) is not None:
-            raise DuplicateAdapterKeyError("Adapter key already exists")
-
         now = datetime.now(UTC)
         config = (
             dict(DEFAULT_ADAPTER_CONFIGURATION)
             if adapter_configuration is None
             else adapter_configuration
         )
+
+        resolved_key = (adapter_key or "").strip()
+        if not resolved_key:
+            resolved_key = resolve_unique_connector_key(
+                title=title,
+                adapter_configuration=config,
+                key_exists=lambda key: self._repository.get_by_key(key) is not None,
+            )
+        elif self._repository.get_by_key(resolved_key) is not None:
+            raise DuplicateAdapterKeyError("Adapter key already exists")
         adapter = TechnologyAdapter(
             id=uuid4(),
             technology_type=technology_type,
-            adapter_key=adapter_key,
+            adapter_key=resolved_key,
             status=TechnologyAdapterStatus.REGISTERED,
             title=title,
             description=description,

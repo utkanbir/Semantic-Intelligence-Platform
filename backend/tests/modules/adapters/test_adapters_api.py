@@ -142,3 +142,66 @@ def test_duplicate_adapter_key_returns_422(client: TestClient) -> None:
         },
     )
     assert second.status_code == 422
+
+
+def test_create_adapter_auto_generates_connector_key(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "database",
+            "title": "Dev PostgreSQL",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "postgresql",
+                "connection_method": "existing_instance",
+                "connection": {},
+            },
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["connector_key"] == "dev-postgresql"
+
+
+def test_create_adapter_auto_key_collision_appends_suffix(client: TestClient) -> None:
+    first = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "database",
+            "connector_key": "dev-postgresql",
+            "title": "Existing",
+        },
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "database",
+            "title": "Dev PostgreSQL",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "postgresql",
+            },
+        },
+    )
+    assert second.status_code == 201
+    assert second.json()["connector_key"] == "dev-postgresql-2"
+
+
+def test_create_adapter_accepts_explicit_connector_key(client: TestClient) -> None:
+    explicit_key = f"custom-key-{uuid4()}"
+    response = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "database",
+            "connector_key": explicit_key,
+            "title": "Dev PostgreSQL",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "postgresql",
+            },
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["connector_key"] == explicit_key
+

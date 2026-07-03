@@ -200,7 +200,6 @@ describe("ConnectorsPage", () => {
       expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Connector key"), { target: { value: "dev-pg" } });
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Dev PostgreSQL" } });
     fireEvent.change(screen.getByLabelText("Host"), { target: { value: "localhost" } });
     fireEvent.change(document.getElementById("connection-port")!, { target: { value: "5432" } });
@@ -210,7 +209,6 @@ describe("ConnectorsPage", () => {
     await waitFor(() => {
       expect(createConnector).toHaveBeenCalledWith({
         connector_type: "database",
-        connector_key: "dev-pg",
         title: "Dev PostgreSQL",
         connector_configuration: {
           schema_version: "2",
@@ -261,14 +259,12 @@ describe("ConnectorsPage", () => {
       target: { value: "object_storage" },
     });
     fireEvent.click(screen.getByLabelText("Provision in cluster"));
-    fireEvent.change(screen.getByLabelText("Connector key"), { target: { value: "cluster-minio" } });
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Cluster MinIO" } });
     fireEvent.click(screen.getByRole("button", { name: "Create connector" }));
 
     await waitFor(() => {
       expect(createConnector).toHaveBeenCalledWith({
         connector_type: "object_storage",
-        connector_key: "cluster-minio",
         title: "Cluster MinIO",
         connector_configuration: {
           schema_version: "2",

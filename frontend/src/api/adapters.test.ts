@@ -60,10 +60,36 @@ describe("connectors API", () => {
     await expect(
       createConnector({
         connector_type: "ontology_knowledge_graph",
-        connector_key: "ontology-dev",
         title: "Ontology Store",
       }),
     ).resolves.toEqual(created);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/connectors",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          connector_type: "ontology_knowledge_graph",
+          title: "Ontology Store",
+        }),
+      }),
+    );
+  });
+
+  it("createConnector accepts optional connector_key", async () => {
+    const created = { ...mockConnector, status: "Registered" as const };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(created), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await createConnector({
+      connector_type: "ontology_knowledge_graph",
+      connector_key: "ontology-dev",
+      title: "Ontology Store",
+    });
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/connectors",
