@@ -2,10 +2,10 @@ import { NavLink } from "react-router-dom";
 
 const SUMMARY_CARDS = [
   {
-    to: "/adapters",
+    to: "/platform",
     label: "Platform",
     description: "Cross-cutting framework capabilities shared across all applications.",
-    hint: "Adapters, governance, audit trace",
+    hint: "Connectors, governance, audit trace",
   },
   {
     to: "/applications",
@@ -20,7 +20,7 @@ export function PlatformOverviewPage() {
     <section className="platform-page">
       <h1>Platform overview</h1>
       <p className="platform-page__lead">
-        Manage platform-wide framework services—adapters, governance, and audit
+        Manage platform-wide framework services—connectors, governance, and audit
         trace—or switch to Applications to work inside an application workspace.
       </p>
       <div className="platform-page__summary">

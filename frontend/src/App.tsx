@@ -9,6 +9,7 @@ import {
   SemanticConnectorsPageRedirect,
 } from "./pages/platform/ConnectorsPage";
 import { GovernancePage } from "./pages/platform/GovernancePage";
+import { PlatformHubPage } from "./pages/platform/PlatformHubPage";
 import { PlatformOverviewPage } from "./pages/platform/PlatformOverviewPage";
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
       <PlatformShell>
         <Routes>
           <Route path="/" element={<PlatformOverviewPage />} />
+          <Route path="/platform" element={<PlatformHubPage />} />
           <Route path="/connectors" element={<ConnectorsPage />} />
           <Route path="/adapters" element={<AdaptersPageRedirect />} />
           <Route path="/semantic-connectors" element={<SemanticConnectorsPageRedirect />} />

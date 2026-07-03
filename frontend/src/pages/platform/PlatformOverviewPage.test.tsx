@@ -11,8 +11,10 @@ describe("PlatformOverviewPage", () => {
       </MemoryRouter>,
     );
 
-    const platformLink = screen.getByRole("link", { name: /Adapters, governance, audit trace/i });
-    expect(platformLink).toHaveAttribute("href", "/adapters");
+    const platformLink = screen.getByRole("link", {
+      name: /Connectors, governance, audit trace/i,
+    });
+    expect(platformLink).toHaveAttribute("href", "/platform");
 
     const applicationsLink = screen.getByRole("link", { name: /Open application list/i });
     expect(applicationsLink).toHaveAttribute("href", "/applications");
