@@ -38,6 +38,8 @@ The dev overlay (`infra/kubernetes/overlays/dev`) sets `namespace: sip-dev`. Wor
 - `sip-backend` — FastAPI (Deployment + Service)
 - `sip-console` — Platform Console / React (Deployment + Service + Ingress `console.sip.local`)
 - `sip-postgres` — PostgreSQL (StatefulSet + PVC)
+- `sip-minio` — MinIO object storage (StatefulSet + PVC)
+- `sip-fuseki` — Apache Jena Fuseki (Deployment)
 - `sip-api` — Ingress for `api.sip.local`
 
 Render manifests (CI also validates this):
@@ -180,6 +182,43 @@ alembic downgrade -1   # verify rollback
 
 Replace credentials to match `infra/kubernetes/base/postgres/secret.template.yaml`.
 
+### Connector vendor stacks (S28-01)
+
+MinIO and Fuseki deploy with the dev overlay for in-cluster connector provisioning (`provision_in_cluster`).
+
+In-cluster Service DNS:
+
+```text
+sip-minio.sip-dev.svc.cluster.local:9000    # S3 API
+sip-minio.sip-dev.svc.cluster.local:9001    # MinIO console
+sip-fuseki.sip-dev.svc.cluster.local:3030   # SPARQL / admin UI
+```
+
+Example connector connection values (Platform → Connectors):
+
+| Vendor | Field | In-cluster value |
+|--------|-------|------------------|
+| MinIO | Endpoint URL | `http://sip-minio.sip-dev.svc.cluster.local:9000` |
+| Apache Jena Fuseki | SPARQL endpoint URL | `http://sip-fuseki.sip-dev.svc.cluster.local:3030/ds` |
+
+Credentials match `infra/kubernetes/base/minio/secret.template.yaml` and `infra/kubernetes/base/fuseki/secret.template.yaml` (default template passwords — replace for shared clusters).
+
+Port-forward for local testing:
+
+```bash
+kubectl -n sip-dev port-forward svc/sip-minio 9000:9000 9001:9001
+kubectl -n sip-dev port-forward svc/sip-fuseki 3030:3030
+```
+
+Verify workloads:
+
+```bash
+kubectl -n sip-dev rollout status statefulset/sip-minio
+kubectl -n sip-dev rollout status deployment/sip-fuseki
+curl http://127.0.0.1:9000/minio/health/live   # after minio port-forward
+curl http://127.0.0.1:3030/$/ping              # after fuseki port-forward
+```
+
 ### Sprint-close DB verification
 
 After `alembic upgrade head` on the cluster, PMO must confirm schema parity:
@@ -203,7 +242,7 @@ infra/
 └── README.md          # This guide
 ```
 
-Placeholder workloads under `base/` (not yet deployed): `minio/`, `qdrant/`, `fuseki/`, `openmetadata/`.
+Placeholder workloads under `base/` (not yet deployed): `qdrant/`, `openmetadata/`.
 
 ---
 
