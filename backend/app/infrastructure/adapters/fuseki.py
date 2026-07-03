@@ -9,25 +9,9 @@ from urllib.request import Request, urlopen
 
 from app.modules.adapters.services.connector_provision import read_provision_block
 
-RDF_CONTENT_TYPES: dict[str, str] = {
-    "ttl": "text/turtle",
-    "turtle": "text/turtle",
-    "rdf": "application/rdf+xml",
-    "xml": "application/rdf+xml",
-    "nt": "application/n-triples",
-    "ntriples": "application/n-triples",
-    "jsonld": "application/ld+json",
-    "json-ld": "application/ld+json",
-}
-
 
 class FusekiImportError(Exception):
     """Raised when Fuseki RDF import fails."""
-
-
-def resolve_rdf_content_type(source_format: str) -> str:
-    normalized = source_format.lstrip(".").lower()
-    return RDF_CONTENT_TYPES.get(normalized, "text/turtle")
 
 
 def read_fuseki_endpoint(configuration: dict[str, Any]) -> str:

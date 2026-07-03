@@ -8,7 +8,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.infrastructure.adapters.fuseki import FusekiImportError
+from app.infrastructure.adapters.knowledge_graph_resolver import (
+    UnsupportedKnowledgeGraphVendorError,
+    resolve_knowledge_graph_port,
+)
 from app.infrastructure.database import get_db
+from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.sqlalchemy_repository import (
     SqlAlchemyTechnologyAdapterRepository,
 )
@@ -44,6 +50,7 @@ from app.modules.ontology.services.ontology_service import (
     OntologyDefinitionNotFoundError,
     OntologyService,
 )
+from app.shared.ports.knowledge_graph import KnowledgeGraphPort
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
@@ -70,12 +77,44 @@ class SqlAlchemyOntologyTransactionRecorder:
         )
 
 
+class _BoundaryKnowledgeGraphPort:
+    """Maps infrastructure import failures to ontology domain errors."""
+
+    def __init__(self, port: KnowledgeGraphPort) -> None:
+        self._port = port
+
+    def ping(self) -> dict[str, str]:
+        return self._port.ping()
+
+    def import_data(
+        self, *, dataset: str, content: str, content_type: str
+    ) -> dict[str, str]:
+        try:
+            return self._port.import_data(
+                dataset=dataset,
+                content=content,
+                content_type=content_type,
+            )
+        except FusekiImportError as error:
+            raise OntologyArtifactPersistError(str(error)) from error
+
+
+class _SqlAlchemyKnowledgeGraphPortResolver:
+    def resolve(self, connector: TechnologyAdapter) -> KnowledgeGraphPort:
+        try:
+            port = resolve_knowledge_graph_port(connector)
+        except UnsupportedKnowledgeGraphVendorError as error:
+            raise InvalidOntologyConnectorError(str(error)) from error
+        return _BoundaryKnowledgeGraphPort(port)
+
+
 def _get_service(db: Session) -> OntologyService:
     return OntologyService(
         SqlAlchemyOntologyDefinitionRepository(db),
         SqlAlchemyApplicationRepository(db),
         SqlAlchemyTechnologyAdapterRepository(db),
         SqlAlchemyOntologyTransactionRecorder(db),
+        _SqlAlchemyKnowledgeGraphPortResolver(),
     )
 
 

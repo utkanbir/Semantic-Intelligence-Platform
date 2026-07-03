@@ -10,13 +10,7 @@ import pytest
 from app.infrastructure.adapters.fuseki import (
     FusekiImportError,
     FusekiKnowledgeGraphAdapter,
-    resolve_rdf_content_type,
 )
-
-
-def test_resolve_rdf_content_type_maps_turtle() -> None:
-    assert resolve_rdf_content_type("ttl") == "text/turtle"
-    assert resolve_rdf_content_type(".turtle") == "text/turtle"
 
 
 def test_fuseki_import_data_posts_rdf_to_dataset_endpoint() -> None:

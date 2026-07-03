@@ -6,18 +6,19 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from app.infrastructure.adapters.fuseki import FusekiImportError, resolve_rdf_content_type
-from app.infrastructure.adapters.knowledge_graph_resolver import (
-    UnsupportedKnowledgeGraphVendorError,
-    resolve_knowledge_graph_port,
-)
 from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
+from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.domain.models import OntologyDefinition
-from app.modules.ontology.ports.interfaces import OntologyTransactionRecorder
+from app.modules.ontology.ports.interfaces import (
+    KnowledgeGraphPortResolver,
+    OntologyTransactionRecorder,
+)
 from app.modules.ontology.repositories.interfaces import OntologyDefinitionRepository
+from app.modules.ontology.services.rdf_formats import resolve_rdf_content_type
+from app.shared.ports.knowledge_graph import KnowledgeGraphPort
 
 UNSET = object()
 
@@ -78,6 +79,11 @@ class _NoOpTransactionRecorder:
         return None
 
 
+class _NoOpKnowledgeGraphPortResolver:
+    def resolve(self, connector: TechnologyAdapter) -> KnowledgeGraphPort:
+        raise InvalidOntologyConnectorError("Knowledge graph port resolver unavailable")
+
+
 class OntologyService:
     """Ontology definition CRUD, import, and lifecycle orchestration."""
 
@@ -87,11 +93,15 @@ class OntologyService:
         application_repository: ApplicationRepository,
         connector_repository: TechnologyAdapterRepository | None = None,
         transaction_recorder: OntologyTransactionRecorder | None = None,
+        knowledge_graph_port_resolver: KnowledgeGraphPortResolver | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
         self._connector_repository = connector_repository
         self._transaction_recorder = transaction_recorder or _NoOpTransactionRecorder()
+        self._knowledge_graph_port_resolver = (
+            knowledge_graph_port_resolver or _NoOpKnowledgeGraphPortResolver()
+        )
 
     def create_ontology(
         self,
@@ -154,7 +164,9 @@ class OntologyService:
         connector = self._require_ontology_connector(connector_id)
         workspace = application.workspace
         if workspace is None or not workspace.fuseki_dataset:
-            raise ApplicationWorkspaceNotFoundError("Application workspace fuseki_dataset unavailable")
+            raise ApplicationWorkspaceNotFoundError(
+                "Application workspace fuseki_dataset unavailable"
+            )
 
         now = datetime.now(UTC)
         ontology_id = uuid4()
@@ -164,17 +176,12 @@ class OntologyService:
         )
         content_type = resolve_rdf_content_type(source_format)
 
-        try:
-            knowledge_graph = resolve_knowledge_graph_port(connector)
-            import_result = knowledge_graph.import_data(
-                dataset=workspace.fuseki_dataset,
-                content=source_content,
-                content_type=content_type,
-            )
-        except UnsupportedKnowledgeGraphVendorError as error:
-            raise InvalidOntologyConnectorError(str(error)) from error
-        except FusekiImportError as error:
-            raise OntologyArtifactPersistError(str(error)) from error
+        knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
+        import_result = knowledge_graph.import_data(
+            dataset=workspace.fuseki_dataset,
+            content=source_content,
+            content_type=content_type,
+        )
 
         definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
         definition["metadata"] = {
