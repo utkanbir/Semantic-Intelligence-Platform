@@ -113,6 +113,10 @@
     "27": {
       "label": "Ontology Semantic Transaction v1",
       "issues": [260, 261, 262, 263]
+    },
+    "28": {
+      "label": "Connector Provisioning v1",
+      "issues": [266, 267, 268]
     }
   }
 }
