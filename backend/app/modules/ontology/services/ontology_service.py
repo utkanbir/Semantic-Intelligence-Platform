@@ -6,6 +6,11 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from app.infrastructure.adapters.fuseki import FusekiImportError, resolve_rdf_content_type
+from app.infrastructure.adapters.knowledge_graph_resolver import (
+    UnsupportedKnowledgeGraphVendorError,
+    resolve_knowledge_graph_port,
+)
 from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.applications.repositories.interfaces import ApplicationRepository
@@ -53,6 +58,14 @@ class InvalidOntologyConnectorError(Exception):
     """Raised when the connector is not eligible for ontology import."""
 
 
+class OntologyArtifactPersistError(Exception):
+    """Raised when ontology artifact persistence to the knowledge graph fails."""
+
+
+class ApplicationWorkspaceNotFoundError(Exception):
+    """Raised when the application workspace is unavailable for import."""
+
+
 class _NoOpTransactionRecorder:
     def record_orchestrated(
         self,
@@ -61,7 +74,7 @@ class _NoOpTransactionRecorder:
         resource_id: str,
         application_id: UUID,
         steps: list[tuple[str, str | None]],
-    ) -> None:
+    ) -> UUID | None:
         return None
 
 
@@ -134,23 +147,43 @@ class OntologyService:
         source_content: str,
         created_by: str | None = None,
         description: str | None = None,
-    ) -> OntologyDefinition:
-        if self._application_repository.get(application_id) is None:
+    ) -> tuple[OntologyDefinition, UUID | None]:
+        application = self._application_repository.get(application_id)
+        if application is None:
             raise ApplicationNotFoundError("Application not found")
         connector = self._require_ontology_connector(connector_id)
+        workspace = application.workspace
+        if workspace is None or not workspace.fuseki_dataset:
+            raise ApplicationWorkspaceNotFoundError("Application workspace fuseki_dataset unavailable")
 
         now = datetime.now(UTC)
         ontology_id = uuid4()
         artifact_uri = (
-            f"{connector.adapter_key}://{application_id}/{ontology_id}/"
+            f"fuseki://{workspace.fuseki_dataset}/ontologies/{ontology_id}/"
             f"artifact.{source_format.lstrip('.')}"
         )
+        content_type = resolve_rdf_content_type(source_format)
+
+        try:
+            knowledge_graph = resolve_knowledge_graph_port(connector)
+            import_result = knowledge_graph.import_data(
+                dataset=workspace.fuseki_dataset,
+                content=source_content,
+                content_type=content_type,
+            )
+        except UnsupportedKnowledgeGraphVendorError as error:
+            raise InvalidOntologyConnectorError(str(error)) from error
+        except FusekiImportError as error:
+            raise OntologyArtifactPersistError(str(error)) from error
+
         definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
         definition["metadata"] = {
             **definition.get("metadata", {}),
             "import": {
                 "source_format": source_format,
                 "content_length": len(source_content),
+                "fuseki_dataset": workspace.fuseki_dataset,
+                "fuseki_location": import_result.get("location"),
             },
         }
         ontology = OntologyDefinition(
@@ -169,18 +202,19 @@ class OntologyService:
             source_format=source_format,
         )
         created = self._repository.create(ontology)
-        self._record_transaction(
+        persist_location = import_result.get("location", artifact_uri)
+        semantic_transaction_id = self._record_transaction(
             transaction_type="ontology.imported",
             ontology=created,
             steps=[
                 ("validate_request", "Validated ontology import request"),
                 ("resolve_connector", f"Resolved connector {connector.adapter_key}"),
+                ("persist_artifact", f"Artifact persisted at {persist_location}"),
                 ("persist_metadata", "Persisted ontology metadata"),
-                ("persist_artifact", f"Stub artifact persisted at {artifact_uri}"),
                 ("finalize", "Ontology import completed"),
             ],
         )
-        return created
+        return created, semantic_transaction_id
 
     def list_ontologies(
         self,
@@ -390,8 +424,8 @@ class OntologyService:
         transaction_type: str,
         ontology: OntologyDefinition,
         steps: list[tuple[str, str | None]],
-    ) -> None:
-        self._transaction_recorder.record_orchestrated(
+    ) -> UUID | None:
+        return self._transaction_recorder.record_orchestrated(
             transaction_type=transaction_type,
             resource_id=str(ontology.id),
             application_id=ontology.application_id,

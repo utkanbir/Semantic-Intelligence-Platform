@@ -31,6 +31,17 @@ class KnowledgeGraphStub:
     def ping(self) -> dict[str, str]:
         return {"status": "ok", "connector_type": "ontology_knowledge_graph"}
 
+    def import_data(
+        self, *, dataset: str, content: str, content_type: str
+    ) -> dict[str, str]:
+        return {
+            "status": "imported",
+            "location": f"stub://{dataset}/data",
+            "dataset": dataset,
+            "content_type": content_type,
+            "content_length": str(len(content)),
+        }
+
 
 class FileSystemStub:
     def ping(self) -> dict[str, str]:

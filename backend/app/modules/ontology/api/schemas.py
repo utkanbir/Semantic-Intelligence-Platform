@@ -31,6 +31,7 @@ class OntologyDefinitionResponse(BaseModel):
     connector_id: UUID | None = None
     artifact_uri: str | None = None
     source_format: str | None = None
+    semantic_transaction_id: UUID | None = None
 
 
 class OntologyDefinitionCreateRequest(BaseModel):
@@ -68,6 +69,8 @@ class OntologyDefinitionVersionCreateRequest(BaseModel):
 
 def to_ontology_definition_response(
     ontology: OntologyDefinition,
+    *,
+    semantic_transaction_id: UUID | None = None,
 ) -> OntologyDefinitionResponse:
     return OntologyDefinitionResponse(
         id=ontology.id,
@@ -88,4 +91,5 @@ def to_ontology_definition_response(
         connector_id=ontology.connector_id,
         artifact_uri=ontology.artifact_uri,
         source_format=ontology.source_format,
+        semantic_transaction_id=semantic_transaction_id,
     )

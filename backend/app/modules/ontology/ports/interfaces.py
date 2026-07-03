@@ -16,5 +16,5 @@ class OntologyTransactionRecorder(Protocol):
         resource_id: str,
         application_id: UUID,
         steps: list[tuple[str, str | None]],
-    ) -> None:
+    ) -> UUID | None:
         """Persist one semantic transaction with trace steps."""

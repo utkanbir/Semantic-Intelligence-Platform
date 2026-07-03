@@ -34,11 +34,13 @@ from app.modules.ontology.repositories.sqlalchemy_repository import (
 from app.modules.ontology.services.ontology_service import (
     UNSET,
     ApplicationNotFoundError,
+    ApplicationWorkspaceNotFoundError,
     ConnectorNotFoundError,
     ImmutableOntologyDefinitionError,
     InvalidOntologyConnectorError,
     InvalidOntologyDefinitionStatusTransitionError,
     InvalidOntologyDefinitionVersionForkError,
+    OntologyArtifactPersistError,
     OntologyDefinitionNotFoundError,
     OntologyService,
 )
@@ -58,8 +60,8 @@ class SqlAlchemyOntologyTransactionRecorder:
         resource_id: str,
         application_id: UUID,
         steps: list[tuple[str, str | None]],
-    ) -> None:
-        self._repository.record_transaction_with_steps(
+    ) -> UUID:
+        return self._repository.record_transaction_with_steps(
             transaction_type=transaction_type,
             resource_type="OntologyDefinition",
             resource_id=resource_id,
@@ -106,7 +108,7 @@ def import_ontology(
 ) -> OntologyDefinitionResponse:
     service = _get_service(db)
     try:
-        ontology = service.import_ontology(
+        ontology, semantic_transaction_id = service.import_ontology(
             application_id=payload.application_id,
             title=payload.title,
             connector_id=payload.connector_id,
@@ -117,6 +119,8 @@ def import_ontology(
         )
     except ApplicationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ApplicationWorkspaceNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except ConnectorNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except InvalidOntologyConnectorError as error:
@@ -124,7 +128,14 @@ def import_ontology(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
         ) from error
-    return to_ontology_definition_response(ontology)
+    except OntologyArtifactPersistError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
+    return to_ontology_definition_response(
+        ontology, semantic_transaction_id=semantic_transaction_id
+    )
 
 
 @router.get("", response_model=list[OntologyDefinitionResponse])
