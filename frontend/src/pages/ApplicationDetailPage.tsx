@@ -1,12 +1,23 @@
 import { useEffect, useState } from "react";
 import { Route, Routes, useParams } from "react-router-dom";
+import { AgentRunDetailPage } from "./AgentRunDetailPage";
 import { ApiError } from "../api";
 import {
   getApplication,
   type ApplicationResponse,
 } from "../api/applications";
 import { ApplicationShell } from "../components/ApplicationShell";
+import { AgentsPage } from "./AgentsPage";
+import { AgentRunsPage } from "./AgentRunsPage";
+import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
+import { ApplicationSemanticTransactionDetailPage } from "./ApplicationSemanticTransactionDetailPage";
+import { AssetsPage } from "./AssetsPage";
+import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
+import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
+import { OntologiesPage } from "./OntologiesPage";
+import { OntologyStudioPage } from "./OntologyStudioPage";
+import { ProductsPage } from "./ProductsPage";
 
 type PageState =
   | { kind: "loading" }
@@ -90,12 +101,36 @@ function OverviewSection({ application }: { application: ApplicationResponse }) 
   );
 }
 
-function ComingSoonSection({ section }: { section: string }) {
+function AgentRunDetailRoute({ applicationId }: { applicationId: string }) {
+  const { runId } = useParams<{ runId: string }>();
+
+  if (!runId) {
+    return (
+      <div className="agent-runs-page__error" role="alert">
+        Run ID is required
+      </div>
+    );
+  }
+
+  return <AgentRunDetailPage applicationId={applicationId} runId={runId} />;
+}
+
+function SemanticTransactionDetailRoute({ applicationId }: { applicationId: string }) {
+  const { transactionId } = useParams<{ transactionId: string }>();
+
+  if (!transactionId) {
+    return (
+      <div className="agent-runs-page__error" role="alert">
+        Transaction ID is required
+      </div>
+    );
+  }
+
   return (
-    <section className="application-placeholder" aria-labelledby="placeholder-heading">
-      <h2 id="placeholder-heading">{section}</h2>
-      <p className="application-placeholder__message">Coming soon</p>
-    </section>
+    <ApplicationSemanticTransactionDetailPage
+      applicationId={applicationId}
+      transactionId={transactionId}
+    />
   );
 }
 
@@ -162,13 +197,44 @@ export function ApplicationDetailPage() {
         />
         <Route
           path="blueprint"
-          element={<ComingSoonSection section="Blueprint" />}
+          element={<BlueprintPage applicationId={application.id} />}
+        />
+        <Route path="assets" element={<AssetsPage applicationId={application.id} />} />
+        <Route
+          path="ontology"
+          element={<OntologiesPage applicationId={application.id} />}
+        />
+        <Route
+          path="ontology-studio"
+          element={<OntologyStudioPage applicationId={application.id} />}
+        />
+        <Route
+          path="knowledge-graph"
+          element={<KnowledgeGraphsPage applicationId={application.id} />}
         />
         <Route
           path="products"
-          element={<ComingSoonSection section="Products" />}
+          element={<ProductsPage applicationId={application.id} />}
         />
-        <Route path="agents" element={<ComingSoonSection section="Agents" />} />
+        <Route path="agents" element={<AgentsPage applicationId={application.id} />} />
+        <Route
+          path="agent-runs"
+          element={<AgentRunsPage applicationId={application.id} />}
+        />
+        <Route
+          path="agent-runs/:runId"
+          element={
+            <AgentRunDetailRoute applicationId={application.id} />
+          }
+        />
+        <Route
+          path="audit-trace"
+          element={<ApplicationAuditTracePage applicationId={application.id} />}
+        />
+        <Route
+          path="audit-trace/:transactionId"
+          element={<SemanticTransactionDetailRoute applicationId={application.id} />}
+        />
       </Routes>
     </ApplicationShell>
   );

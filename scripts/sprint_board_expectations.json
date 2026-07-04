@@ -53,6 +53,78 @@
     "12": {
       "label": "Console Deploy & Release",
       "issues": [169, 170, 171, 172, 173, 174]
+    },
+    "13": {
+      "label": "Console Blueprint",
+      "issues": [179, 180, 182, 183]
+    },
+    "14": {
+      "label": "Console Create Flows",
+      "issues": [185, 188, 186, 187]
+    },
+    "15": {
+      "label": "Console Products & Agents Create",
+      "issues": [191, 192, 193]
+    },
+    "16": {
+      "label": "Console Lifecycle Actions",
+      "issues": [195, 196, 197]
+    },
+    "17": {
+      "label": "Console Agent Binding & Discovery Lifecycle",
+      "issues": [199, 200, 201, 202]
+    },
+    "18": {
+      "label": "Console Platform Shell",
+      "issues": [204, 205, 206, 207]
+    },
+    "19": {
+      "label": "Console Application Journey",
+      "issues": [212, 213, 214, 215]
+    },
+    "20": {
+      "label": "Console Ontology & KG",
+      "issues": [219, 220, 221, 222]
+    },
+    "21": {
+      "label": "Console Ontology & KG Create",
+      "issues": [226, 227, 228, 229]
+    },
+    "22": {
+      "label": "Console Asset Registry",
+      "issues": [233, 234, 235, 236]
+    },
+    "23": {
+      "label": "Console Product Asset Binding",
+      "issues": [240, 241, 242, 243]
+    },
+    "24": {
+      "label": "Console Version Fork UI",
+      "issues": [245, 246, 247, 248]
+    },
+    "25": {
+      "label": "Console Bindings Edit",
+      "issues": [250, 251, 252, 253]
+    },
+    "26": {
+      "label": "Console Platform Adapters",
+      "issues": [255, 256, 257, 258]
+    },
+    "27": {
+      "label": "Ontology Semantic Transaction v1",
+      "issues": [260, 261, 262, 263]
+    },
+    "28": {
+      "label": "Connector Provisioning v1",
+      "issues": [266, 267, 268]
+    },
+    "29": {
+      "label": "Console Connectors UX v2",
+      "issues": [272, 274, 275, 276]
+    },
+    "30": {
+      "label": "Fuseki Persistence & Semantic Transactions",
+      "issues": [281, 283]
     }
   }
 }

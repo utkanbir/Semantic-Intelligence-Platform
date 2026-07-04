@@ -27,7 +27,7 @@ class TechnologyAdapter(Base):
     )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    technology_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(50), nullable=False)
     adapter_key: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="Registered")
     title: Mapped[str] = mapped_column(String(255), nullable=False)

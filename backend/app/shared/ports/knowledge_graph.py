@@ -10,3 +10,8 @@ class KnowledgeGraphPort(Protocol):
 
     def ping(self) -> dict[str, str]:
         """Return health check result."""
+
+    def import_data(
+        self, *, dataset: str, content: str, content_type: str
+    ) -> dict[str, str]:
+        """Import RDF content into a named dataset."""

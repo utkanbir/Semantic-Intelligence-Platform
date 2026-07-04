@@ -56,29 +56,29 @@ def client(db_engine: Engine) -> Generator[TestClient, None, None]:
 
 def test_create_adapter(client: TestClient) -> None:
     response = client.post(
-        "/api/v1/adapters",
+        "/api/v1/connectors",
         json={
-            "technology_type": "postgresql",
-            "adapter_key": f"dev-pg-{uuid4()}",
-            "title": "Dev PostgreSQL",
+            "connector_type": "database",
+            "connector_key": f"dev-db-{uuid4()}",
+            "title": "Dev Database",
             "created_by": "architect-1",
         },
     )
     assert response.status_code == 201
     body = response.json()
     assert body["status"] == "Registered"
-    assert body["technology_type"] == "postgresql"
+    assert body["connector_type"] == "database"
 
 
 def test_create_adapter_records_semantic_transaction(
     client: TestClient, db_engine: Engine
 ) -> None:
     response = client.post(
-        "/api/v1/adapters",
+        "/api/v1/connectors",
         json={
-            "technology_type": "minio",
-            "adapter_key": f"dev-minio-{uuid4()}",
-            "title": "Dev MinIO",
+            "connector_type": "object_storage",
+            "connector_key": f"dev-storage-{uuid4()}",
+            "title": "Dev Object Storage",
         },
     )
     assert response.status_code == 201
@@ -96,49 +96,144 @@ def test_create_adapter_records_semantic_transaction(
 
 def test_adapter_lifecycle_and_ping(client: TestClient) -> None:
     create = client.post(
-        "/api/v1/adapters",
+        "/api/v1/connectors",
         json={
-            "technology_type": "postgresql",
-            "adapter_key": f"dev-pg-ping-{uuid4()}",
-            "title": "Ping Adapter",
+            "connector_type": "database",
+            "connector_key": f"dev-db-ping-{uuid4()}",
+            "title": "Ping Connector",
         },
     )
     adapter_id = create.json()["id"]
 
-    ping_before_active = client.post(f"/api/v1/adapters/{adapter_id}/ping")
+    ping_before_active = client.post(f"/api/v1/connectors/{adapter_id}/ping")
     assert ping_before_active.status_code == 422
 
     for next_status in ("Configured", "Active"):
         patch = client.patch(
-            f"/api/v1/adapters/{adapter_id}/status",
+            f"/api/v1/connectors/{adapter_id}/status",
             json={"status": next_status},
         )
         assert patch.status_code == 200
 
-    ping = client.post(f"/api/v1/adapters/{adapter_id}/ping")
+    ping = client.post(f"/api/v1/connectors/{adapter_id}/ping")
     assert ping.status_code == 200
     assert ping.json()["status"] == "ok"
-    assert ping.json()["technology"] == "postgresql"
+    assert ping.json()["connector_type"] == "database"
 
 
 def test_duplicate_adapter_key_returns_422(client: TestClient) -> None:
     adapter_key = f"dup-key-{uuid4()}"
     first = client.post(
-        "/api/v1/adapters",
+        "/api/v1/connectors",
         json={
-            "technology_type": "fuseki",
-            "adapter_key": adapter_key,
+            "connector_type": "ontology_knowledge_graph",
+            "connector_key": adapter_key,
             "title": "First",
         },
     )
     assert first.status_code == 201
 
     second = client.post(
-        "/api/v1/adapters",
+        "/api/v1/connectors",
         json={
-            "technology_type": "fuseki",
-            "adapter_key": adapter_key,
+            "connector_type": "ontology_knowledge_graph",
+            "connector_key": adapter_key,
             "title": "Second",
         },
     )
     assert second.status_code == 422
+
+
+def test_create_adapter_auto_generates_connector_key(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "database",
+            "title": "Dev PostgreSQL",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "postgresql",
+                "connection_method": "existing_instance",
+                "connection": {},
+            },
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["connector_key"] == "dev-postgresql"
+
+
+def test_create_adapter_auto_key_collision_appends_suffix(client: TestClient) -> None:
+    first = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "database",
+            "connector_key": "dev-postgresql",
+            "title": "Existing",
+        },
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "database",
+            "title": "Dev PostgreSQL",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "postgresql",
+            },
+        },
+    )
+    assert second.status_code == 201
+    assert second.json()["connector_key"] == "dev-postgresql-2"
+
+
+def test_create_vector_database_connector_and_ping(client: TestClient) -> None:
+    create = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "vector_database",
+            "connector_key": f"dev-vector-{uuid4()}",
+            "title": "Dev Vector Store",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "qdrant",
+                "connection_method": "existing_instance",
+                "connection": {"host": "qdrant.local", "port": "6333", "collection": "embeddings"},
+            },
+        },
+    )
+    assert create.status_code == 201
+    body = create.json()
+    assert body["connector_type"] == "vector_database"
+    adapter_id = body["id"]
+
+    for next_status in ("Configured", "Active"):
+        patch = client.patch(
+            f"/api/v1/connectors/{adapter_id}/status",
+            json={"status": next_status},
+        )
+        assert patch.status_code == 200
+
+    ping = client.post(f"/api/v1/connectors/{adapter_id}/ping")
+    assert ping.status_code == 200
+    assert ping.json() == {"status": "ok", "connector_type": "vector_database"}
+
+
+def test_create_adapter_accepts_explicit_connector_key(client: TestClient) -> None:
+    explicit_key = f"custom-key-{uuid4()}"
+    response = client.post(
+        "/api/v1/connectors",
+        json={
+            "connector_type": "database",
+            "connector_key": explicit_key,
+            "title": "Dev PostgreSQL",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "postgresql",
+            },
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["connector_key"] == explicit_key
+

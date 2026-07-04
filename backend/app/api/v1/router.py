@@ -61,5 +61,6 @@ api_v1_router.include_router(
     tags=["knowledge-graphs"],
 )
 api_v1_router.include_router(adapters_router, prefix="/adapters", tags=["adapters"])
+api_v1_router.include_router(adapters_router, prefix="/connectors", tags=["connectors"])
 api_v1_router.include_router(agent_runs_router, prefix="/agent-runs", tags=["agent-runs"])
 api_v1_router.include_router(policies_router, prefix="/policies", tags=["governance"])

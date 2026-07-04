@@ -18,7 +18,7 @@ class TechnologyAdapterRepository(Protocol):
     def list_all(
         self,
         *,
-        technology_type: str | None = None,
+        connector_type: str | None = None,
         status: str | None = None,
     ) -> Sequence[TechnologyAdapter]:
         """List adapters with optional filters."""
@@ -29,10 +29,10 @@ class TechnologyAdapterRepository(Protocol):
     def get_by_key(self, adapter_key: str) -> TechnologyAdapter | None:
         """Fetch adapter by unique key."""
 
-    def get_active_by_technology_type(
-        self, technology_type: str
+    def get_active_by_connector_type(
+        self, connector_type: str
     ) -> TechnologyAdapter | None:
-        """Return one active adapter for a technology type."""
+        """Return one active adapter for a connector type."""
 
     def update(self, adapter: TechnologyAdapter) -> TechnologyAdapter | None:
         """Update an existing adapter."""

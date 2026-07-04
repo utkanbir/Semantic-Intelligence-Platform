@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -41,6 +42,7 @@ class SqlAlchemyAuditTraceRepository:
         transaction_type: str,
         resource_type: str,
         resource_id: str,
+        application_id: UUID | None = None,
     ) -> None:
         from app.modules.audit_trace.repositories.orm_models import SemanticTransaction
 
@@ -48,9 +50,46 @@ class SqlAlchemyAuditTraceRepository:
             transaction_type=transaction_type,
             resource_type=resource_type,
             resource_id=resource_id,
+            application_id=application_id,
         )
         self._session.add(semantic_transaction)
         self._session.commit()
+
+    def record_transaction_with_steps(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+        application_id: UUID | None,
+        steps: Sequence[tuple[str, str | None]],
+    ) -> UUID:
+        from app.modules.audit_trace.repositories.orm_models import SemanticTransaction
+
+        transaction_id = uuid4()
+        now = datetime.now(UTC)
+        semantic_transaction = SemanticTransaction(
+            id=transaction_id,
+            transaction_type=transaction_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            application_id=application_id,
+            created_at=now,
+        )
+        self._session.add(semantic_transaction)
+        for step_number, (step_type, message) in enumerate(steps, start=1):
+            self._session.add(
+                TraceStepORM(
+                    id=uuid4(),
+                    semantic_transaction_id=transaction_id,
+                    step_number=step_number,
+                    step_type=step_type,
+                    message=message,
+                    created_at=now,
+                )
+            )
+        self._session.commit()
+        return transaction_id
 
 
 class SqlAlchemyTraceStepRepository(TraceStepRepository):
@@ -93,6 +132,7 @@ def _to_transaction_record(
         resource_id=transaction_orm.resource_id,
         created_at=transaction_orm.created_at,
         trace_steps=list(steps),
+        application_id=transaction_orm.application_id,
     )
 
 
@@ -116,6 +156,30 @@ class SqlAlchemyAuditTraceQueryRepository:
             .where(SemanticTransaction.resource_id == resource_id)
             .order_by(SemanticTransaction.created_at.desc())
         )
+        records: list[SemanticTransactionRecord] = []
+        for transaction_orm in self._session.scalars(statement).all():
+            steps = self._trace_steps.list_by_transaction(transaction_orm.id)
+            records.append(_to_transaction_record(transaction_orm, steps))
+        return records
+
+    def list_by_application_id(
+        self,
+        application_id: UUID,
+        *,
+        resource_type: str | None = None,
+        transaction_type_prefix: str | None = None,
+    ) -> Sequence[SemanticTransactionRecord]:
+        statement = (
+            select(SemanticTransaction)
+            .where(SemanticTransaction.application_id == application_id)
+            .order_by(SemanticTransaction.created_at.desc())
+        )
+        if resource_type is not None:
+            statement = statement.where(SemanticTransaction.resource_type == resource_type)
+        if transaction_type_prefix is not None:
+            statement = statement.where(
+                SemanticTransaction.transaction_type.startswith(transaction_type_prefix)
+            )
         records: list[SemanticTransactionRecord] = []
         for transaction_orm in self._session.scalars(statement).all():
             steps = self._trace_steps.list_by_transaction(transaction_orm.id)

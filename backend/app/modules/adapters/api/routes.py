@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Annotated
 from uuid import UUID
 
@@ -11,13 +12,14 @@ from sqlalchemy.orm import Session
 from app.infrastructure.database import get_db
 from app.modules.adapters.api.schemas import (
     AdapterPingResponse,
+    ConnectorProvisionResponse,
     TechnologyAdapterCreateRequest,
     TechnologyAdapterResponse,
     TechnologyAdapterStatusUpdateRequest,
     TechnologyAdapterUpdateRequest,
     to_technology_adapter_response,
 )
-from app.modules.adapters.domain.enums import TechnologyAdapterStatus, TechnologyType
+from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
 from app.modules.adapters.repositories.sqlalchemy_repository import (
     SqlAlchemyTechnologyAdapterRepository,
 )
@@ -25,10 +27,12 @@ from app.modules.adapters.services.adapters_service import (
     UNSET,
     AdapterNotActiveError,
     AdaptersService,
+    ConnectorProvisionNotAllowedError,
     DuplicateAdapterKeyError,
     ImmutableTechnologyAdapterError,
     InvalidTechnologyAdapterStatusTransitionError,
     TechnologyAdapterNotFoundError,
+    UnsupportedProvisionVendorError,
 )
 from app.modules.audit_trace.repositories.sqlalchemy_repository import (
     SqlAlchemyAuditTraceRepository,
@@ -55,6 +59,22 @@ class SqlAlchemyTraceRecorderAdapter:
             resource_id=resource_id,
         )
 
+    def record_transaction_with_steps(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+        steps: Sequence[tuple[str, str | None]],
+    ) -> None:
+        self._repository.record_transaction_with_steps(
+            transaction_type=transaction_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            application_id=None,
+            steps=steps,
+        )
+
 
 def _get_service(db: Session) -> AdaptersService:
     return AdaptersService(
@@ -71,12 +91,12 @@ def create_adapter(
     service = _get_service(db)
     try:
         adapter = service.create_adapter(
-            technology_type=payload.technology_type,
-            adapter_key=payload.adapter_key,
+            technology_type=payload.connector_type,
+            adapter_key=payload.connector_key,
             title=payload.title,
             created_by=payload.created_by,
             description=payload.description,
-            adapter_configuration=payload.adapter_configuration,
+            adapter_configuration=payload.connector_configuration,
         )
     except DuplicateAdapterKeyError as error:
         raise HTTPException(
@@ -89,11 +109,11 @@ def create_adapter(
 @router.get("", response_model=list[TechnologyAdapterResponse])
 def list_adapters(
     db: DbSession,
-    technology_type: Annotated[TechnologyType | None, Query()] = None,
+    connector_type: Annotated[ConnectorType | None, Query()] = None,
     adapter_status: Annotated[TechnologyAdapterStatus | None, Query()] = None,
 ) -> list[TechnologyAdapterResponse]:
     service = _get_service(db)
-    adapters = service.list_adapters(technology_type=technology_type, status=adapter_status)
+    adapters = service.list_adapters(technology_type=connector_type, status=adapter_status)
     return [to_technology_adapter_response(item) for item in adapters]
 
 
@@ -118,7 +138,7 @@ def update_adapter(
             adapter_id,
             title=provided_values.get("title"),
             description=provided_values.get("description", UNSET),
-            adapter_configuration=provided_values.get("adapter_configuration", UNSET),
+            adapter_configuration=provided_values.get("connector_configuration", UNSET),
         )
     except TechnologyAdapterNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
@@ -160,3 +180,21 @@ def ping_adapter(adapter_id: UUID, db: DbSession) -> AdapterPingResponse:
             detail=str(error),
         ) from error
     return AdapterPingResponse(**result)
+
+
+@router.post("/{adapter_id}/provision", response_model=ConnectorProvisionResponse)
+def provision_connector(adapter_id: UUID, db: DbSession) -> ConnectorProvisionResponse:
+    service = _get_service(db)
+    try:
+        result = service.provision_connector(adapter_id)
+    except TechnologyAdapterNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except (
+        ConnectorProvisionNotAllowedError,
+        UnsupportedProvisionVendorError,
+    ) as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return ConnectorProvisionResponse(**result)

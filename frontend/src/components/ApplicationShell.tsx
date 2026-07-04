@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import type { ApplicationResponse } from "../api/applications";
 
 interface ApplicationShellProps {
@@ -11,8 +11,14 @@ const SECTIONS = [
   { segment: "", label: "Overview", end: true },
   { segment: "discovery", label: "Discovery", end: false },
   { segment: "blueprint", label: "Blueprint", end: false },
+  { segment: "assets", label: "Assets", end: false },
+  { segment: "ontology", label: "Ontology", end: false },
+  { segment: "ontology-studio", label: "Ontology Studio", end: false },
+  { segment: "knowledge-graph", label: "Knowledge graph", end: false },
   { segment: "products", label: "Products", end: false },
   { segment: "agents", label: "Agents", end: false },
+  { segment: "agent-runs", label: "Agent runs", end: false },
+  { segment: "audit-trace", label: "Semantic transactions", end: false },
 ] as const;
 
 function statusLabel(status: ApplicationResponse["status"]): string {
@@ -24,6 +30,23 @@ export function ApplicationShell({ application, children }: ApplicationShellProp
 
   return (
     <div className="application-shell">
+      <nav className="application-shell__context" aria-label="Breadcrumb">
+        <Link to="/applications" className="application-shell__back">
+          ← Back to Applications
+        </Link>
+        <ol className="application-shell__breadcrumb">
+          <li className="application-shell__breadcrumb-item">
+            <Link to="/applications">Applications</Link>
+          </li>
+          <li
+            className="application-shell__breadcrumb-item application-shell__breadcrumb-item--current"
+            aria-current="page"
+          >
+            {application.name}
+          </li>
+        </ol>
+      </nav>
+
       <header className="application-shell__header">
         <div className="application-shell__identity">
           <h1 className="application-shell__title">{application.name}</h1>

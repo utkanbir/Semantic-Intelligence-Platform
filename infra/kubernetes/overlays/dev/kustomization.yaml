@@ -6,12 +6,17 @@ namespace: sip-dev
 resources:
   - ../../base
 
+# S28-01: MinIO (sip-minio) and Fuseki (sip-fuseki) connector stacks included via base kustomization.
+
 labels:
   - pairs:
       environment: dev
 
-# S12-04: pin console image to avoid stale :dev cache (TD-016 pattern)
+# S13–S17: pin images to avoid stale :dev cache (TD-016 pattern)
 images:
+  - name: sip-backend:dev
+    newName: sip-backend
+    newTag: s34
   - name: sip-console:dev
     newName: sip-console
-    newTag: s12
+    newTag: s34

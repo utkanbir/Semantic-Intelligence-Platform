@@ -2,17 +2,29 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
-from app.modules.adapters.domain.enums import TechnologyAdapterStatus, TechnologyType
+from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
 from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.ports.interfaces import TraceRecorder
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.adapters.services.adapter_stubs import AdapterFactory
+from app.modules.adapters.services.connector_key import resolve_unique_connector_key
+from app.modules.adapters.services.connector_provision import (
+    build_provision_block,
+    is_idempotent_provision_status,
+    provision_response_from_block,
+    read_connection_method,
+    read_provision_block,
+    read_vendor,
+    requires_provision_in_cluster,
+    resolve_endpoint_stub,
+)
 
 UNSET = object()
 
@@ -43,6 +55,14 @@ class AdapterNotActiveError(Exception):
     """Raised when ping is attempted on a non-active adapter."""
 
 
+class ConnectorProvisionNotAllowedError(Exception):
+    """Raised when connector cannot be provisioned in current state."""
+
+
+class UnsupportedProvisionVendorError(Exception):
+    """Raised when vendor has no in-cluster endpoint stub."""
+
+
 class _NoOpTraceRecorder:
     def record_transaction(
         self,
@@ -50,6 +70,16 @@ class _NoOpTraceRecorder:
         transaction_type: str,
         resource_type: str,
         resource_id: str,
+    ) -> None:
+        return None
+
+    def record_transaction_with_steps(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+        steps: Sequence[tuple[str, str | None]],
     ) -> None:
         return None
 
@@ -71,26 +101,33 @@ class AdaptersService:
     def create_adapter(
         self,
         *,
-        technology_type: TechnologyType,
-        adapter_key: str,
+        technology_type: ConnectorType,
+        adapter_key: str | None = None,
         title: str,
         created_by: str | None = None,
         description: str | None = None,
         adapter_configuration: dict[str, Any] | None = None,
     ) -> TechnologyAdapter:
-        if self._repository.get_by_key(adapter_key) is not None:
-            raise DuplicateAdapterKeyError("Adapter key already exists")
-
         now = datetime.now(UTC)
         config = (
             dict(DEFAULT_ADAPTER_CONFIGURATION)
             if adapter_configuration is None
             else adapter_configuration
         )
+
+        resolved_key = (adapter_key or "").strip()
+        if not resolved_key:
+            resolved_key = resolve_unique_connector_key(
+                title=title,
+                adapter_configuration=config,
+                key_exists=lambda key: self._repository.get_by_key(key) is not None,
+            )
+        elif self._repository.get_by_key(resolved_key) is not None:
+            raise DuplicateAdapterKeyError("Adapter key already exists")
         adapter = TechnologyAdapter(
             id=uuid4(),
             technology_type=technology_type,
-            adapter_key=adapter_key,
+            adapter_key=resolved_key,
             status=TechnologyAdapterStatus.REGISTERED,
             title=title,
             description=description,
@@ -110,13 +147,13 @@ class AdaptersService:
     def list_adapters(
         self,
         *,
-        technology_type: TechnologyType | None = None,
+        technology_type: ConnectorType | None = None,
         status: TechnologyAdapterStatus | None = None,
     ) -> list[TechnologyAdapter]:
         type_value = technology_type.value if technology_type is not None else None
         status_value = status.value if status is not None else None
         return list(
-            self._repository.list_all(technology_type=type_value, status=status_value)
+            self._repository.list_all(connector_type=type_value, status=status_value)
         )
 
     def get_adapter(self, adapter_id: UUID) -> TechnologyAdapter:
@@ -227,6 +264,96 @@ class AdaptersService:
             raise RuntimeError("Database session required for adapter ping")
         factory = AdapterFactory(self._session)
         return factory.ping(adapter.technology_type.value)
+
+    def provision_connector(self, adapter_id: UUID) -> dict[str, Any]:
+        adapter = self.get_adapter(adapter_id)
+        if adapter.status in {
+            TechnologyAdapterStatus.DEPRECATED,
+            TechnologyAdapterStatus.RETIRED,
+        }:
+            raise ConnectorProvisionNotAllowedError(
+                "Connector cannot be provisioned in Deprecated or Retired status"
+            )
+        if adapter.status not in {
+            TechnologyAdapterStatus.REGISTERED,
+            TechnologyAdapterStatus.CONFIGURED,
+        }:
+            raise ConnectorProvisionNotAllowedError(
+                "Connector must be Registered or Configured to provision"
+            )
+
+        configuration = dict(adapter.adapter_configuration)
+        connection_method = read_connection_method(configuration)
+        if connection_method == "existing_instance":
+            raise ConnectorProvisionNotAllowedError(
+                "Connector connection_method existing_instance cannot be provisioned in cluster"
+            )
+        if not requires_provision_in_cluster(configuration):
+            raise ConnectorProvisionNotAllowedError(
+                "Connector connection_method must be provision_in_cluster"
+            )
+
+        existing_provision = read_provision_block(configuration)
+        if existing_provision is not None and is_idempotent_provision_status(
+            existing_provision.get("status")
+            if isinstance(existing_provision.get("status"), str)
+            else None
+        ):
+            return provision_response_from_block(adapter.id, existing_provision)
+
+        vendor = read_vendor(configuration)
+        if vendor is None:
+            raise ConnectorProvisionNotAllowedError("Connector vendor is required for provision")
+
+        endpoint = resolve_endpoint_stub(vendor)
+        if endpoint is None:
+            raise UnsupportedProvisionVendorError(
+                f"No in-cluster endpoint stub configured for vendor: {vendor}"
+            )
+
+        started_at = datetime.now(UTC)
+        provision = build_provision_block(vendor=vendor, endpoint=endpoint, started_at=started_at)
+        updated_configuration = {**configuration, "provision": provision}
+        updated = self._apply_configuration_update(adapter, updated_configuration)
+
+        self._trace_recorder.record_transaction_with_steps(
+            transaction_type="connector.provisioned",
+            resource_type="TechnologyAdapter",
+            resource_id=str(adapter.id),
+            steps=[
+                ("validate_connector", "Validated connector provision request"),
+                ("resolve_endpoint", f"Resolved endpoint stub for {vendor}"),
+                ("update_configuration", "Updated connector_configuration.provision"),
+                ("finalize", "Connector provision completed"),
+            ],
+        )
+        return provision_response_from_block(updated.id, provision)
+
+    def _apply_configuration_update(
+        self,
+        current: TechnologyAdapter,
+        adapter_configuration: dict[str, Any],
+    ) -> TechnologyAdapter:
+        updated = TechnologyAdapter(
+            id=current.id,
+            technology_type=current.technology_type,
+            adapter_key=current.adapter_key,
+            status=current.status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            configured_at=current.configured_at,
+            activated_at=current.activated_at,
+            deprecated_at=current.deprecated_at,
+            retired_at=current.retired_at,
+            adapter_configuration=adapter_configuration,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise TechnologyAdapterNotFoundError("Technology adapter not found")
+        return result
 
 
 VALID_STATUS_TRANSITIONS: dict[

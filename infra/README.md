@@ -20,7 +20,7 @@ Optional Docker Compose (PostgreSQL-only) under `infra/compose/` is **non-author
 |------|---------|--------|
 | **Kubernetes cluster** | Runtime | Docker Desktop Kubernetes, minikube, kind, or equivalent |
 | **kubectl** | Apply manifests | Must match cluster context |
-| **Docker** | Build `sip-backend:dev` and `sip-console:s12` images | Required for in-cluster workloads |
+| **Docker** | Build `sip-backend:s14` and `sip-console:s24` images | Required for in-cluster workloads |
 | **Python 3.11+** | Backend dev / Alembic | See `backend/README.md` |
 | **Ingress controller** (optional) | `api.sip.local`, `console.sip.local` routing | nginx Ingress Controller or Docker Desktop built-in |
 
@@ -38,6 +38,8 @@ The dev overlay (`infra/kubernetes/overlays/dev`) sets `namespace: sip-dev`. Wor
 - `sip-backend` — FastAPI (Deployment + Service)
 - `sip-console` — Platform Console / React (Deployment + Service + Ingress `console.sip.local`)
 - `sip-postgres` — PostgreSQL (StatefulSet + PVC)
+- `sip-minio` — MinIO object storage (StatefulSet + PVC)
+- `sip-fuseki` — Apache Jena Fuseki (Deployment)
 - `sip-api` — Ingress for `api.sip.local`
 
 Render manifests (CI also validates this):
@@ -52,8 +54,8 @@ From the **repository root**:
 
 ```bash
 # 1. Build images (loaded into cluster Docker context)
-docker build -t sip-backend:dev backend
-docker build -t sip-console:s12 frontend
+docker build -t sip-backend:s14 backend
+docker build -t sip-console:s24 frontend
 
 # 2. Deploy stack to sip-dev
 kubectl apply -k infra/kubernetes/overlays/dev
@@ -87,7 +89,13 @@ Add to your hosts file for local ingress testing:
 On Windows: `C:\Windows\System32\drivers\etc\hosts`  
 On macOS/Linux: `/etc/hosts`
 
-Requires a local ingress controller reachable on port 80 (e.g. Docker Desktop Kubernetes ingress).
+Requires a local **ingress controller** reachable on port 80. SIP ingress manifests set `ingressClassName: nginx`. If `console.sip.local` returns connection refused or nginx 404, install the controller once:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0/deploy/static/provider/cloud/deploy.yaml
+kubectl -n ingress-nginx rollout status deployment/ingress-nginx-controller
+kubectl apply -k infra/kubernetes/overlays/dev
+```
 
 ### Health check verification
 
@@ -116,13 +124,17 @@ curl http://127.0.0.1:8080/api/v1/health/live
 
 ### Platform Console access (S12-04)
 
-The dev overlay pins `sip-console:s12` (see `infra/kubernetes/overlays/dev/kustomization.yaml` `images` section). Rebuild and re-apply after frontend changes:
+The dev overlay pins **`sip-console:s24`** and **`sip-backend:s14`** (see `infra/kubernetes/overlays/dev/kustomization.yaml` `images` section). Rebuild and re-apply after frontend or backend changes:
 
 ```bash
-docker build -t sip-console:s12 frontend
+docker build -t sip-backend:s14 backend
+docker build -t sip-console:s24 frontend
 kubectl apply -k infra/kubernetes/overlays/dev
+kubectl -n sip-dev rollout status deployment/sip-backend
 kubectl -n sip-dev rollout status deployment/sip-console
 ```
+
+Backend secret template uses `postgresql+psycopg://` (not bare `postgresql://`) so SQLAlchemy loads the `psycopg` driver shipped in the image.
 
 **Option A — Ingress** (ingress controller running; add `console.sip.local` to hosts file — see [Ingress hosts](#ingress-hosts)):
 
@@ -170,6 +182,43 @@ alembic downgrade -1   # verify rollback
 
 Replace credentials to match `infra/kubernetes/base/postgres/secret.template.yaml`.
 
+### Connector vendor stacks (S28-01)
+
+MinIO and Fuseki deploy with the dev overlay for in-cluster connector provisioning (`provision_in_cluster`).
+
+In-cluster Service DNS:
+
+```text
+sip-minio.sip-dev.svc.cluster.local:9000    # S3 API
+sip-minio.sip-dev.svc.cluster.local:9001    # MinIO console
+sip-fuseki.sip-dev.svc.cluster.local:3030   # SPARQL / admin UI
+```
+
+Example connector connection values (Platform → Connectors):
+
+| Vendor | Field | In-cluster value |
+|--------|-------|------------------|
+| MinIO | Endpoint URL | `http://sip-minio.sip-dev.svc.cluster.local:9000` |
+| Apache Jena Fuseki | SPARQL endpoint URL | `http://sip-fuseki.sip-dev.svc.cluster.local:3030/ds` |
+
+Credentials match `infra/kubernetes/base/minio/secret.template.yaml` and `infra/kubernetes/base/fuseki/secret.template.yaml` (default template passwords — replace for shared clusters).
+
+Port-forward for local testing:
+
+```bash
+kubectl -n sip-dev port-forward svc/sip-minio 9000:9000 9001:9001
+kubectl -n sip-dev port-forward svc/sip-fuseki 3030:3030
+```
+
+Verify workloads:
+
+```bash
+kubectl -n sip-dev rollout status statefulset/sip-minio
+kubectl -n sip-dev rollout status deployment/sip-fuseki
+curl http://127.0.0.1:9000/minio/health/live   # after minio port-forward
+curl http://127.0.0.1:3030/$/ping              # after fuseki port-forward
+```
+
 ### Sprint-close DB verification
 
 After `alembic upgrade head` on the cluster, PMO must confirm schema parity:
@@ -193,7 +242,7 @@ infra/
 └── README.md          # This guide
 ```
 
-Placeholder workloads under `base/` (not yet deployed): `minio/`, `qdrant/`, `fuseki/`, `openmetadata/`.
+Placeholder workloads under `base/` (not yet deployed): `qdrant/`, `openmetadata/`.
 
 ---
 

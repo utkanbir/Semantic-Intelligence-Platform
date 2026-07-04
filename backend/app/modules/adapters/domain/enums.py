@@ -5,15 +5,18 @@ from __future__ import annotations
 from enum import StrEnum
 
 
-class TechnologyType(StrEnum):
-    """Supported technology adapter types (Sprint 8 MVP)."""
+class ConnectorType(StrEnum):
+    """Platform connector types."""
 
-    POSTGRESQL = "postgresql"
-    MINIO = "minio"
-    FUSEKI = "fuseki"
-    QDRANT = "qdrant"
-    OPENMETADATA = "openmetadata"
-    OPENAI = "openai"
+    DATABASE = "database"
+    OBJECT_STORAGE = "object_storage"
+    FILE_SYSTEM = "file_system"
+    ONTOLOGY_KNOWLEDGE_GRAPH = "ontology_knowledge_graph"
+    VECTOR_DATABASE = "vector_database"
+
+
+# Backward-compatible alias for internal imports during transition.
+TechnologyType = ConnectorType
 
 
 class TechnologyAdapterStatus(StrEnum):
@@ -24,3 +27,18 @@ class TechnologyAdapterStatus(StrEnum):
     ACTIVE = "Active"
     DEPRECATED = "Deprecated"
     RETIRED = "Retired"
+
+
+class ConnectionMethod(StrEnum):
+    """How a connector reaches its backing technology."""
+
+    EXISTING_INSTANCE = "existing_instance"
+    PROVISION_IN_CLUSTER = "provision_in_cluster"
+
+
+class ProvisionStatus(StrEnum):
+    """In-cluster connector provisioning lifecycle."""
+
+    PROVISIONING = "provisioning"
+    PROVISIONED = "provisioned"
+    FAILED = "failed"

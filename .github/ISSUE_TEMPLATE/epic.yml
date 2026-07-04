@@ -65,3 +65,15 @@ body:
       label: Out of scope
     validations:
       required: true
+  - type: textarea
+    id: definition_of_done
+    attributes:
+      label: Definition of Done (epic)
+      description: Epic-level Done criteria per playbook §11 / workflow §10
+      value: |
+        - [ ] All child issues closed with individual Definition of Done met
+        - [ ] Sprint success criteria demonstrable at review
+        - [ ] CI green on `develop` after final child merge
+        - [ ] Project board epic + children **Done**
+    validations:
+      required: true
