@@ -13,7 +13,7 @@ const SECTIONS = [
   { segment: "blueprint", label: "Blueprint", end: false },
   { segment: "assets", label: "Assets", end: false },
   { segment: "ontology", label: "Ontology", end: false },
-  { segment: "ontology-studio", label: "Ontology Studio", end: false },
+  { segment: "ontology-studio", label: "Ontology Wizard", end: false },
   { segment: "knowledge-graph", label: "Knowledge graph", end: false },
   { segment: "products", label: "Products", end: false },
   { segment: "agents", label: "Agents", end: false },

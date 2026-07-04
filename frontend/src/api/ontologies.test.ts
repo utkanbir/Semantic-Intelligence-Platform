@@ -4,6 +4,7 @@ import {
   getNextOntologyStatuses,
   getOntology,
   getOntologyStatusActionLabel,
+  importOntology,
   listOntologies,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
@@ -109,6 +110,34 @@ describe("ontologies API", () => {
     await expect(createOntology(payload)).resolves.toEqual(mockOntology);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/ontologies",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("importOntology calls POST with import payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockOntology), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const payload = {
+      application_id: "app-1",
+      title: "Imported Ontology",
+      connector_id: "connector-1",
+      source_format: "ttl",
+      source_content: "@prefix ex: <https://example.com/> .",
+      created_by: "alice@example.com",
+    };
+
+    await expect(importOntology(payload)).resolves.toEqual(mockOntology);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/import",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify(payload),
