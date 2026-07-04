@@ -36,7 +36,7 @@ describe("auditTrace API", () => {
     fetchMock.mockReset();
   });
 
-  it("listAuditTraces calls GET with resource_id", async () => {
+  it("listAuditTraces calls GET without filters by default", async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify([mockTransaction]), {
         status: 200,
@@ -44,9 +44,33 @@ describe("auditTrace API", () => {
       }),
     );
 
-    await expect(listAuditTraces("app-1")).resolves.toEqual([mockTransaction]);
+    await expect(listAuditTraces()).resolves.toEqual([mockTransaction]);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/audit-traces?resource_id=app-1",
+      "/api/v1/audit-traces",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("listAuditTraces calls GET with supported filters", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify([mockTransaction]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      listAuditTraces({
+        limit: 25,
+        resourceId: "ont-1",
+        resourceType: "OntologyDefinition",
+        transactionTypePrefix: "ontology",
+      }),
+    ).resolves.toEqual([mockTransaction]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/audit-traces?limit=25&resource_id=ont-1&resource_type=OntologyDefinition&transaction_type_prefix=ontology",
       expect.objectContaining({
         headers: expect.any(Headers),
       }),

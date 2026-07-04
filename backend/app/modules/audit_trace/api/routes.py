@@ -36,12 +36,8 @@ def list_audit_traces(
     application_id: Annotated[UUID | None, Query()] = None,
     resource_type: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
     transaction_type_prefix: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
 ) -> list[SemanticTransactionResponse]:
-    if resource_id is None and application_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Either resource_id or application_id is required",
-        )
     if resource_id is not None and application_id is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -49,15 +45,13 @@ def list_audit_traces(
         )
 
     service = _get_service(db)
-    if resource_id is not None:
-        records = service.list_by_resource_id(resource_id)
-    else:
-        assert application_id is not None
-        records = service.list_by_application_id(
-            application_id,
-            resource_type=resource_type,
-            transaction_type_prefix=transaction_type_prefix,
-        )
+    records = service.list_transactions(
+        resource_id=resource_id,
+        application_id=application_id,
+        resource_type=resource_type,
+        transaction_type_prefix=transaction_type_prefix,
+        limit=limit,
+    )
     return [to_semantic_transaction_response(record) for record in records]
 
 

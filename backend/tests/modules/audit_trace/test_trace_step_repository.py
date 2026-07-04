@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -15,7 +15,10 @@ from sqlalchemy.pool import StaticPool
 import app.modules.audit_trace.repositories.orm_models  # noqa: F401
 from app.modules.audit_trace.domain.models import TraceStep
 from app.modules.audit_trace.repositories.orm_models import Base, SemanticTransaction
-from app.modules.audit_trace.repositories.sqlalchemy_repository import SqlAlchemyTraceStepRepository
+from app.modules.audit_trace.repositories.sqlalchemy_repository import (
+    SqlAlchemyAuditTraceQueryRepository,
+    SqlAlchemyTraceStepRepository,
+)
 
 
 @pytest.fixture()
@@ -93,3 +96,65 @@ def test_create_and_list_trace_steps(
     assert len(listed) == 2
     assert listed[0].step_number == 1
     assert listed[1].step_number == 2
+
+
+def test_list_transactions_batches_trace_step_loading(
+    db_session: Session, db_engine: Engine
+) -> None:
+    trace_repo = SqlAlchemyTraceStepRepository(db_session)
+    base_time = datetime(2026, 6, 28, 18, 0, 0, tzinfo=UTC)
+    expected_ids: list[UUID] = []
+    for index in range(3):
+        transaction_id = uuid4()
+        created_at = base_time.replace(minute=index)
+        db_session.add(
+            SemanticTransaction(
+                id=transaction_id,
+                transaction_type=f"ontology.event{index}",
+                resource_type="OntologyDefinition",
+                resource_id=str(uuid4()),
+                created_at=created_at,
+            )
+        )
+        db_session.commit()
+        trace_repo.create(
+            TraceStep(
+                id=uuid4(),
+                semantic_transaction_id=transaction_id,
+                step_number=1,
+                step_type="persist",
+                message=f"step-1-{index}",
+                created_at=created_at,
+            )
+        )
+        trace_repo.create(
+            TraceStep(
+                id=uuid4(),
+                semantic_transaction_id=transaction_id,
+                step_number=2,
+                step_type="publish",
+                message=f"step-2-{index}",
+                created_at=created_at,
+            )
+        )
+        expected_ids.insert(0, transaction_id)
+
+    select_statements: list[str] = []
+
+    def before_cursor_execute(
+        _conn, _cursor, statement, _parameters, _context, _executemany
+    ) -> None:
+        if statement.lstrip().upper().startswith("SELECT"):
+            select_statements.append(statement)
+
+    event.listen(db_engine, "before_cursor_execute", before_cursor_execute)
+    try:
+        repo = SqlAlchemyAuditTraceQueryRepository(db_session)
+        records = repo.list_transactions(limit=3)
+    finally:
+        event.remove(db_engine, "before_cursor_execute", before_cursor_execute)
+
+    assert [record.id for record in records] == expected_ids
+    assert all(len(record.trace_steps) == 2 for record in records)
+    assert [step.step_number for step in records[0].trace_steps] == [1, 2]
+    assert len(select_statements) == 2
