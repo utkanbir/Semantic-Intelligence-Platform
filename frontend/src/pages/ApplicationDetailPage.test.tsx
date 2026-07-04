@@ -7,6 +7,7 @@ import {
 } from "../api/applications";
 import { listAgents } from "../api/agents";
 import { listAgentRuns, getAgentRun } from "../api/agentRuns";
+import { listConnectors } from "../api/adapters";
 import { listApplicationAuditTraces } from "../api/auditTrace";
 import { listAssets } from "../api/assets";
 import { listBlueprints } from "../api/blueprints";
@@ -65,6 +66,14 @@ vi.mock("../api/agentRuns", () => ({
   listAgentRuns: vi.fn(),
   getAgentRun: vi.fn(),
 }));
+
+vi.mock("../api/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/adapters")>();
+  return {
+    ...actual,
+    listConnectors: vi.fn(),
+  };
+});
 
 vi.mock("../api/auditTrace", () => ({
   listApplicationAuditTraces: vi.fn(),
@@ -154,6 +163,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listAgentRuns).mockReset();
     vi.mocked(listAgentRuns).mockResolvedValue([]);
     vi.mocked(getAgentRun).mockReset();
+    vi.mocked(listConnectors).mockReset();
+    vi.mocked(listConnectors).mockResolvedValue([]);
     vi.mocked(listApplicationAuditTraces).mockReset();
     vi.mocked(listApplicationAuditTraces).mockResolvedValue([]);
     vi.mocked(listOntologies).mockReset();
@@ -325,6 +336,30 @@ describe("ApplicationDetailPage", () => {
     expect(listOntologies).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Ontology" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("renders the ontology wizard route and highlights its navigation link", async () => {
+    renderDetailPage("/applications/app-1/ontology-studio");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Ontology Wizard" })).toBeInTheDocument();
+    });
+
+    expect(listConnectors).toHaveBeenCalledWith({
+      connectorType: "ontology_knowledge_graph",
+      status: "Active",
+    });
+    expect(screen.getByRole("link", { name: "Ontology Wizard" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology-studio",
+    );
+    expect(screen.getByRole("link", { name: "Ontology Wizard" })).toHaveClass(
+      "application-shell__nav-link--active",
+    );
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(breadcrumb).toHaveTextContent("Applications");
+    expect(breadcrumb).toHaveTextContent("Demo App");
   });
 
   it("navigates to knowledge graph list", async () => {
