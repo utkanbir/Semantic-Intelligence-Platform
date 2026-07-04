@@ -1,15 +1,25 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ApiError } from "../../api";
 import {
   listAuditTraces,
+  type AuditTraceListQuery,
   type SemanticTransactionResponse,
 } from "../../api/auditTrace";
 
 type PageState =
-  | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "success"; transactions: SemanticTransactionResponse[] };
+
+interface AuditTraceFilters {
+  ontologyOnly: boolean;
+  resourceId?: string;
+}
+
+const ONTOLOGY_ACTIVITY_FILTERS = {
+  resourceType: "OntologyDefinition",
+  transactionTypePrefix: "ontology",
+} as const;
 
 function formatDate(iso: string | null): string {
   if (!iso) {
@@ -23,37 +33,93 @@ function formatDate(iso: string | null): string {
 
 export function AuditTracePage() {
   const [resourceId, setResourceId] = useState("");
-  const [resourceIdError, setResourceIdError] = useState<string | null>(null);
-  const [state, setState] = useState<PageState>({ kind: "idle" });
+  const [filters, setFilters] = useState<AuditTraceFilters>({ ontologyOnly: true });
+  const [state, setState] = useState<PageState>({ kind: "loading" });
 
-  async function loadTraces(id: string) {
+  useEffect(() => {
+    let cancelled = false;
+    const query = buildAuditTraceQuery(filters);
+
     setState({ kind: "loading" });
 
-    try {
-      const transactions = await listAuditTraces(id);
-      setState({ kind: "success", transactions });
-    } catch (error: unknown) {
-      const message =
-        error instanceof ApiError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : "Failed to load semantic transactions";
-      setState({ kind: "error", message });
-    }
-  }
+    listAuditTraces(query)
+      .then((transactions) => {
+        if (!cancelled) {
+          setState({ kind: "success", transactions });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          const message =
+            error instanceof ApiError
+              ? error.message
+              : error instanceof Error
+                ? error.message
+                : "Failed to load semantic transactions";
+          setState({ kind: "error", message });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filters]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setResourceIdError(null);
 
     const trimmedId = resourceId.trim();
-    if (!trimmedId) {
-      setResourceIdError("Resource ID is required");
-      return;
+    setFilters((current) => ({
+      ...current,
+      resourceId: trimmedId || undefined,
+    }));
+  }
+
+  function buildAuditTraceQuery(nextFilters: AuditTraceFilters): AuditTraceListQuery {
+    const query: AuditTraceListQuery = nextFilters.ontologyOnly
+      ? { ...ONTOLOGY_ACTIVITY_FILTERS }
+      : {};
+
+    if (nextFilters.resourceId) {
+      query.resourceId = nextFilters.resourceId;
     }
 
-    void loadTraces(trimmedId);
+    return query;
+  }
+
+  function getLoadingMessage(): string {
+    return filters.ontologyOnly
+      ? "Loading ontology semantic transactions…"
+      : "Loading semantic transactions…";
+  }
+
+  function getEmptyMessage(): string {
+    if (filters.ontologyOnly && filters.resourceId) {
+      return "No ontology-related semantic transactions found for this resource.";
+    }
+    if (filters.ontologyOnly) {
+      return "No ontology-related semantic transactions found yet.";
+    }
+    if (filters.resourceId) {
+      return "No semantic transactions found for this resource.";
+    }
+    return "No semantic transactions found yet.";
+  }
+
+  function getPageTitle(): string {
+    return filters.ontologyOnly ? "Ontology semantic transactions" : "Semantic transactions";
+  }
+
+  function getLeadMessage(): string {
+    return filters.ontologyOnly
+      ? "Start with the latest ontology-related semantic transactions across the platform, then refine the list with a resource ID when you need a narrower view."
+      : "Review the latest semantic transactions across the platform, then refine the list with a resource ID when you need a narrower view.";
+  }
+
+  function getResourceHint(): string {
+    return filters.ontologyOnly
+      ? "Optional: narrow the current list to a known ontology or related resource ID"
+      : "Optional: narrow the current list to a known resource ID";
   }
 
   const isEmpty = state.kind === "success" && state.transactions.length === 0;
@@ -61,22 +127,21 @@ export function AuditTracePage() {
 
   return (
     <section className="platform-page" aria-labelledby="semantic-transactions-heading">
-      <h1 id="semantic-transactions-heading">Semantic transactions</h1>
-      <p className="platform-page__lead">
-        Search platform-wide semantic transactions by resource ID. Each transaction records
-        what changed and the ordered trace steps that executed.
+      <h1 id="semantic-transactions-heading">{getPageTitle()}</h1>
+      <p className="platform-page__lead">{getLeadMessage()}</p>
+      <p className="platform-page__field-hint">
+        This page focuses on semantic transactions and their trace steps. Not every audit event
+        appears here.
       </p>
 
       <form
         className="platform-page__filter-form"
         onSubmit={handleSubmit}
-        aria-label="Load semantic transactions by resource ID"
+        aria-label="Refine semantic transactions"
       >
         <div className="platform-page__field">
           <label htmlFor="semantic-transactions-resource-id">Resource ID</label>
-          <p className="platform-page__field-hint">
-            Enter an application ID or other resource ID to list related semantic transactions
-          </p>
+          <p className="platform-page__field-hint">{getResourceHint()}</p>
           <div className="platform-page__field-row">
             <input
               id="semantic-transactions-resource-id"
@@ -85,14 +150,7 @@ export function AuditTracePage() {
               value={resourceId}
               onChange={(event) => {
                 setResourceId(event.target.value);
-                if (resourceIdError) {
-                  setResourceIdError(null);
-                }
               }}
-              aria-invalid={resourceIdError ? true : undefined}
-              aria-describedby={
-                resourceIdError ? "semantic-transactions-resource-id-error" : undefined
-              }
               disabled={state.kind === "loading"}
             />
             <button
@@ -100,24 +158,29 @@ export function AuditTracePage() {
               className="platform-page__button platform-page__button--primary"
               disabled={state.kind === "loading"}
             >
-              {state.kind === "loading" ? "Loading…" : "Search"}
+              {state.kind === "loading" ? "Loading…" : "Apply filters"}
             </button>
           </div>
-          {resourceIdError && (
-            <p
-              id="semantic-transactions-resource-id-error"
-              className="platform-page__field-error"
-              role="alert"
-            >
-              {resourceIdError}
-            </p>
-          )}
         </div>
+        <label className="platform-page__field-hint">
+          <input
+            type="checkbox"
+            checked={filters.ontologyOnly}
+            onChange={(event) =>
+              setFilters((current) => ({
+                ...current,
+                ontologyOnly: event.target.checked,
+              }))
+            }
+            disabled={state.kind === "loading"}
+          />{" "}
+          Show ontology activity only
+        </label>
       </form>
 
       {state.kind === "loading" && (
         <p className="platform-page__status" role="status" aria-live="polite">
-          Loading semantic transactions…
+          {getLoadingMessage()}
         </p>
       )}
 
@@ -129,7 +192,7 @@ export function AuditTracePage() {
 
       {isEmpty && (
         <div className="platform-page__empty" role="status">
-          <p>No semantic transactions found for this resource ID.</p>
+          <p>{getEmptyMessage()}</p>
         </div>
       )}
 

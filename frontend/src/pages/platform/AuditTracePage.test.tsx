@@ -13,9 +13,9 @@ vi.mock("../../api/auditTrace", () => ({
 
 const mockTransaction: SemanticTransactionResponse = {
   id: "txn-1",
-  transaction_type: "CREATE",
-  resource_type: "Application",
-  resource_id: "app-1",
+  transaction_type: "ontology.imported",
+  resource_type: "OntologyDefinition",
+  resource_id: "ont-1",
   created_at: "2025-06-01T10:00:00Z",
   trace_steps: [
     {
@@ -23,7 +23,7 @@ const mockTransaction: SemanticTransactionResponse = {
       semantic_transaction_id: "txn-1",
       step_number: 1,
       step_type: "VALIDATE",
-      message: "Validated input",
+      message: "Validated ontology import",
       created_at: "2025-06-01T10:00:01Z",
     },
     {
@@ -42,69 +42,143 @@ describe("AuditTracePage", () => {
     vi.mocked(listAuditTraces).mockReset();
   });
 
-  it("does not fetch on mount without resource ID", () => {
+  it("loads the latest ontology semantic transactions on mount", async () => {
+    vi.mocked(listAuditTraces).mockResolvedValue([mockTransaction]);
+
     render(<AuditTracePage />);
 
-    expect(listAuditTraces).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByText("ontology.imported")).toBeInTheDocument();
+    });
+
+    expect(listAuditTraces).toHaveBeenCalledWith({
+      resourceType: "OntologyDefinition",
+      transactionTypePrefix: "ontology",
+    });
     expect(
-      screen.getByLabelText("Load semantic transactions by resource ID"),
+      screen.getByLabelText("Refine semantic transactions"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Enter an application ID or other resource ID to list related semantic transactions",
+        "This page focuses on semantic transactions and their trace steps. Not every audit event appears here.",
       ),
     ).toBeInTheDocument();
   });
 
-  it("loads semantic transactions when resource ID is submitted", async () => {
-    vi.mocked(listAuditTraces).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => resolve([mockTransaction]), 0);
-        }),
-    );
+  it("applies resource ID as an optional refinement", async () => {
+    vi.mocked(listAuditTraces).mockResolvedValue([mockTransaction]);
 
     render(<AuditTracePage />);
 
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenCalledTimes(1);
     });
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
-    expect(screen.getByText("Loading semantic transactions…")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Resource ID"), {
+      target: { value: "ont-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
 
     await waitFor(() => {
-      expect(screen.getByText("CREATE")).toBeInTheDocument();
+      expect(listAuditTraces).toHaveBeenLastCalledWith({
+        resourceId: "ont-1",
+        resourceType: "OntologyDefinition",
+        transactionTypePrefix: "ontology",
+      });
     });
 
-    expect(listAuditTraces).toHaveBeenCalledWith("app-1");
-    expect(screen.getByText("Application")).toBeInTheDocument();
-    expect(screen.getByText("app-1")).toBeInTheDocument();
+    expect(screen.getByText("OntologyDefinition")).toBeInTheDocument();
+    expect(screen.getByText("ont-1")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 
-  it("shows validation error when resource ID is empty", async () => {
+  it("clears the resource filter when submitted blank", async () => {
+    vi.mocked(listAuditTraces).mockResolvedValue([mockTransaction]);
+
     render(<AuditTracePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenCalledTimes(1);
+    });
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Resource ID is required");
-    expect(listAuditTraces).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Resource ID"), {
+      target: { value: "ont-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenLastCalledWith({
+        resourceId: "ont-1",
+        resourceType: "OntologyDefinition",
+        transactionTypePrefix: "ontology",
+      });
+    });
+
+    fireEvent.change(screen.getByLabelText("Resource ID"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenLastCalledWith({
+        resourceType: "OntologyDefinition",
+        transactionTypePrefix: "ontology",
+      });
+    });
+    expect(screen.queryByText("Resource ID is required")).not.toBeInTheDocument();
   });
 
-  it("renders empty state", async () => {
+  it("can switch from ontology-first view to all semantic transactions", async () => {
+    vi.mocked(listAuditTraces).mockResolvedValue([mockTransaction]);
+
+    render(<AuditTracePage />);
+
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenCalledWith({
+        resourceType: "OntologyDefinition",
+        transactionTypePrefix: "ontology",
+      });
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Ontology semantic transactions" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Start with the latest ontology-related semantic transactions across the platform, then refine the list with a resource ID when you need a narrower view.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Optional: narrow the current list to a known ontology or related resource ID",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show ontology activity only" }));
+
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenLastCalledWith({});
+    });
+
+    expect(screen.getByRole("heading", { name: "Semantic transactions" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Review the latest semantic transactions across the platform, then refine the list with a resource ID when you need a narrower view.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Optional: narrow the current list to a known resource ID"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders ontology-first empty state", async () => {
     vi.mocked(listAuditTraces).mockResolvedValue([]);
 
     render(<AuditTracePage />);
 
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
-
     await waitFor(() => {
       expect(
-        screen.getByText("No semantic transactions found for this resource ID."),
+        screen.getByText("No ontology-related semantic transactions found yet."),
       ).toBeInTheDocument();
     });
   });
@@ -113,11 +187,6 @@ describe("AuditTracePage", () => {
     vi.mocked(listAuditTraces).mockRejectedValue(new ApiError("Server error", 500));
 
     render(<AuditTracePage />);
-
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Server error");
