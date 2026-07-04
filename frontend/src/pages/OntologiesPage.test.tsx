@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api";
 import {
-  createOntology,
+  forkOntologyVersion,
   listOntologies,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
@@ -12,7 +13,6 @@ import { OntologiesPage } from "./OntologiesPage";
 vi.mock("../api/ontologies", () => ({
   listOntologies: vi.fn(),
   getOntology: vi.fn(),
-  createOntology: vi.fn(),
   updateOntologyStatus: vi.fn(),
   forkOntologyVersion: vi.fn(),
   canForkOntology: vi.fn((ontology: { status: string }) =>
@@ -60,17 +60,6 @@ const mockOntology: OntologyDefinitionResponse = {
   ontology_definition: {},
 };
 
-const newOntology: OntologyDefinitionResponse = {
-  ...mockOntology,
-  id: "onto-2",
-  title: "New Ontology",
-  status: "Draft",
-  version_number: 1,
-  published_at: null,
-  validated_at: null,
-  approved_at: null,
-};
-
 const draftOntology: OntologyDefinitionResponse = {
   ...mockOntology,
   id: "onto-draft",
@@ -87,11 +76,25 @@ const validatedOntology: OntologyDefinitionResponse = {
   validated_at: "2025-06-02T10:00:00Z",
 };
 
+function renderPage(initialEntry = "/applications/app-1/ontology") {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route
+          path="/applications/:applicationId/ontology"
+          element={<OntologiesPage applicationId="app-1" />}
+        />
+        <Route path="/applications/:applicationId/ontology-studio" element={<div>Wizard</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 describe("OntologiesPage", () => {
   beforeEach(() => {
     vi.mocked(listOntologies).mockReset();
-    vi.mocked(createOntology).mockReset();
     vi.mocked(updateOntologyStatus).mockReset();
+    vi.mocked(forkOntologyVersion).mockReset();
   });
 
   it("renders loading then ontologies table", async () => {
@@ -102,7 +105,7 @@ describe("OntologiesPage", () => {
         }),
     );
 
-    render(<OntologiesPage applicationId="app-1" />);
+    renderPage();
 
     expect(screen.getByText("Loading ontologies…")).toBeInTheDocument();
 
@@ -118,123 +121,31 @@ describe("OntologiesPage", () => {
   it("renders empty state with create form", async () => {
     vi.mocked(listOntologies).mockResolvedValue([]);
 
-    render(<OntologiesPage applicationId="app-1" />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByText("No ontology definitions yet.")).toBeInTheDocument();
     });
 
-    expect(screen.getByLabelText("Create ontology")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open ontology wizard" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology-studio",
+    );
   });
 
-  it("creates ontology from empty state and refreshes list", async () => {
-    vi.mocked(listOntologies)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([newOntology]);
-    vi.mocked(createOntology).mockResolvedValue(newOntology);
-
-    render(<OntologiesPage applicationId="app-1" />);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Create ontology")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New Ontology" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create ontology" }));
-
-    await waitFor(() => {
-      expect(createOntology).toHaveBeenCalledWith({
-        application_id: "app-1",
-        title: "New Ontology",
-        ontology_definition: {},
-      });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("New Ontology")).toBeInTheDocument();
-    });
-  });
-
-  it("shows New ontology panel when list has items", async () => {
+  it("shows the wizard entry link when ontologies exist", async () => {
     vi.mocked(listOntologies).mockResolvedValue([mockOntology]);
 
-    render(<OntologiesPage applicationId="app-1" />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByText("Customer Ontology")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "New ontology" }));
-    expect(screen.getByRole("heading", { name: "New ontology" })).toBeInTheDocument();
-  });
-
-  it("shows title validation error when title is empty", async () => {
-    vi.mocked(listOntologies).mockResolvedValue([]);
-
-    render(<OntologiesPage applicationId="app-1" />);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Create ontology")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Create ontology" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Title is required");
-    });
-
-    expect(createOntology).not.toHaveBeenCalled();
-  });
-
-  it("shows JSON validation error for invalid ontology definition", async () => {
-    vi.mocked(listOntologies).mockResolvedValue([]);
-
-    render(<OntologiesPage applicationId="app-1" />);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Create ontology")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Bad JSON" } });
-    fireEvent.change(screen.getByLabelText(/Ontology definition/), {
-      target: { value: "not-json" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create ontology" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Ontology definition must be valid JSON",
-      );
-    });
-
-    expect(createOntology).not.toHaveBeenCalled();
-  });
-
-  it("submits parsed ontology definition JSON", async () => {
-    vi.mocked(listOntologies)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([newOntology]);
-    vi.mocked(createOntology).mockResolvedValue(newOntology);
-
-    render(<OntologiesPage applicationId="app-1" />);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Create ontology")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New Ontology" } });
-    fireEvent.change(screen.getByLabelText(/Ontology definition/), {
-      target: { value: '{"classes": ["Person"]}' },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create ontology" }));
-
-    await waitFor(() => {
-      expect(createOntology).toHaveBeenCalledWith({
-        application_id: "app-1",
-        title: "New Ontology",
-        ontology_definition: { classes: ["Person"] },
-      });
-    });
+    expect(screen.getByRole("link", { name: "Create or import ontology" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology-studio",
+    );
   });
 
   it("validates draft ontology via lifecycle action", async () => {
@@ -243,7 +154,7 @@ describe("OntologiesPage", () => {
       .mockResolvedValueOnce([validatedOntology]);
     vi.mocked(updateOntologyStatus).mockResolvedValue(validatedOntology);
 
-    render(<OntologiesPage applicationId="app-1" />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Validate" })).toBeInTheDocument();
@@ -266,7 +177,7 @@ describe("OntologiesPage", () => {
       new ApiError("Invalid status transition", 422),
     );
 
-    render(<OntologiesPage applicationId="app-1" />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Validate" })).toBeInTheDocument();
@@ -279,28 +190,46 @@ describe("OntologiesPage", () => {
     });
   });
 
-  it("shows ApiError message on create failure", async () => {
-    vi.mocked(listOntologies).mockResolvedValue([]);
-    vi.mocked(createOntology).mockRejectedValue(new ApiError("Duplicate title", 409));
-
-    render(<OntologiesPage applicationId="app-1" />);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Create ontology")).toBeInTheDocument();
+  it("forks a published ontology version", async () => {
+    vi.mocked(listOntologies)
+      .mockResolvedValueOnce([mockOntology])
+      .mockResolvedValueOnce([
+        {
+          ...mockOntology,
+          id: "onto-2",
+          title: "Customer Ontology v2",
+          status: "Draft",
+          version_number: 3,
+        },
+      ]);
+    vi.mocked(forkOntologyVersion).mockResolvedValue({
+      ...mockOntology,
+      id: "onto-2",
+      status: "Draft",
+      version_number: 3,
     });
 
-    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Fail Ontology" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create ontology" }));
+    renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Duplicate title");
+      expect(screen.getByRole("button", { name: "New version" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New version" }));
+
+    await waitFor(() => {
+      expect(forkOntologyVersion).toHaveBeenCalledWith("onto-1");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Customer Ontology v2")).toBeInTheDocument();
     });
   });
 
   it("renders error state on API failure", async () => {
     vi.mocked(listOntologies).mockRejectedValue(new Error("Network error"));
 
-    render(<OntologiesPage applicationId="app-1" />);
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Network error");
