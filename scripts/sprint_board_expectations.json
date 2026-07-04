@@ -117,6 +117,14 @@
     "28": {
       "label": "Connector Provisioning v1",
       "issues": [266, 267, 268]
+    },
+    "29": {
+      "label": "Console Connectors UX v2",
+      "issues": [272, 274, 275, 276]
+    },
+    "30": {
+      "label": "Fuseki Persistence & Semantic Transactions",
+      "issues": [281, 283]
     }
   }
 }

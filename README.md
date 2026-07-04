@@ -4,6 +4,8 @@
 
 SIP is a modular, cloud-native platform that guides organizations through the full **Semantic Intelligence lifecycle**: structured discovery, blueprint-driven provisioning, curated data products, ontology-backed knowledge graphs, and policy-governed AI agents. Every significant action is traceable via **Semantic Transactions** and **Trace Steps**, so outcomes stay auditable and explainable by design.
 
+The current `develop` branch includes a working Platform Console for **Applications**, **Connectors**, **Ontology import to Fuseki**, and **Semantic Transaction** inspection on Kubernetes (`console.sip.local`, `api.sip.local`).
+
 ---
 
 ## Why SIP?
@@ -42,7 +44,7 @@ flowchart LR
 | Path | Purpose |
 |------|---------|
 | [`backend/`](backend/) | Python / FastAPI modular monolith — REST API at `/api/v1` |
-| [`frontend/`](frontend/) | React / TypeScript Platform Console (MVP in progress) |
+| [`frontend/`](frontend/) | React / TypeScript Platform Console for applications, connectors, ontology import, and semantic transactions |
 | [`infra/`](infra/) | Kubernetes + Kustomize — primary runtime (`sip-dev` namespace) |
 | [`architecture/`](architecture/) | Canonical architecture specifications |
 | [`docs/`](docs/) | ADRs, governance, retros, and engineering playbooks |
@@ -82,6 +84,9 @@ kubectl apply -k infra/kubernetes/overlays/dev
 
 Health check: `GET /api/v1/health`
 
+Console ingress: `http://console.sip.local`  
+API ingress: `http://api.sip.local`
+
 ---
 
 ## Documentation
@@ -113,8 +118,16 @@ SIP MVP is under active sprint delivery on the `develop` integration branch.
 | Assessment MVP E2E (Sprint 10) | ✅ Closed |
 | Platform Console (Sprint 11) | ✅ Closed |
 | Console Deploy & Release (Sprint 12) | ✅ Closed |
+| Console Connectors UX v2 (Sprint 29) | ✅ Closed |
+| Fuseki Persistence & Semantic Transactions (Sprint 30) | ✅ Closed |
 
-**Current:** 188 pytest · 14 frontend vitest · Console on K8s (`console.sip.local`) · Alembic `20260629_0015`
+**Current:** Default branch `develop` · Console on K8s (`console.sip.local`) · Ontology import persists to Fuseki · Semantic Transaction detail UI live · Alembic `20260704_0018`
+
+### Recent delivery highlights
+
+- **Unified Connectors UX**: Platform hub, list-first connector registry, auto-generated connector keys, icon-based type/vendor selection, `vector_database` connector type.
+- **Fuseki persistence**: Ontology imports now persist RDF content to Fuseki instead of stub-only metadata writes.
+- **Semantic Transactions UI**: Console labels and flows now expose Semantic Transactions more directly, including per-transaction detail pages and post-import deep links.
 
 ---
 

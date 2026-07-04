@@ -608,6 +608,52 @@
         "agent_runs",
         "policy_definitions"
       ]
+    },
+    "29": {
+      "label": "Console Connectors UX v2",
+      "alembic_head": "20260704_0018",
+      "new_tables": [],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries",
+        "technology_adapters",
+        "agent_runs",
+        "policy_definitions"
+      ]
+    },
+    "30": {
+      "label": "Fuseki Persistence & Semantic Transactions",
+      "alembic_head": "20260704_0018",
+      "new_tables": [],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries",
+        "technology_adapters",
+        "agent_runs",
+        "policy_definitions"
+      ]
     }
   }
 }

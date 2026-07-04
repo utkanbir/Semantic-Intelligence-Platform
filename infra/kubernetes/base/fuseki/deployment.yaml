@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: fuseki
-          image: stain/jena-fuseki:5.2.0
+          image: stain/jena-fuseki:5.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
