@@ -14,10 +14,16 @@ const PLATFORM_SECTIONS = [
     hint: "Browse governance policies",
   },
   {
-    to: "/audit-trace",
+    to: "/semantic-transactions",
     label: "Semantic Transactions",
-    description: "Review semantic transactions and trace steps across platform activity.",
-    hint: "Search semantic transactions",
+    description: "Review semantic lineage — how meaning evolved for ontologies, products, and agents.",
+    hint: "Browse semantic transactions",
+  },
+  {
+    to: "/audit-trace",
+    label: "Audit Trace",
+    description: "Explore operational and platform trace records, including connector events.",
+    hint: "Browse audit trace records",
   },
 ] as const;
 

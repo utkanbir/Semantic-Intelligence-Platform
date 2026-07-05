@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import {
-  listApplicationAuditTraces,
+  listApplicationSemanticTransactions,
   type SemanticTransactionResponse,
 } from "../api/auditTrace";
 
@@ -21,20 +21,22 @@ function formatDate(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-interface ApplicationAuditTracePageProps {
+interface ApplicationSemanticTransactionsPageProps {
   applicationId: string;
 }
 
-export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTracePageProps) {
+export function ApplicationSemanticTransactionsPage({
+  applicationId,
+}: ApplicationSemanticTransactionsPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
-  const [operationalOnly, setOperationalOnly] = useState(false);
+  const [ontologyOnly, setOntologyOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const query = operationalOnly ? { traceAudience: "operational_audit" as const } : {};
+    const query = ontologyOnly ? { resourceType: "OntologyDefinition" } : {};
 
-    listApplicationAuditTraces(applicationId, query)
+    listApplicationSemanticTransactions(applicationId, query)
       .then((transactions) => {
         if (!cancelled) {
           setState({ kind: "success", transactions });
@@ -47,7 +49,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
               ? error.message
               : error instanceof Error
                 ? error.message
-                : "Failed to load audit trace records";
+                : "Failed to load semantic transactions";
           setState({ kind: "error", message });
         }
       });
@@ -55,34 +57,37 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
     return () => {
       cancelled = true;
     };
-  }, [applicationId, operationalOnly]);
+  }, [applicationId, ontologyOnly]);
 
   const isEmpty = state.kind === "success" && state.transactions.length === 0;
   const hasTransactions = state.kind === "success" && state.transactions.length > 0;
 
   return (
-    <section className="agent-runs-page" aria-labelledby="application-audit-trace-heading">
+    <section
+      className="agent-runs-page"
+      aria-labelledby="application-semantic-transactions-heading"
+    >
       <div className="agent-runs-page__header">
         <div>
-          <h2 id="application-audit-trace-heading">Audit trace</h2>
+          <h2 id="application-semantic-transactions-heading">Semantic transactions</h2>
           <p className="agent-runs-page__lead">
-            Operational and platform trace records for this application, including connector
-            events.
+            Semantic lineage for this application — ontology, products, agents, and related
+            meaning evolution.
           </p>
         </div>
         <label className="agent-runs-page__filter">
           <input
             type="checkbox"
-            checked={operationalOnly}
-            onChange={(event) => setOperationalOnly(event.target.checked)}
+            checked={ontologyOnly}
+            onChange={(event) => setOntologyOnly(event.target.checked)}
           />
-          Operational audit only
+          Ontology semantic lineage only
         </label>
       </div>
 
       {state.kind === "loading" && (
         <p className="agent-runs-page__status" role="status" aria-live="polite">
-          Loading audit trace records…
+          Loading semantic transactions…
         </p>
       )}
 
@@ -94,7 +99,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
 
       {isEmpty && (
         <div className="agent-runs-page__empty" role="status">
-          <p>No audit trace records yet.</p>
+          <p>No semantic transactions yet.</p>
         </div>
       )}
 
@@ -114,7 +119,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
                 <tr key={transaction.id}>
                   <td>
                     <Link
-                      to={`/applications/${applicationId}/audit-trace/${transaction.id}`}
+                      to={`/applications/${applicationId}/semantic-transactions/${transaction.id}`}
                       className="agent-runs-table__link"
                     >
                       {transaction.transaction_type}

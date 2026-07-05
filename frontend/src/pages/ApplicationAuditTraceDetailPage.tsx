@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import {
-  getSemanticTransaction,
+  getAuditTrace,
   type SemanticTransactionResponse,
 } from "../api/auditTrace";
 import { SemanticTransactionTimeline } from "../components/SemanticTransactionTimeline";
@@ -23,15 +23,15 @@ function formatDate(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-interface ApplicationSemanticTransactionDetailPageProps {
+interface ApplicationAuditTraceDetailPageProps {
   applicationId: string;
   transactionId: string;
 }
 
-export function ApplicationSemanticTransactionDetailPage({
+export function ApplicationAuditTraceDetailPage({
   applicationId,
   transactionId,
-}: ApplicationSemanticTransactionDetailPageProps) {
+}: ApplicationAuditTraceDetailPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export function ApplicationSemanticTransactionDetailPage({
 
     setState({ kind: "loading" });
 
-    getSemanticTransaction(transactionId)
+    getAuditTrace(transactionId)
       .then((transaction) => {
         if (!cancelled) {
           if (
@@ -63,7 +63,7 @@ export function ApplicationSemanticTransactionDetailPage({
               ? error.message
               : error instanceof Error
                 ? error.message
-                : "Failed to load semantic transaction";
+                : "Failed to load audit trace record";
           setState({ kind: "error", message });
         }
       });
@@ -73,19 +73,16 @@ export function ApplicationSemanticTransactionDetailPage({
     };
   }, [applicationId, transactionId]);
 
-  const backHref = `/applications/${applicationId}/semantic-transactions`;
+  const backHref = `/applications/${applicationId}/audit-trace`;
 
   return (
-    <section
-      className="agent-runs-page"
-      aria-labelledby="semantic-transaction-detail-heading"
-    >
+    <section className="agent-runs-page" aria-labelledby="audit-trace-detail-heading">
       <div className="agent-runs-page__header">
         <div>
           <Link to={backHref} className="agent-run-detail__back">
-            ← Back to semantic transactions
+            ← Back to audit trace
           </Link>
-          <h2 id="semantic-transaction-detail-heading">Semantic transaction detail</h2>
+          <h2 id="audit-trace-detail-heading">Audit trace detail</h2>
           <p className="agent-runs-page__lead">
             Transaction <code className="agent-runs-table__id">{transactionId}</code>
           </p>
@@ -94,15 +91,15 @@ export function ApplicationSemanticTransactionDetailPage({
 
       {state.kind === "loading" && (
         <p className="agent-runs-page__status" role="status" aria-live="polite">
-          Loading semantic transaction…
+          Loading audit trace record…
         </p>
       )}
 
       {state.kind === "not-found" && (
         <div className="agent-runs-page__empty" role="status">
-          <p>Semantic transaction not found.</p>
+          <p>Audit trace record not found.</p>
           <p className="agent-runs-page__hint">
-            <Link to={backHref}>Return to semantic transactions</Link>
+            <Link to={backHref}>Return to audit trace</Link>
           </p>
         </div>
       )}

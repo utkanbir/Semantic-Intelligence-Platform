@@ -14,21 +14,12 @@ vi.mock("../api/auditTrace", () => ({
 
 const mockTransaction: SemanticTransactionResponse = {
   id: "txn-1",
-  transaction_type: "ontology.imported",
-  resource_type: "OntologyDefinition",
-  resource_id: "ont-1",
+  transaction_type: "connector.provisioned",
+  resource_type: "TechnologyAdapter",
+  resource_id: "adapter-1",
   application_id: "app-1",
   created_at: "2025-06-01T10:00:00Z",
-  trace_steps: [
-    {
-      id: "step-1",
-      semantic_transaction_id: "txn-1",
-      step_number: 1,
-      step_type: "validate_request",
-      message: "Validated ontology import request",
-      created_at: "2025-06-01T10:00:01Z",
-    },
-  ],
+  trace_steps: [],
 };
 
 function renderPage() {
@@ -44,7 +35,7 @@ describe("ApplicationAuditTracePage", () => {
     vi.mocked(listApplicationAuditTraces).mockReset();
   });
 
-  it("renders loading then semantic transactions table with detail links", async () => {
+  it("renders loading then audit trace table with detail links", async () => {
     vi.mocked(listApplicationAuditTraces).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -54,39 +45,33 @@ describe("ApplicationAuditTracePage", () => {
 
     renderPage();
 
-    expect(screen.getByText("Loading semantic transactions…")).toBeInTheDocument();
+    expect(screen.getByText("Loading audit trace records…")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("ontology.imported")).toBeInTheDocument();
+      expect(screen.getByText("connector.provisioned")).toBeInTheDocument();
     });
 
     expect(listApplicationAuditTraces).toHaveBeenCalledWith("app-1", {});
-    expect(screen.getByText("OntologyDefinition")).toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "ontology.imported" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "connector.provisioned" })).toHaveAttribute(
       "href",
       "/applications/app-1/audit-trace/txn-1",
     );
   });
 
-  it("filters to ontology transactions when checkbox is checked", async () => {
+  it("filters to operational audit when checkbox is checked", async () => {
     vi.mocked(listApplicationAuditTraces).mockResolvedValue([mockTransaction]);
 
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("ontology.imported")).toBeInTheDocument();
+      expect(screen.getByText("connector.provisioned")).toBeInTheDocument();
     });
 
-    expect(listApplicationAuditTraces).toHaveBeenCalledWith("app-1", {});
-
-    const checkbox = screen.getByRole("checkbox", { name: "Ontology transactions only" });
-    checkbox.click();
+    screen.getByRole("checkbox", { name: "Operational audit only" }).click();
 
     await waitFor(() => {
       expect(listApplicationAuditTraces).toHaveBeenCalledWith("app-1", {
-        resourceType: "OntologyDefinition",
-        transactionTypePrefix: "ontology",
+        traceAudience: "operational_audit",
       });
     });
   });
@@ -97,7 +82,7 @@ describe("ApplicationAuditTracePage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("No semantic transactions yet.")).toBeInTheDocument();
+      expect(screen.getByText("No audit trace records yet.")).toBeInTheDocument();
     });
   });
 
