@@ -84,7 +84,7 @@ function renderPage(initialEntry = "/applications/app-1/ontology") {
           path="/applications/:applicationId/ontology"
           element={<OntologiesPage applicationId="app-1" />}
         />
-        <Route path="/applications/:applicationId/ontology-studio" element={<div>Wizard</div>} />
+        <Route path="/applications/:applicationId/ontology/create" element={<div>Create</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -127,10 +127,8 @@ describe("OntologiesPage", () => {
       expect(screen.getByText("No ontology definitions yet.")).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("link", { name: "Open ontology wizard" })).toHaveAttribute(
-      "href",
-      "/applications/app-1/ontology-studio",
-    );
+    const createLinks = screen.getAllByRole("link", { name: "Create or import ontology" });
+    expect(createLinks[0]).toHaveAttribute("href", "/applications/app-1/ontology/create");
   });
 
   it("shows the wizard entry link when ontologies exist", async () => {
@@ -142,10 +140,8 @@ describe("OntologiesPage", () => {
       expect(screen.getByText("Customer Ontology")).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("link", { name: "Create or import ontology" })).toHaveAttribute(
-      "href",
-      "/applications/app-1/ontology-studio",
-    );
+    const createLinks = screen.getAllByRole("link", { name: "Create or import ontology" });
+    expect(createLinks[0]).toHaveAttribute("href", "/applications/app-1/ontology/create");
   });
 
   it("validates draft ontology via lifecycle action", async () => {

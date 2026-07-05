@@ -137,13 +137,12 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
         <div>
           <h2 id="ontologies-heading">Ontology</h2>
           <p className="ontologies-page__lead">
-            Ontology definitions describe the semantic model for this application&apos;s
-            knowledge graph and data products. Use the guided wizard to create a
-            minimal ontology or import an existing artifact.
+            The ontology captures business meaning for this application — not another
+            database, but the semantic context agents and data products rely on.
           </p>
         </div>
         <Link
-          to={`/applications/${applicationId}/ontology-studio`}
+          to={`/applications/${applicationId}/ontology/create`}
           className="ontologies-page__button ontologies-page__button--primary"
         >
           Create or import ontology
@@ -172,15 +171,15 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
         <div className="ontologies-page__empty" role="status">
           <p>No ontology definitions yet.</p>
           <p className="ontologies-page__hint">
-            Use the ontology wizard to create from scratch or import existing RDF
-            content.
+            Create a manual ontology or import existing OWL/RDF content through the
+            guided flow.
           </p>
           <p>
             <Link
-              to={`/applications/${applicationId}/ontology-studio`}
+              to={`/applications/${applicationId}/ontology/create`}
               className="ontologies-page__button ontologies-page__button--primary"
             >
-              Open ontology wizard
+              Create or import ontology
             </Link>
           </p>
         </div>

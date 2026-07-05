@@ -68,10 +68,10 @@ const importedOntology: OntologyDefinitionResponse = {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/applications/app-1/ontology-studio"]}>
+    <MemoryRouter initialEntries={["/applications/app-1/ontology/create"]}>
       <Routes>
         <Route
-          path="/applications/:applicationId/ontology-studio"
+          path="/applications/:applicationId/ontology/create"
           element={<OntologyStudioPage applicationId="app-1" />}
         />
       </Routes>
@@ -92,10 +92,12 @@ describe("OntologyStudioPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Ontology Wizard" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("radio", { name: /Create from scratch/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /Manual/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Customer Ontology" },
     });
@@ -106,12 +108,14 @@ describe("OntologyStudioPage", () => {
       target: { value: "cust" },
     });
 
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 2 · Edit & validate" })).toBeInTheDocument();
+    });
+
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Step 2 · Connector & metadata" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Step 3 · Connector" })).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText(/Description/), {
@@ -127,11 +131,11 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByText("Submitted artifact preview")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Create from scratch")).toBeInTheDocument();
+    expect(screen.getByText("Manual")).toBeInTheDocument();
     expect(screen.getByText("Primary Fuseki — Apache Jena Fuseki")).toBeInTheDocument();
     expect(screen.getByText(/@prefix cust:/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Create ontology" }));
+    fireEvent.click(screen.getByRole("button", { name: "Materialize ontology" }));
 
     await waitFor(() => {
       expect(importOntology).toHaveBeenCalledWith({
@@ -177,10 +181,12 @@ describe("OntologyStudioPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Ontology Wizard" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("radio", { name: /Import existing/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /OWL Import/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Imported Ontology" },
     });
@@ -192,9 +198,7 @@ describe("OntologyStudioPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Step 2 · Connector & metadata" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Step 3 · Connector" })).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText("Source format"), {
@@ -202,7 +206,7 @@ describe("OntologyStudioPage", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    fireEvent.click(screen.getByRole("button", { name: "Import ontology" }));
+    fireEvent.click(screen.getByRole("button", { name: "Materialize ontology" }));
 
     await waitFor(() => {
       expect(importOntology).toHaveBeenCalledWith({
@@ -219,10 +223,11 @@ describe("OntologyStudioPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Ontology Wizard" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("radio", { name: /Import existing/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /OWL Import/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     const file = new File(["@prefix ex: <https://example.com/> ."], "vendor.ttl", {
       type: "text/turtle",
@@ -248,14 +253,14 @@ describe("OntologyStudioPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Ontology Wizard" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Choose whether you want to create a new ontology or import an existing one",
+        "Choose Manual or OWL Import to continue",
       );
     });
   });

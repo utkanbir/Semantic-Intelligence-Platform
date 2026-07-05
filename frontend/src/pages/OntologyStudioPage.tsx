@@ -29,7 +29,7 @@ type PageState =
       mode: WizardMode;
     };
 
-const WIZARD_STEPS = ["Source", "Connector & metadata", "Review & run"] as const;
+const WIZARD_STEPS = ["Mode", "Edit & validate", "Connector", "Review & run"] as const;
 const PREFIX_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
 function formatConnectorLabel(connector: ConnectorResponse): string {
@@ -39,6 +39,10 @@ function formatConnectorLabel(connector: ConnectorResponse): string {
     : null;
 
   return vendorLabel ? `${connector.title} — ${vendorLabel}` : connector.title;
+}
+
+function formatModeLabel(mode: WizardMode): string {
+  return mode === "create" ? "Manual" : "OWL Import";
 }
 
 function normalizePrefix(prefix: string): string {
@@ -186,11 +190,18 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
   const contentForSubmission = mode === "create" ? generatedSourceContent : sourceContent.trim();
   const effectiveSourceFormat = mode === "create" ? "ttl" : sourceFormat.trim() || "ttl";
+  const editStepValid = mode !== null && validateStep(1) === null;
 
   function validateStep(nextStep: number): string | null {
     if (nextStep === 0) {
       if (!mode) {
-        return "Choose whether you want to create a new ontology or import an existing one";
+        return "Choose Manual or OWL Import to continue";
+      }
+    }
+
+    if (nextStep === 1) {
+      if (!mode) {
+        return "Choose Manual or OWL Import to continue";
       }
 
       if (!title.trim()) {
@@ -209,6 +220,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         if (!PREFIX_PATTERN.test(normalizedPrefix)) {
           return "Prefix must start with a letter and use only letters, numbers, underscores, or hyphens";
         }
+
+        if (!generatedSourceContent.trim()) {
+          return "Generated ontology content is empty";
+        }
       }
 
       if (mode === "import" && !sourceContent.trim()) {
@@ -218,7 +233,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       }
     }
 
-    if (nextStep === 1) {
+    if (nextStep === 2) {
       if (!connectorId) {
         return "Connector is required";
       }
@@ -260,7 +275,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const reviewValidation = validateStep(1);
+    const reviewValidation = validateStep(2);
     if (reviewValidation) {
       setStepError(reviewValidation);
       return;
@@ -271,7 +286,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle || !connectorId || !contentForSubmission) {
-      setSubmitError("Complete the wizard before running the import");
+      setSubmitError("Complete the flow before materializing the ontology");
       return;
     }
 
@@ -302,7 +317,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to import ontology";
+            : "Failed to materialize ontology";
       setSubmitError(message);
     } finally {
       setSubmitting(false);
@@ -331,10 +346,12 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
   }
 
+  const backHref = `/applications/${applicationId}/ontology`;
+
   if (state.kind === "loading") {
     return (
       <p className="agent-runs-page__status" role="status">
-        Loading Ontology Wizard…
+        Loading ontology creation flow…
       </p>
     );
   }
@@ -349,8 +366,11 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
   if (state.kind === "imported") {
     return (
-      <section className="agent-runs-page" aria-labelledby="ontology-studio-heading">
-        <h2 id="ontology-studio-heading">Ontology Wizard</h2>
+      <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
+        <Link to={backHref} className="agent-run-detail__back">
+          ← Back to ontologies
+        </Link>
+        <h2 id="ontology-create-heading">Create ontology</h2>
         <div className="agent-runs-page__empty" role="status">
           <p>
             {state.mode === "create"
@@ -358,7 +378,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               : "Ontology imported successfully."}
           </p>
           <p>
-            <strong>{state.title}</strong> is now available through the ontology workspace.
+            <strong>{state.title}</strong> is registered and materialized through the selected
+            connector.
           </p>
           {state.artifactUri && (
             <p>
@@ -399,14 +420,17 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const sourcePreview = previewSourceContent(contentForSubmission);
 
   return (
-    <section className="agent-runs-page" aria-labelledby="ontology-studio-heading">
+    <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
       <div className="agent-runs-page__header">
         <div>
-          <h2 id="ontology-studio-heading">Ontology Wizard</h2>
+          <Link to={backHref} className="agent-run-detail__back">
+            ← Back to ontologies
+          </Link>
+          <h2 id="ontology-create-heading">Create ontology</h2>
           <p className="agent-runs-page__lead">
-            Choose whether to create a minimal ontology from metadata or import existing
-            RDF content. The wizard then guides you through connector selection, metadata,
-            and a final review before running the existing ontology import flow.
+            Capture business meaning for this application. The ontology is not another
+            database — it defines the semantic context that agents and data products rely
+            on. Materialization runs through the connector framework.
           </p>
         </div>
       </div>
@@ -415,7 +439,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         <div className="agent-runs-page__empty" role="status">
           <p>
             No active ontology / knowledge graph connectors. Create one under Platform →
-            Connectors, activate it, then return here to run the ontology wizard.
+            Connectors, activate it, then return here to create an ontology.
           </p>
           <p className="agent-runs-page__hint">
             <Link to="/connectors">Open connectors</Link>
@@ -425,9 +449,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         <form
           className="agent-runs-page__form ontology-wizard"
           onSubmit={(event) => void handleSubmit(event)}
-          aria-label="Ontology wizard"
+          aria-label="Create ontology"
         >
-          <ol className="ontology-wizard__steps" aria-label="Wizard steps">
+          <ol className="ontology-wizard__steps" aria-label="Creation steps">
             {WIZARD_STEPS.map((label, index) => {
               const stateLabel =
                 index === step ? "current" : index < step ? "complete" : "upcoming";
@@ -449,7 +473,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
           {step === 0 && (
             <div className="ontologies-page__create-panel">
-              <h3 className="ontologies-page__create-title">Step 1 · Source</h3>
+              <h3 className="ontologies-page__create-title">Step 1 · Mode</h3>
               <div className="ontology-wizard__mode-grid" role="radiogroup" aria-label="Mode">
                 <label className="ontology-wizard__mode-card">
                   <input
@@ -459,10 +483,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     checked={mode === "create"}
                     onChange={() => handleModeChange("create")}
                   />
-                  <span className="ontology-wizard__mode-title">Create from scratch</span>
+                  <span className="ontology-wizard__mode-title">Manual</span>
                   <span className="ontology-wizard__mode-copy">
-                    Start with title, namespace, and prefix. The wizard will generate a
-                    minimal ontology document for you.
+                    Define title, namespace, and prefix. A minimal ontology document is
+                    generated for materialization.
                   </span>
                 </label>
                 <label className="ontology-wizard__mode-card">
@@ -473,128 +497,146 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     checked={mode === "import"}
                     onChange={() => handleModeChange("import")}
                   />
-                  <span className="ontology-wizard__mode-title">Import existing</span>
+                  <span className="ontology-wizard__mode-title">OWL Import</span>
                   <span className="ontology-wizard__mode-copy">
-                    Bring in an existing ontology from a file upload or pasted RDF content.
+                    Import existing OWL/RDF content from a file upload or pasted text.
                   </span>
                 </label>
               </div>
-
-              {mode && (
-                <div className="ontology-wizard__step-body">
-                  <div className="agent-runs-page__field">
-                    <label htmlFor="ontology-title">Title</label>
-                    <input
-                      id="ontology-title"
-                      value={title}
-                      onChange={(event) => {
-                        setTitle(event.target.value);
-                        setStepError(null);
-                      }}
-                    />
-                  </div>
-
-                  {mode === "create" ? (
-                    <>
-                      <div className="agent-runs-page__field">
-                        <label htmlFor="ontology-namespace">Namespace / base IRI</label>
-                        <input
-                          id="ontology-namespace"
-                          placeholder="https://example.com/ontology#"
-                          value={namespaceIri}
-                          onChange={(event) => {
-                            setNamespaceIri(event.target.value);
-                            setStepError(null);
-                          }}
-                        />
-                      </div>
-                      <div className="agent-runs-page__field">
-                        <label htmlFor="ontology-prefix">Prefix</label>
-                        <input
-                          id="ontology-prefix"
-                          placeholder="ex"
-                          value={prefix}
-                          onChange={(event) => {
-                            setPrefix(event.target.value);
-                            setStepError(null);
-                          }}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <fieldset className="ontology-wizard__source-options">
-                        <legend>Import source</legend>
-                        <label>
-                          <input
-                            type="radio"
-                            name="ontology-source-method"
-                            value="file"
-                            checked={sourceMethod === "file"}
-                            onChange={() => {
-                              setSourceMethod("file");
-                              setStepError(null);
-                            }}
-                          />
-                          <span>Upload file</span>
-                        </label>
-                        <label>
-                          <input
-                            type="radio"
-                            name="ontology-source-method"
-                            value="paste"
-                            checked={sourceMethod === "paste"}
-                            onChange={() => {
-                              setSourceMethod("paste");
-                              setStepError(null);
-                            }}
-                          />
-                          <span>Paste text</span>
-                        </label>
-                      </fieldset>
-
-                      {sourceMethod === "file" ? (
-                        <div className="agent-runs-page__field">
-                          <label htmlFor="ontology-import-file">Ontology file</label>
-                          <input
-                            id="ontology-import-file"
-                            type="file"
-                            accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
-                            onChange={(event) => void handleFileChange(event)}
-                          />
-                          <p className="agent-runs-page__field-hint">
-                            {sourceFileName
-                              ? `Loaded ${sourceFileName}`
-                              : "Accepted formats include TTL, RDF/XML, OWL, and JSON-LD."}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="agent-runs-page__field">
-                          <label htmlFor="ontology-import-content">Ontology content</label>
-                          <textarea
-                            id="ontology-import-content"
-                            rows={12}
-                            value={sourceContent}
-                            onChange={(event) => {
-                              setSourceContent(event.target.value);
-                              setStepError(null);
-                            }}
-                          />
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
-          {step === 1 && (
+          {step === 1 && mode && (
             <div className="ontologies-page__create-panel">
-              <h3 className="ontologies-page__create-title">Step 2 · Connector & metadata</h3>
+              <h3 className="ontologies-page__create-title">Step 2 · Edit & validate</h3>
               <div className="ontology-wizard__step-body">
                 <div className="agent-runs-page__field">
-                  <label htmlFor="ontology-import-connector">Connector</label>
+                  <label htmlFor="ontology-title">Title</label>
+                  <input
+                    id="ontology-title"
+                    value={title}
+                    onChange={(event) => {
+                      setTitle(event.target.value);
+                      setStepError(null);
+                    }}
+                  />
+                </div>
+
+                {mode === "create" ? (
+                  <>
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-namespace">Namespace / base IRI</label>
+                      <input
+                        id="ontology-namespace"
+                        placeholder="https://example.com/ontology#"
+                        value={namespaceIri}
+                        onChange={(event) => {
+                          setNamespaceIri(event.target.value);
+                          setStepError(null);
+                        }}
+                      />
+                    </div>
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-prefix">Prefix</label>
+                      <input
+                        id="ontology-prefix"
+                        placeholder="ex"
+                        value={prefix}
+                        onChange={(event) => {
+                          setPrefix(event.target.value);
+                          setStepError(null);
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <fieldset className="ontology-wizard__source-options">
+                      <legend>Import source</legend>
+                      <label>
+                        <input
+                          type="radio"
+                          name="ontology-source-method"
+                          value="file"
+                          checked={sourceMethod === "file"}
+                          onChange={() => {
+                            setSourceMethod("file");
+                            setStepError(null);
+                          }}
+                        />
+                        <span>Upload file</span>
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="ontology-source-method"
+                          value="paste"
+                          checked={sourceMethod === "paste"}
+                          onChange={() => {
+                            setSourceMethod("paste");
+                            setStepError(null);
+                          }}
+                        />
+                        <span>Paste text</span>
+                      </label>
+                    </fieldset>
+
+                    {sourceMethod === "file" ? (
+                      <div className="agent-runs-page__field">
+                        <label htmlFor="ontology-import-file">Ontology file</label>
+                        <input
+                          id="ontology-import-file"
+                          type="file"
+                          accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
+                          onChange={(event) => void handleFileChange(event)}
+                        />
+                        <p className="agent-runs-page__field-hint">
+                          {sourceFileName
+                            ? `Loaded ${sourceFileName}`
+                            : "Accepted formats include TTL, RDF/XML, OWL, and JSON-LD."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="agent-runs-page__field">
+                        <label htmlFor="ontology-import-content">Ontology content</label>
+                        <textarea
+                          id="ontology-import-content"
+                          rows={12}
+                          value={sourceContent}
+                          onChange={(event) => {
+                            setSourceContent(event.target.value);
+                            setStepError(null);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {contentForSubmission && (
+                  <div className="ontology-wizard__review-card">
+                    <h4>Artifact preview</h4>
+                    <pre className="ontology-wizard__source-preview">
+                      {previewSourceContent(contentForSubmission)}
+                    </pre>
+                  </div>
+                )}
+
+                {editStepValid && (
+                  <p className="platform-page__field-hint" role="status">
+                    Basic validation passed — ready to choose a connector.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="ontologies-page__create-panel">
+              <h3 className="ontologies-page__create-title">Step 3 · Connector</h3>
+              <div className="ontology-wizard__step-body">
+                <div className="agent-runs-page__field">
+                  <label htmlFor="ontology-import-connector">Target connector</label>
                   <select
                     id="ontology-import-connector"
                     value={connectorId}
@@ -610,6 +652,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       </option>
                     ))}
                   </select>
+                  <p className="agent-runs-page__field-hint">
+                    The connector materializes the ontology into the selected vendor without
+                    coupling application logic to that technology.
+                  </p>
                 </div>
                 <div className="agent-runs-page__field">
                   <label htmlFor="ontology-import-format">Source format</label>
@@ -624,7 +670,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                   <p className="agent-runs-page__field-hint">
                     {mode === "create"
-                      ? "The wizard generates Turtle and submits it through the import pipeline."
+                      ? "Manual mode generates Turtle and submits it through the import pipeline."
                       : "Adjust this if the pasted or uploaded content uses a different RDF serialization."}
                   </p>
                 </div>
@@ -653,16 +699,16 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div className="ontologies-page__create-panel">
-              <h3 className="ontologies-page__create-title">Step 3 · Review & run</h3>
+              <h3 className="ontologies-page__create-title">Step 4 · Review & run</h3>
               <div className="ontology-wizard__review-grid">
                 <div className="ontology-wizard__review-card">
                   <h4>Summary</h4>
                   <dl className="ontology-wizard__review-list">
                     <div>
                       <dt>Mode</dt>
-                      <dd>{mode === "create" ? "Create from scratch" : "Import existing"}</dd>
+                      <dd>{mode ? formatModeLabel(mode) : "—"}</dd>
                     </div>
                     <div>
                       <dt>Title</dt>
@@ -685,7 +731,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     {mode === "import" && (
                       <div>
                         <dt>Import source</dt>
-                        <dd>{sourceMethod === "file" ? sourceFileName || "Uploaded file" : "Pasted text"}</dd>
+                        <dd>
+                          {sourceMethod === "file" ? sourceFileName || "Uploaded file" : "Pasted text"}
+                        </dd>
                       </div>
                     )}
                     <div>
@@ -738,12 +786,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             ) : (
               <button type="submit" disabled={submitting}>
                 {submitting
-                  ? mode === "create"
-                    ? "Creating…"
-                    : "Importing…"
+                  ? "Materializing…"
                   : mode === "create"
-                    ? "Create ontology"
-                    : "Import ontology"}
+                    ? "Materialize ontology"
+                    : "Materialize ontology"}
               </button>
             )}
           </div>

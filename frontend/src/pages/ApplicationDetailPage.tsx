@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AgentRunDetailPage } from "./AgentRunDetailPage";
 import { ApiError } from "../api";
 import {
@@ -226,8 +226,14 @@ export function ApplicationDetailPage() {
           element={<OntologiesPage applicationId={application.id} />}
         />
         <Route
-          path="ontology-studio"
+          path="ontology/create"
           element={<OntologyStudioPage applicationId={application.id} />}
+        />
+        <Route
+          path="ontology-studio"
+          element={
+            <Navigate to={`/applications/${application.id}/ontology/create`} replace />
+          }
         />
         <Route
           path="knowledge-graph"

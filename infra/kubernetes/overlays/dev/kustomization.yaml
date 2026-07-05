@@ -19,4 +19,4 @@ images:
     newTag: s37
   - name: sip-console:dev
     newName: sip-console
-    newTag: s37
+    newTag: s38

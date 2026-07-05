@@ -344,28 +344,42 @@ describe("ApplicationDetailPage", () => {
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
-  it("renders the ontology wizard route and highlights its navigation link", async () => {
-    renderDetailPage("/applications/app-1/ontology-studio");
+  it("renders the ontology create route and highlights the Ontology navigation link", async () => {
+    renderDetailPage("/applications/app-1/ontology/create");
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Ontology Wizard" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
     });
 
     expect(listConnectors).toHaveBeenCalledWith({
       connectorType: "ontology_knowledge_graph",
       status: "Active",
     });
-    expect(screen.getByRole("link", { name: "Ontology Wizard" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Ontology" })).toHaveAttribute(
       "href",
-      "/applications/app-1/ontology-studio",
+      "/applications/app-1/ontology",
     );
-    expect(screen.getByRole("link", { name: "Ontology Wizard" })).toHaveClass(
+    expect(screen.getByRole("link", { name: "Ontology" })).toHaveClass(
       "application-shell__nav-link--active",
     );
+    expect(screen.queryByRole("link", { name: "Ontology Wizard" })).not.toBeInTheDocument();
 
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(breadcrumb).toHaveTextContent("Applications");
     expect(breadcrumb).toHaveTextContent("Demo App");
+  });
+
+  it("redirects legacy ontology-studio bookmarks to ontology/create", async () => {
+    renderDetailPage("/applications/app-1/ontology-studio");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: /Back to ontologies/i })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology",
+    );
   });
 
   it("navigates to knowledge graph list", async () => {

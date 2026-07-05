@@ -34,6 +34,21 @@
           "image": "sip-console:s36"
         }
       ]
+    },
+    "33": {
+      "label": "Ontology Unified UX & Creation",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s37"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s38"
+        }
+      ]
     }
   }
 }
