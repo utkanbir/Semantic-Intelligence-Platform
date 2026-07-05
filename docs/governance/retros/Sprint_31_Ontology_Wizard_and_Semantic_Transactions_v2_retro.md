@@ -23,7 +23,7 @@
 ## 2. What went well
 
 - **PO direction stayed sharp** — scope stayed focused on ontology work instead of drifting into generic connector operations.
-- **Two related slices landed cleanly** — the ontology-first Semantic Transactions flow and Ontology Wizard v1 were delivered in the same sprint without schema churn.
+- **Two related slices landed cleanly** — the ontology-first `audit_trace` explorer update and Ontology Wizard v1 were delivered in the same sprint without schema churn.
 - **QA feedback improved the final result** — the audit-trace list path N+1 risk and wording mismatch were both caught before merge and fixed inside sprint.
 - **Close gates passed immediately** — Sprint 31 board and cluster DB verification both passed on the first final verification run.
 
@@ -34,13 +34,14 @@
 - PR #289 had to be brought up to date after PR #290 merged first, which added one extra sync cycle before final merge.
 - The first backend implementation for list-mode audit traces introduced a batched-read performance risk that needed a QA follow-up before PR.
 - Sprint-close docs and governance closure still depend on an end-of-sprint administrative pass after feature merges complete.
+- The shipped Platform page still relied on `audit_trace` list heuristics, so Semantic Transaction lineage and operational trace concepts were not fully separated within the same sprint.
 
 ---
 
 ## 4. Sprint 32 adjustments
 
 - Add richer ontology import validation and preview quality checks for create-from-scratch inputs.
-- Extend Semantic Transactions filtering with time-oriented and user-oriented refinements if product still needs broader investigation flows.
+- Split Semantic Transaction lineage from broader audit / operational trace before adding more generic feed filters.
 - Keep ontology authoring UX focused on the wizard path and avoid reintroducing parallel raw-form entry points.
 
 ---
@@ -49,8 +50,8 @@
 
 | Criterion | Status |
 |-----------|--------|
-| Platform Semantic Transactions no longer requires Resource ID as an entry gate | **Met** |
-| Platform page opens with an ontology-first recent transaction list | **Met** |
+| Platform `audit_trace` explorer no longer requires Resource ID as an entry gate | **Met** |
+| Platform page opens with an ontology-first recent trace list for ontology records | **Met** |
 | Ontology Wizard unifies create-from-scratch and import-existing in one guided flow | **Met** |
 | Wizard source step supports file upload and pasted text | **Met** |
 | Create-from-scratch generates a minimal ontology and reuses the existing import/success flow | **Met** |
@@ -62,7 +63,7 @@
 
 **Ontology ile calisan kullanicilar icin hem islem akisi hem de izlenebilirlik daha dogrudan hale geldi.**
 
-- Platform `Semantic Transactions` ekrani artik acilista son ontology islemlerini listeliyor; baslamak icin `Resource ID` bilmeniz gerekmiyor.
+- Platformdaki mevcut `audit_trace` explorer artik acilista son ontology ile ilgili kayitlari listeleyebiliyor; baslamak icin `Resource ID` bilmeniz gerekmiyor.
 - `Resource ID` filtresi kaldirilmadi, ama zorunlu ilk adim olmaktan cikti ve istege bagli daraltma secenegi oldu.
 - Yeni `Ontology Wizard`, `Create from scratch` ve `Import existing` akislarini tek bir rehberli deneyimde birlestiriyor.
 - `Create from scratch` ile baslik, namespace/base IRI, prefix ve aciklama vererek minimal ontology uretip ayni import/success akisindan ilerleyebiliyorsunuz.
@@ -78,7 +79,7 @@ Erisim: **http://console.sip.local** ve **http://api.sip.local**
 
 | Path | Notes |
 |------|-------|
-| `GET /api/v1/audit-traces` | List mode now works without mandatory `resource_id` or `application_id`; supports bounded optional `limit`, `resource_type`, and `transaction_type_prefix` filters |
+| `GET /api/v1/audit-traces` | List mode now works without mandatory `resource_id` or `application_id`; supports bounded optional `limit`, `resource_type`, and `transaction_type_prefix` filters for the current trace explorer |
 
 ### Data models
 
@@ -92,7 +93,7 @@ Erisim: **http://console.sip.local** ve **http://api.sip.local**
 
 | Item | PR |
 |------|-----|
-| Platform Semantic Transactions default ontology-first list and optional Resource ID refinement | #290 |
+| Platform `audit_trace` explorer default ontology-first list and optional Resource ID refinement | #290 |
 | Ontology Wizard single flow for create-from-scratch and import-existing | #289 |
 | Ontology success state links back to created ontology and semantic transaction | #289 |
 

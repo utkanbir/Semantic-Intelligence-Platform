@@ -11,7 +11,7 @@
 
 ## 1. Summary
 
-**Green.** Sprint 31 improved ontology-centric console behavior without adding new modules, new ports, or new schema elements. The existing `audit_trace` and ontology import surfaces were extended in place, and a temporary list-query performance regression was caught before merge and corrected with batched trace-step loading.
+**Amber.** Sprint 31 improved ontology-centric console behavior without adding new modules, new ports, or new schema elements, but it extended the existing `audit_trace` surface under broader Semantic Transaction wording. That leaves a concept-level gap between semantic lineage and operational trace that now needs explicit Sprint 32 correction.
 
 ---
 
@@ -28,7 +28,7 @@
 
 | ID | Description | Introduced in | Severity | Remediation issue |
 |----|-------------|---------------|----------|-------------------|
-| — | No new architecture debt recorded this sprint | Sprint 31 | — | — |
+| TD-017 | Platform surface labels generic `audit_trace` exploration as Semantic Transactions without a first-class lineage taxonomy | Sprint 31 / PR #290 | S2 | Sprint 32 Semantic Transaction realignment |
 
 ---
 
@@ -36,9 +36,9 @@
 
 | Module / area | Concern | Status |
 |---------------|---------|--------|
-| `audit_trace` | List-mode query support stayed within existing route -> service -> repository boundaries | Resolved |
+| `audit_trace` | List-mode query support stayed within existing route -> service -> repository boundaries, but still lacks semantic-vs-operational classification | Open |
 | `ontology` + Console import flow | Wizard reused the existing ontology import/success path instead of introducing a parallel backend surface | Resolved |
-| Platform Console wording | Ontology-first default kept product intent while preserving a broader semantic-transaction view when toggled | Resolved |
+| Platform Console wording | Semantic Transaction language currently overreaches the underlying `audit_trace` contract | Open |
 
 ---
 
@@ -67,7 +67,7 @@
 
 Drift from `SIP_Domain_Model_v1` (if any):
 
-- None observed. Sprint 31 reused existing `semantic_transactions`, `trace_steps`, and ontology import flows without introducing domain-model divergence.
+- Drift observed at the read-model / UX layer. Sprint 31 reused existing `semantic_transactions`, `trace_steps`, and ontology import flows, but exposed a broader `audit_trace` list as if it were a dedicated Semantic Transaction lineage feed.
 
 ---
 
@@ -89,4 +89,4 @@ Drift from `SIP_Domain_Model_v1` (if any):
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Minimal create-from-scratch ontology generation may need richer validation and preview rules | Users may create syntactically valid but semantically weak starter ontologies | Add stronger wizard validation and preview checks in the next ontology-focused sprint |
-| Semantic Transactions feed still relies on prefix-based filtering for ontology-first defaults | Broader audit taxonomy growth may make coarse prefix filters harder to reason about | Revisit transaction taxonomy and filtering strategy if more semantic asset types are added |
+| Semantic Transaction UX still relies on generic `audit_trace` plus prefix-based filtering | Operational events can appear in a surface that users interpret as semantic lineage | Define explicit lineage eligibility rules and separate semantic vs audit surfaces in Sprint 32 |
