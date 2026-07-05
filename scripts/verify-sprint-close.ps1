@@ -21,6 +21,10 @@ $gates = @(
         Script = Join-Path $scriptDir "verify-sprint-db.ps1"
     },
     @{
+        Name = "sip-dev deploy"
+        Script = Join-Path $scriptDir "verify-sprint-deploy.ps1"
+    },
+    @{
         Name = "Project board"
         Script = Join-Path $scriptDir "verify-sprint-board.ps1"
     }
@@ -31,8 +35,17 @@ $failures = @()
 foreach ($gate in $gates) {
     Write-Host ""
     Write-Host "--- Gate: $($gate.Name) ---" -ForegroundColor Yellow
-    & $gate.Script -Sprint $Sprint
-    if ($LASTEXITCODE -ne 0) {
+    $gateExitCode = 0
+    try {
+        & $gate.Script -Sprint $Sprint
+        $gateExitCode = $LASTEXITCODE
+    }
+    catch {
+        $gateExitCode = 1
+        Write-Host $_.Exception.Message -ForegroundColor Red
+    }
+
+    if ($gateExitCode -ne 0) {
         $failures += $gate.Name
     }
 }

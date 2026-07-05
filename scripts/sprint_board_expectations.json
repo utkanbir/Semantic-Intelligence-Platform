@@ -125,6 +125,10 @@
     "30": {
       "label": "Fuseki Persistence & Semantic Transactions",
       "issues": [281, 283]
+    },
+    "31": {
+      "label": "Ontology Wizard & Semantic Transactions v2",
+      "issues": [287, 288]
     }
   }
 }

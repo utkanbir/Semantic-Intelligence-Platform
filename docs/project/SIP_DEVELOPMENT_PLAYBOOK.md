@@ -440,6 +440,24 @@ powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
 
 **Manifest:** `scripts/sprint_db_expectations.json` — PMO adds sprint entry when landing new migrations.
 
+### sip-dev deploy verification (mandatory at sprint close)
+
+Before closing the milestone or telling the PO the sprint is complete, PMO/DevOps MUST verify the live `sip-dev` frontend/backend workloads are running the sprint's expected images.
+
+```powershell
+powershell -File scripts/verify-sprint-deploy.ps1 -Sprint <N>
+```
+
+| Check | Failure means |
+|-------|----------------|
+| Dev overlay pins the expected `sip-backend` / `sip-console` tags | Repo desired state is stale or incomplete |
+| Live `sip-dev` deployments use those exact images | Latest sprint UI/API is not actually deployed |
+| `kubectl rollout status` succeeds for both deployments | Rollout is incomplete or unhealthy |
+
+**On failure:** rebuild/publish the expected image tag(s), apply `infra/kubernetes/overlays/dev`, wait for rollout, then re-run verify until exit 0.
+
+**Manifest:** `scripts/sprint_deploy_expectations.json` — starting with Sprint 31, add one entry per sprint and carry forward unchanged tags so sprint close always has explicit deploy expectations.
+
 ### Sprint close gates and PO handoff (mandatory)
 
 **PMO must not deliver a sprint to the PO** until all gates pass. Partial delivery (code merged but cluster/board drift) is **unacceptable**.
@@ -450,7 +468,7 @@ Single entry point:
 powershell -File scripts/verify-sprint-close.ps1 -Sprint <N>
 ```
 
-Runs cluster DB verify + project board verify. **Exit 1 blocks:** retro finalization, milestone close, and any PO message claiming sprint complete.
+Runs cluster DB verify + `sip-dev` deploy verify + project board verify. **Exit 1 blocks:** retro finalization, milestone close, and any PO message claiming sprint complete.
 
 **Sprint-close order (strict):**
 
@@ -464,6 +482,7 @@ Individual gates (called by verify-sprint-close):
 
 ```powershell
 powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
+powershell -File scripts/verify-sprint-deploy.ps1 -Sprint <N>
 powershell -File scripts/verify-sprint-board.ps1 -Sprint <N>
 ```
 
