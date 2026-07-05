@@ -129,6 +129,10 @@
     "31": {
       "label": "Ontology Wizard & Semantic Transactions v2",
       "issues": [287, 288]
+    },
+    "32": {
+      "label": "Semantic Transaction Realignment",
+      "issues": [292, 293, 294, 295]
     }
   }
 }

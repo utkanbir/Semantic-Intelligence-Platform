@@ -19,6 +19,21 @@
           "image": "sip-console:s35"
         }
       ]
+    },
+    "32": {
+      "label": "Semantic Transaction Realignment",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s36"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s36"
+        }
+      ]
     }
   }
 }
