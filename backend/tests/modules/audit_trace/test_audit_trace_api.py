@@ -261,3 +261,73 @@ def test_get_audit_trace_by_transaction_id(client: TestClient, db_engine: Engine
 def test_get_audit_trace_returns_404_for_unknown_id(client: TestClient) -> None:
     response = client.get(f"/api/v1/audit-traces/{uuid4()}")
     assert response.status_code == 404
+
+
+def test_list_semantic_transactions_excludes_operational_audit_rows(
+    client: TestClient, db_engine: Engine
+) -> None:
+    semantic_id, _ = _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="ontology.created",
+        resource_type="OntologyDefinition",
+        created_at=datetime(2026, 6, 28, 19, 1, 0, tzinfo=UTC),
+    )
+    _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="adapter.registered",
+        resource_type="TechnologyAdapter",
+        created_at=datetime(2026, 6, 28, 19, 2, 0, tzinfo=UTC),
+    )
+    _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="ApplicationWorkspaceProvisioned",
+        resource_type="Application",
+        created_at=datetime(2026, 6, 28, 19, 3, 0, tzinfo=UTC),
+    )
+
+    response = client.get("/api/v1/semantic-transactions")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [row["id"] for row in body] == [semantic_id]
+
+
+def test_list_audit_traces_supports_trace_audience_filter(
+    client: TestClient, db_engine: Engine
+) -> None:
+    operational_id, _ = _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="connector.provisioned",
+        resource_type="TechnologyAdapter",
+        created_at=datetime(2026, 6, 28, 19, 1, 0, tzinfo=UTC),
+    )
+    _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="ontology.created",
+        resource_type="OntologyDefinition",
+        created_at=datetime(2026, 6, 28, 19, 0, 0, tzinfo=UTC),
+    )
+
+    response = client.get(
+        "/api/v1/audit-traces",
+        params={"trace_audience": "operational_audit"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [row["id"] for row in body] == [operational_id]
+
+
+def test_get_semantic_transaction_rejects_operational_audit_row(
+    client: TestClient, db_engine: Engine
+) -> None:
+    operational_id, _ = _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="adapter.registered",
+        resource_type="TechnologyAdapter",
+    )
+
+    response = client.get(f"/api/v1/semantic-transactions/{operational_id}")
+
+    assert response.status_code == 404
+

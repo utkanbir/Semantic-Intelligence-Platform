@@ -11,6 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.audit_trace.domain.models import SemanticTransactionRecord, TraceStep
+from app.modules.audit_trace.domain.trace_audience import (
+    OPERATIONAL_AUDIT_TRANSACTION_TYPES,
+    PLATFORM_PROVISIONING_TRANSACTION_TYPES,
+    SEMANTIC_LINEAGE_TRANSACTION_TYPES,
+    TraceAudience,
+)
 from app.modules.audit_trace.repositories.interfaces import TraceStepRepository
 from app.modules.audit_trace.repositories.orm_models import (
     SemanticTransaction,
@@ -29,6 +35,14 @@ def _to_domain(trace_step_orm: TraceStepORM) -> TraceStep:
         message=trace_step_orm.message,
         created_at=trace_step_orm.created_at,
     )
+
+
+def _transaction_types_for_audience(trace_audience: TraceAudience) -> frozenset[str]:
+    if trace_audience is TraceAudience.SEMANTIC_LINEAGE:
+        return SEMANTIC_LINEAGE_TRANSACTION_TYPES
+    if trace_audience is TraceAudience.OPERATIONAL_AUDIT:
+        return OPERATIONAL_AUDIT_TRANSACTION_TYPES
+    return PLATFORM_PROVISIONING_TRANSACTION_TYPES
 
 
 class SqlAlchemyAuditTraceRepository:
@@ -192,6 +206,7 @@ class SqlAlchemyAuditTraceQueryRepository:
         application_id: UUID | None = None,
         resource_type: str | None = None,
         transaction_type_prefix: str | None = None,
+        trace_audience: TraceAudience | None = None,
         limit: int | None = None,
     ) -> Sequence[SemanticTransactionRecord]:
         statement = select(SemanticTransaction).order_by(SemanticTransaction.created_at.desc())
@@ -204,6 +219,12 @@ class SqlAlchemyAuditTraceQueryRepository:
         if transaction_type_prefix is not None:
             statement = statement.where(
                 SemanticTransaction.transaction_type.startswith(transaction_type_prefix)
+            )
+        if trace_audience is not None:
+            statement = statement.where(
+                SemanticTransaction.transaction_type.in_(
+                    _transaction_types_for_audience(trace_audience)
+                )
             )
         if limit is not None:
             statement = statement.limit(limit)
