@@ -22,7 +22,7 @@
 
 ## 2. What went well
 
-- **PO priority alignment** — Sprint scope narrowed to the two highest-value outcomes: real Fuseki persistence and better Semantic Transaction visibility.
+- **PO priority alignment** — Sprint scope narrowed to the two highest-value outcomes: real Fuseki persistence and better ontology-related trace visibility.
 - **Architecture guardrail held** — initial service→infrastructure boundary violation in PR #284 was caught by automated architecture review and fixed before merge.
 - **Vertical slice completed** — backend import path now writes RDF to Fuseki and frontend links users to the resulting transaction details.
 - **Green CI** — backend/frontend checks passed before both merges.
@@ -39,8 +39,8 @@
 
 ## 4. Sprint 31 adjustments
 
-- Add richer Semantic Transaction filters (resource type, transaction type, date range).
-- Consider recent global Semantic Transactions feed on the platform page.
+- Clarify Semantic Transaction vs audit trace scope before expanding filters.
+- If broader operational investigation is needed, keep it separate from a semantic lineage feed.
 - Expand Fuseki write path beyond ontology import if additional semantic assets need persistence.
 
 ---
@@ -52,7 +52,7 @@
 | Ontology import writes to Fuseki, not stub only | **Met** |
 | Import trace reflects real persistence endpoint | **Met** |
 | Import response includes semantic transaction correlation | **Met** |
-| Console shows Semantic Transactions more clearly | **Met** |
+| Console exposes ontology-related semantic transaction detail more clearly | **Met** |
 | Transaction detail timeline available in application UI | **Met** |
 | Sprint-close gates | **Met** |
 
@@ -60,12 +60,12 @@
 
 ## 10. End-user release notes
 
-**Ontology import artık gerçek olarak Fuseki’ye yazılıyor ve Semantic Transactions görünürlüğü artırıldı.**
+**Ontology import artik gercek olarak Fuseki'ye yaziliyor ve ilgili semantic transaction kaydina erisim kolaylasti.**
 
-- Ontology import sırasında veri artık sadece metadata olarak kaydedilmiyor; bağlı Fuseki dataset’ine de yazılıyor.
-- Import sonrası ilgili **Semantic Transaction** kaydına doğrudan gidebiliyorsunuz.
-- Console’da **Audit Trace** dili yerine daha anlaşılır **Semantic Transactions** kullanılıyor.
-- Uygulama içinde transaction listesinden tek tek işlem detaylarını ve trace adımlarını görebiliyorsunuz.
+- Ontology import sirasinda veri artik sadece metadata olarak kaydedilmiyor; bagli Fuseki dataset'ine de yaziliyor.
+- Import sonrasi ilgili **Semantic Transaction** kaydina dogrudan gidebiliyorsunuz.
+- Console, ontology import akisindan olusan semantic transaction detayini mevcut `audit_trace` explorer uzerinden gosterebiliyor.
+- Uygulama icinde transaction listesinden tek tek islem detaylarini ve trace adimlarini gorebiliyorsunuz.
 
 Erişim: **http://console.sip.local** ve **http://api.sip.local**
 
@@ -97,7 +97,7 @@ Erişim: **http://console.sip.local** ve **http://api.sip.local**
 
 | Item | PR |
 |------|-----|
-| Semantic Transactions label update | #285 |
+| Audit Trace label update toward Semantic Transactions terminology | #285 |
 | Application transaction detail page | #285 |
 | Ontology import success → transaction detail link | #285 |
 
