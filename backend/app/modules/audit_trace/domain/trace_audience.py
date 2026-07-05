@@ -21,6 +21,13 @@ SEMANTIC_LINEAGE_TRANSACTION_TYPES: frozenset[str] = frozenset(
         "ontology.status_changed",
         "ontology.version_forked",
         "ontology.published",
+    }
+)
+
+OPERATIONAL_AUDIT_TRANSACTION_TYPES: frozenset[str] = frozenset(
+    {
+        "adapter.registered",
+        "connector.provisioned",
         "knowledge_graph.created",
         "product.created",
         "asset.created",
@@ -29,13 +36,6 @@ SEMANTIC_LINEAGE_TRANSACTION_TYPES: frozenset[str] = frozenset(
         "agent.created",
         "agent.run.started",
         "policy.created",
-    }
-)
-
-OPERATIONAL_AUDIT_TRANSACTION_TYPES: frozenset[str] = frozenset(
-    {
-        "adapter.registered",
-        "connector.provisioned",
     }
 )
 

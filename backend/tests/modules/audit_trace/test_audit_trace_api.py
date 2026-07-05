@@ -292,6 +292,35 @@ def test_list_semantic_transactions_excludes_operational_audit_rows(
     assert [row["id"] for row in body] == [semantic_id]
 
 
+def test_list_semantic_transactions_excludes_non_ontology_semantic_rows(
+    client: TestClient, db_engine: Engine
+) -> None:
+    ontology_id, _ = _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="ontology.created",
+        resource_type="OntologyDefinition",
+        created_at=datetime(2026, 6, 28, 19, 1, 0, tzinfo=UTC),
+    )
+    _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="product.created",
+        resource_type="PublishedDataProduct",
+        created_at=datetime(2026, 6, 28, 19, 2, 0, tzinfo=UTC),
+    )
+    _seed_transaction_with_steps(
+        db_engine,
+        transaction_type="discovery.session.created",
+        resource_type="DiscoverySession",
+        created_at=datetime(2026, 6, 28, 19, 3, 0, tzinfo=UTC),
+    )
+
+    response = client.get("/api/v1/semantic-transactions")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [row["id"] for row in body] == [ontology_id]
+
+
 def test_list_audit_traces_supports_trace_audience_filter(
     client: TestClient, db_engine: Engine
 ) -> None:

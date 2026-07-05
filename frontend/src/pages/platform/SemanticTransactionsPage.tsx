@@ -11,11 +11,6 @@ type PageState =
   | { kind: "error"; message: string }
   | { kind: "success"; transactions: SemanticTransactionResponse[] };
 
-interface SemanticTransactionFilters {
-  ontologyOnly: boolean;
-  resourceId?: string;
-}
-
 function formatDate(iso: string | null): string {
   if (!iso) {
     return "—";
@@ -28,12 +23,15 @@ function formatDate(iso: string | null): string {
 
 export function SemanticTransactionsPage() {
   const [resourceId, setResourceId] = useState("");
-  const [filters, setFilters] = useState<SemanticTransactionFilters>({ ontologyOnly: true });
+  const [appliedResourceId, setAppliedResourceId] = useState<string | undefined>();
   const [state, setState] = useState<PageState>({ kind: "loading" });
 
   useEffect(() => {
     let cancelled = false;
-    const query = buildSemanticTransactionQuery(filters);
+    const query: SemanticTransactionListQuery = {};
+    if (appliedResourceId) {
+      query.resourceId = appliedResourceId;
+    }
 
     setState({ kind: "loading" });
 
@@ -58,30 +56,13 @@ export function SemanticTransactionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [filters]);
+  }, [appliedResourceId]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const trimmedId = resourceId.trim();
-    setFilters((current) => ({
-      ...current,
-      resourceId: trimmedId || undefined,
-    }));
-  }
-
-  function buildSemanticTransactionQuery(
-    nextFilters: SemanticTransactionFilters,
-  ): SemanticTransactionListQuery {
-    const query: SemanticTransactionListQuery = nextFilters.ontologyOnly
-      ? { resourceType: "OntologyDefinition" }
-      : {};
-
-    if (nextFilters.resourceId) {
-      query.resourceId = nextFilters.resourceId;
-    }
-
-    return query;
+    setAppliedResourceId(trimmedId || undefined);
   }
 
   const isEmpty = state.kind === "success" && state.transactions.length === 0;
@@ -91,11 +72,11 @@ export function SemanticTransactionsPage() {
     <section className="platform-page" aria-labelledby="semantic-transactions-heading">
       <h1 id="semantic-transactions-heading">Semantic transactions</h1>
       <p className="platform-page__lead">
-        Review semantic lineage across the platform — how meaning evolved for ontologies,
-        products, agents, and related semantic assets.
+        Review ontology semantic lineage across the platform — how meaning evolved through
+        ontology create, import, update, and publication flows.
       </p>
       <p className="platform-page__field-hint">
-        Connector provisioning and other operational audit events appear under Audit trace,
+        Product, discovery, connector, and other operational records appear under Audit trace,
         not here.
       </p>
 
@@ -107,7 +88,7 @@ export function SemanticTransactionsPage() {
         <div className="platform-page__field">
           <label htmlFor="semantic-transactions-resource-id">Resource ID</label>
           <p className="platform-page__field-hint">
-            Optional: narrow the list to a known semantic asset resource ID
+            Optional: narrow the list to a known ontology resource ID
           </p>
           <div className="platform-page__field-row">
             <input
@@ -129,20 +110,6 @@ export function SemanticTransactionsPage() {
             </button>
           </div>
         </div>
-        <label className="platform-page__field-hint">
-          <input
-            type="checkbox"
-            checked={filters.ontologyOnly}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                ontologyOnly: event.target.checked,
-              }))
-            }
-            disabled={state.kind === "loading"}
-          />{" "}
-          Show ontology semantic lineage only
-        </label>
       </form>
 
       {state.kind === "loading" && (
@@ -159,7 +126,7 @@ export function SemanticTransactionsPage() {
 
       {isEmpty && (
         <div className="platform-page__empty" role="status">
-          <p>No semantic transactions found yet.</p>
+          <p>No ontology semantic transactions found yet.</p>
         </div>
       )}
 

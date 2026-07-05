@@ -34,7 +34,7 @@ describe("SemanticTransactionsPage", () => {
     vi.mocked(listSemanticTransactions).mockReset();
   });
 
-  it("loads ontology semantic lineage on mount", async () => {
+  it("loads ontology semantic transactions on mount", async () => {
     vi.mocked(listSemanticTransactions).mockResolvedValue([mockTransaction]);
 
     render(<SemanticTransactionsPage />);
@@ -43,9 +43,10 @@ describe("SemanticTransactionsPage", () => {
       expect(screen.getByText("ontology.imported")).toBeInTheDocument();
     });
 
-    expect(listSemanticTransactions).toHaveBeenCalledWith({
-      resourceType: "OntologyDefinition",
-    });
+    expect(listSemanticTransactions).toHaveBeenCalledWith({});
+    expect(
+      screen.queryByRole("checkbox", { name: /ontology semantic lineage only/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("applies resource ID as an optional refinement", async () => {
@@ -65,28 +66,7 @@ describe("SemanticTransactionsPage", () => {
     await waitFor(() => {
       expect(listSemanticTransactions).toHaveBeenLastCalledWith({
         resourceId: "ont-1",
-        resourceType: "OntologyDefinition",
       });
-    });
-  });
-
-  it("can switch from ontology-only view to all semantic lineage", async () => {
-    vi.mocked(listSemanticTransactions).mockResolvedValue([mockTransaction]);
-
-    render(<SemanticTransactionsPage />);
-
-    await waitFor(() => {
-      expect(listSemanticTransactions).toHaveBeenCalledWith({
-        resourceType: "OntologyDefinition",
-      });
-    });
-
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "Show ontology semantic lineage only" }),
-    );
-
-    await waitFor(() => {
-      expect(listSemanticTransactions).toHaveBeenLastCalledWith({});
     });
   });
 
@@ -96,7 +76,9 @@ describe("SemanticTransactionsPage", () => {
     render(<SemanticTransactionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("No semantic transactions found yet.")).toBeInTheDocument();
+      expect(
+        screen.getByText("No ontology semantic transactions found yet."),
+      ).toBeInTheDocument();
     });
   });
 

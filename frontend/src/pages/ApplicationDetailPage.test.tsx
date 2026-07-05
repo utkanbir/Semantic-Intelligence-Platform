@@ -566,7 +566,7 @@ describe("ApplicationDetailPage", () => {
       expect(screen.getByText("ontology.created")).toBeInTheDocument();
     });
 
-    expect(listApplicationSemanticTransactions).toHaveBeenCalledWith("app-1", {});
+    expect(listApplicationSemanticTransactions).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Semantic transactions" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });

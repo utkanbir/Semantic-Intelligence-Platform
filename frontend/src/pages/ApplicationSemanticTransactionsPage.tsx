@@ -29,14 +29,11 @@ export function ApplicationSemanticTransactionsPage({
   applicationId,
 }: ApplicationSemanticTransactionsPageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
-  const [ontologyOnly, setOntologyOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const query = ontologyOnly ? { resourceType: "OntologyDefinition" } : {};
-
-    listApplicationSemanticTransactions(applicationId, query)
+    listApplicationSemanticTransactions(applicationId)
       .then((transactions) => {
         if (!cancelled) {
           setState({ kind: "success", transactions });
@@ -57,7 +54,7 @@ export function ApplicationSemanticTransactionsPage({
     return () => {
       cancelled = true;
     };
-  }, [applicationId, ontologyOnly]);
+  }, [applicationId]);
 
   const isEmpty = state.kind === "success" && state.transactions.length === 0;
   const hasTransactions = state.kind === "success" && state.transactions.length > 0;
@@ -71,18 +68,9 @@ export function ApplicationSemanticTransactionsPage({
         <div>
           <h2 id="application-semantic-transactions-heading">Semantic transactions</h2>
           <p className="agent-runs-page__lead">
-            Semantic lineage for this application — ontology, products, agents, and related
-            meaning evolution.
+            Ontology semantic lineage for this application.
           </p>
         </div>
-        <label className="agent-runs-page__filter">
-          <input
-            type="checkbox"
-            checked={ontologyOnly}
-            onChange={(event) => setOntologyOnly(event.target.checked)}
-          />
-          Ontology semantic lineage only
-        </label>
       </div>
 
       {state.kind === "loading" && (
@@ -99,7 +87,7 @@ export function ApplicationSemanticTransactionsPage({
 
       {isEmpty && (
         <div className="agent-runs-page__empty" role="status">
-          <p>No semantic transactions yet.</p>
+          <p>No ontology semantic transactions yet.</p>
         </div>
       )}
 

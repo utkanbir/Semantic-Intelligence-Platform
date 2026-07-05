@@ -82,6 +82,8 @@ Normative classification for types emitted by the codebase today:
 
 ### 6.1 Semantic lineage (`semantic_lineage`)
 
+Platform and application **Semantic Transactions** surfaces expose ontology lineage only:
+
 | `transaction_type` | `resource_type` | Rationale |
 |--------------------|-----------------|-----------|
 | `ontology.created` | `OntologyDefinition` | Semantic asset origin |
@@ -90,14 +92,6 @@ Normative classification for types emitted by the codebase today:
 | `ontology.status_changed` | `OntologyDefinition` | Lifecycle of semantic asset |
 | `ontology.version_forked` | `OntologyDefinition` | Lineage branch of semantic asset |
 | `ontology.published` | `OntologyDefinition` | Semantic asset publication |
-| `knowledge_graph.created` | `KnowledgeGraphRegistry` | Semantic asset origin |
-| `product.created` | `PublishedDataProduct` | Trusted analytical surface creation |
-| `asset.created` | `AssetRecord` | Semantic asset registration when business object |
-| `blueprint.created` | `Blueprint` | Semantic provisioning intent (business scope) |
-| `discovery.session.created` | `DiscoverySession` | Semantic discovery journey start |
-| `agent.created` | `AgentDefinition` | Semantic agent definition |
-| `agent.run.started` | `AgentRun` | Reasoning / orchestration journey |
-| `policy.created` | `PolicyDefinition` | Governance rule affecting semantic scope |
 
 ### 6.2 Operational audit (`operational_audit`)
 
@@ -105,6 +99,14 @@ Normative classification for types emitted by the codebase today:
 |--------------------|-----------------|-----------|
 | `adapter.registered` | `TechnologyAdapter` | Platform integration wiring |
 | `connector.provisioned` | `TechnologyAdapter` | Connector infrastructure event |
+| `knowledge_graph.created` | `KnowledgeGraphRegistry` | Module lifecycle; visible in Audit trace |
+| `product.created` | `PublishedDataProduct` | Module lifecycle; visible in Audit trace |
+| `asset.created` | `AssetRecord` | Module lifecycle; visible in Audit trace |
+| `blueprint.created` | `Blueprint` | Module lifecycle; visible in Audit trace |
+| `discovery.session.created` | `DiscoverySession` | Module lifecycle; visible in Audit trace |
+| `agent.created` | `AgentDefinition` | Module lifecycle; visible in Audit trace |
+| `agent.run.started` | `AgentRun` | Runtime event; visible in Audit trace |
+| `policy.created` | `PolicyDefinition` | Governance event; visible in Audit trace |
 
 ### 6.3 Platform provisioning (`platform_provisioning`)
 
