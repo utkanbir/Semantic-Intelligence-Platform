@@ -172,7 +172,7 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
 
     Promise.all([
       listOntologies(applicationId),
-      listConnectors({ connectorType: "ontology_knowledge_graph", status: "Active" }),
+      listConnectors({ connectorType: "ontology_knowledge_graph" }),
     ])
       .then(([ontologies, connectorList]) => {
         if (!cancelled) {
@@ -258,9 +258,17 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
     return connectors.find((connector) => connector.id === primaryOntology.connector_id);
   }, [connectors, primaryOntology]);
 
+  const activeConnectors = useMemo(
+    () => connectors.filter((connector) => connector.status === "Active"),
+    [connectors],
+  );
+  const inactiveConnectors = useMemo(
+    () => connectors.filter((connector) => connector.status !== "Active"),
+    [connectors],
+  );
+
   const isEmpty = state.kind === "success" && ontologies.length === 0;
   const hasOntologies = state.kind === "success" && ontologies.length > 0;
-  const activeConnectorCount = connectors.length;
 
   return (
     <section className="ontologies-page" aria-labelledby="ontologies-heading">
@@ -308,8 +316,15 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
             <div>
               <dt>Active connectors</dt>
               <dd>
-                {activeConnectorCount > 0 ? (
-                  activeConnectorCount
+                {activeConnectors.length > 0 ? (
+                  activeConnectors.length
+                ) : inactiveConnectors.length > 0 ? (
+                  <>
+                    {inactiveConnectors.length} configured —{" "}
+                    <Link to="/connectors" className="ontologies-page__inline-link">
+                      activate to create ontology
+                    </Link>
+                  </>
                 ) : (
                   <>
                     None —{" "}

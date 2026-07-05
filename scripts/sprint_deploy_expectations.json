@@ -46,7 +46,7 @@
         {
           "name": "sip-console",
           "container": "console",
-          "image": "sip-console:s40"
+          "image": "sip-console:s41"
         }
       ]
     }

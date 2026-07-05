@@ -20,7 +20,11 @@ type WizardPhase = "mode" | "edit" | "connector" | "review";
 type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; connectors: ConnectorResponse[] }
+  | {
+      kind: "ready";
+      activeConnectors: ConnectorResponse[];
+      inactiveConnectors: ConnectorResponse[];
+    }
   | {
       kind: "imported";
       ontologyId: string;
@@ -41,6 +45,19 @@ const SEMANTIC_TRANSACTION_STEPS = [
   "finalize",
 ] as const;
 const PREFIX_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+function splitOntologyConnectors(connectors: ConnectorResponse[]): {
+  activeConnectors: ConnectorResponse[];
+  inactiveConnectors: ConnectorResponse[];
+} {
+  const activeConnectors = connectors.filter((connector) => connector.status === "Active");
+  const inactiveConnectors = connectors.filter((connector) => connector.status !== "Active");
+  return { activeConnectors, inactiveConnectors };
+}
+
+function connectorStatusClassName(status: ConnectorResponse["status"]): string {
+  return `platform-table__status platform-table__status--${status.toLowerCase()}`;
+}
 
 function formatConnectorLabel(connector: ConnectorResponse): string {
   const vendorId = readConnectorVendor(connector.connector_configuration);
@@ -205,6 +222,38 @@ function ValidationChecklist({ checks }: { checks: ValidationCheck[] }) {
   );
 }
 
+function ConnectorGatePanel({ connectors }: { connectors: ConnectorResponse[] }) {
+  return (
+    <div className="ontology-wizard__connector-gate" role="status">
+      <h3 className="ontology-wizard__connector-gate-title">Activate a connector to continue</h3>
+      <p className="ontology-wizard__connector-gate-copy">
+        Ontology materialization requires an <strong>Active</strong> ontology / knowledge graph
+        connector. The connectors below exist but are not active yet.
+      </p>
+      <ul className="ontology-wizard__connector-gate-list">
+        {connectors.map((connector) => (
+          <li key={connector.id} className="ontology-wizard__connector-gate-item">
+            <div>
+              <p className="ontology-wizard__connector-gate-name">
+                {formatConnectorLabel(connector)}
+              </p>
+              <span className={connectorStatusClassName(connector.status)}>
+                {connector.status}
+              </span>
+            </div>
+            <Link to="/connectors" className="ontologies-page__inline-link">
+              Activate in Connectors
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <p className="agent-runs-page__hint">
+        <Link to="/connectors">Open connectors</Link>
+      </p>
+    </div>
+  );
+}
+
 export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [searchParams] = useSearchParams();
   const initialMode = useMemo((): WizardMode | null => {
@@ -255,13 +304,13 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
     listConnectors({
       connectorType: "ontology_knowledge_graph",
-      status: "Active",
     })
       .then((connectors) => {
         if (!cancelled) {
-          setState({ kind: "ready", connectors });
-          if (connectors.length > 0) {
-            setConnectorId(connectors[0].id);
+          const { activeConnectors, inactiveConnectors } = splitOntologyConnectors(connectors);
+          setState({ kind: "ready", activeConnectors, inactiveConnectors });
+          if (activeConnectors.length > 0) {
+            setConnectorId(activeConnectors[0].id);
           }
         }
       })
@@ -474,7 +523,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       });
       const connector =
         state.kind === "ready"
-          ? state.connectors.find((item) => item.id === connectorId)
+          ? state.activeConnectors.find((item) => item.id === connectorId)
           : undefined;
       setState({
         kind: "imported",
@@ -624,11 +673,16 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     );
   }
 
-  const { connectors } = state;
+  const { activeConnectors, inactiveConnectors } = state;
   const selectedConnector =
-    connectors.find((connector) => connector.id === connectorId) ?? connectors[0] ?? null;
+    activeConnectors.find((connector) => connector.id === connectorId) ??
+    activeConnectors[0] ??
+    null;
   const sourcePreview = previewSourceContent(contentForSubmission);
   const stepNumber = step + 1;
+  const hasActiveConnectors = activeConnectors.length > 0;
+  const hasInactiveConnectors = inactiveConnectors.length > 0;
+  const hasNoOntologyConnectors = !hasActiveConnectors && !hasInactiveConnectors;
 
   return (
     <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
@@ -648,16 +702,18 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         </div>
       </div>
 
-      {connectors.length === 0 ? (
+      {hasNoOntologyConnectors ? (
         <div className="agent-runs-page__empty" role="status">
           <p>
-            No active ontology / knowledge graph connectors. Create one under Platform →
-            Connectors, activate it, then return here to create an ontology.
+            No ontology / knowledge graph connectors yet. Create one under Platform →
+            Connectors, configure it, activate it, then return here to create an ontology.
           </p>
           <p className="agent-runs-page__hint">
             <Link to="/connectors">Open connectors</Link>
           </p>
         </div>
+      ) : !hasActiveConnectors && hasInactiveConnectors ? (
+        <ConnectorGatePanel connectors={inactiveConnectors} />
       ) : (
         <form
           className="agent-runs-page__form ontology-wizard"
@@ -921,7 +977,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       setStepError(null);
                     }}
                   >
-                    {connectors.map((connector) => (
+                    {activeConnectors.map((connector) => (
                       <option key={connector.id} value={connector.id}>
                         {formatConnectorLabel(connector)} (
                         {CONNECTOR_TYPE_LABELS[connector.connector_type]})

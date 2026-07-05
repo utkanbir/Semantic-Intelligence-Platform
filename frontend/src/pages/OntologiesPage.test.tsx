@@ -188,6 +188,29 @@ describe("OntologiesPage", () => {
     expect(screen.getByRole("link", { name: "Open connectors" })).toBeInTheDocument();
   });
 
+  it("shows activate hint when only configured ontology connectors exist", async () => {
+    vi.mocked(listOntologies).mockResolvedValue([]);
+    vi.mocked(listConnectors).mockResolvedValue([
+      {
+        ...connector,
+        id: "connector-configured",
+        status: "Configured" as const,
+        activated_at: null,
+      },
+    ]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText(/1 configured/)).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: "activate to create ontology" })).toHaveAttribute(
+      "href",
+      "/connectors",
+    );
+  });
+
   it("shows the create link when ontologies exist", async () => {
     vi.mocked(listOntologies).mockResolvedValue([mockOntology]);
 

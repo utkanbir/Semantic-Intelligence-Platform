@@ -3030,6 +3030,55 @@ body {
   font-size: 0.875rem;
 }
 
+.ontology-wizard__connector-gate {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fff;
+  border-left: 4px solid #c8a43b;
+}
+
+.ontology-wizard__connector-gate-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.ontology-wizard__connector-gate-copy {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: #4a4a68;
+}
+
+.ontology-wizard__connector-gate-list {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ontology-wizard__connector-gate-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e8ebf0;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.ontology-wizard__connector-gate-name {
+  margin: 0 0 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
 .agent-runs-page__table-wrap {
   overflow-x: auto;
   border: 1px solid #e0e3ea;

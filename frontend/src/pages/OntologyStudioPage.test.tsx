@@ -267,4 +267,29 @@ describe("OntologyStudioPage", () => {
 
     expect(screen.queryByRole("heading", { name: /Step 1 · Mode/i })).not.toBeInTheDocument();
   });
+
+  it("shows connector gate when only configured ontology connectors exist", async () => {
+    vi.mocked(listConnectors).mockResolvedValue([
+      {
+        ...connector,
+        id: "connector-configured",
+        status: "Configured",
+        activated_at: null,
+      },
+    ]);
+
+    renderPage("/applications/app-1/ontology/create?mode=import");
+
+    await waitFor(() => {
+      expect(screen.getByText("Activate a connector to continue")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Primary Fuseki — Apache Jena Fuseki")).toBeInTheDocument();
+    expect(screen.getByText("Configured")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Activate in Connectors" })).toHaveAttribute(
+      "href",
+      "/connectors",
+    );
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+  });
 });
