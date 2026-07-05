@@ -15,6 +15,7 @@ interface OntologyStudioPageProps {
 
 type WizardMode = "create" | "import";
 type ImportSourceMethod = "file" | "paste";
+type WizardPhase = "mode" | "edit" | "connector" | "review";
 
 type PageState =
   | { kind: "loading" }
@@ -27,9 +28,18 @@ type PageState =
       semanticTransactionId: string | null | undefined;
       title: string;
       mode: WizardMode;
+      connectorLabel: string;
     };
 
-const WIZARD_STEPS = ["Mode", "Edit & validate", "Connector", "Review & run"] as const;
+const FULL_WIZARD_STEPS = ["Mode", "Edit & validate", "Connector", "Review & run"] as const;
+const FOCUSED_WIZARD_STEPS = ["Edit & validate", "Connector", "Review & run"] as const;
+const SEMANTIC_TRANSACTION_STEPS = [
+  "validate_request",
+  "resolve_connector",
+  "persist_artifact",
+  "persist_metadata",
+  "finalize",
+] as const;
 const PREFIX_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
 function formatConnectorLabel(connector: ConnectorResponse): string {
@@ -104,6 +114,28 @@ function previewSourceContent(content: string): string {
   return `${trimmed.slice(0, 1400)}\n\n…`;
 }
 
+function hasBasicRdfStructure(content: string): boolean {
+  const normalized = content.trim().toLowerCase();
+  return (
+    normalized.includes("@prefix") ||
+    normalized.includes("owl:ontology") ||
+    normalized.includes("<rdf:rdf") ||
+    normalized.includes("rdf:rdf")
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function readUploadedFile(file: File): Promise<string> {
   const readWithFileReader = () =>
     new Promise<string>((resolve, reject) => {
@@ -124,25 +156,57 @@ function readUploadedFile(file: File): Promise<string> {
   return readWithFileReader();
 }
 
+function phaseForStep(step: number, skipModeStep: boolean): WizardPhase {
+  if (skipModeStep) {
+    if (step === 0) {
+      return "edit";
+    }
+    if (step === 1) {
+      return "connector";
+    }
+    return "review";
+  }
+
+  if (step === 0) {
+    return "mode";
+  }
+  if (step === 1) {
+    return "edit";
+  }
+  if (step === 2) {
+    return "connector";
+  }
+  return "review";
+}
+
+interface ValidationCheck {
+  id: string;
+  label: string;
+  passed: boolean;
+}
+
+function ValidationChecklist({ checks }: { checks: ValidationCheck[] }) {
+  return (
+    <ul className="ontology-wizard__validation-checklist" aria-label="Validation checks">
+      {checks.map((check) => (
+        <li
+          key={check.id}
+          className={`ontology-wizard__validation-item${
+            check.passed ? " ontology-wizard__validation-item--passed" : ""
+          }`}
+        >
+          <span className="ontology-wizard__validation-marker" aria-hidden="true">
+            {check.passed ? "✓" : "○"}
+          </span>
+          {check.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [searchParams] = useSearchParams();
-  const [state, setState] = useState<PageState>({ kind: "loading" });
-  const [step, setStep] = useState(0);
-  const [mode, setMode] = useState<WizardMode | null>(null);
-  const [title, setTitle] = useState("");
-  const [namespaceIri, setNamespaceIri] = useState("");
-  const [prefix, setPrefix] = useState("");
-  const [description, setDescription] = useState("");
-  const [sourceMethod, setSourceMethod] = useState<ImportSourceMethod>("file");
-  const [sourceFileName, setSourceFileName] = useState("");
-  const [connectorId, setConnectorId] = useState("");
-  const [sourceFormat, setSourceFormat] = useState("ttl");
-  const [sourceContent, setSourceContent] = useState("");
-  const [createdBy, setCreatedBy] = useState("");
-  const [stepError, setStepError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
   const initialMode = useMemo((): WizardMode | null => {
     const modeParam = searchParams.get("mode")?.toLowerCase();
     if (modeParam === "manual" || modeParam === "create") {
@@ -153,10 +217,36 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
     return null;
   }, [searchParams]);
+  const skipModeStep = initialMode !== null;
+
+  const [state, setState] = useState<PageState>({ kind: "loading" });
+  const [step, setStep] = useState(0);
+  const [mode, setMode] = useState<WizardMode | null>(initialMode);
+  const [title, setTitle] = useState("");
+  const [namespaceIri, setNamespaceIri] = useState("");
+  const [prefix, setPrefix] = useState("");
+  const [description, setDescription] = useState("");
+  const [sourceMethod, setSourceMethod] = useState<ImportSourceMethod>("file");
+  const [sourceFileName, setSourceFileName] = useState("");
+  const [sourceFileSize, setSourceFileSize] = useState<number | null>(null);
+  const [connectorId, setConnectorId] = useState("");
+  const [sourceFormat, setSourceFormat] = useState("ttl");
+  const [sourceContent, setSourceContent] = useState("");
+  const [createdBy, setCreatedBy] = useState("");
+  const [stepError, setStepError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const visibleSteps = skipModeStep ? FOCUSED_WIZARD_STEPS : FULL_WIZARD_STEPS;
+  const currentPhase = phaseForStep(step, skipModeStep);
+  const pageTitle = mode
+    ? `Create ontology · ${formatModeLabel(mode)}`
+    : "Create ontology";
 
   useEffect(() => {
     if (initialMode) {
       setMode(initialMode);
+      setStep(0);
     }
   }, [initialMode]);
 
@@ -208,16 +298,77 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
   const contentForSubmission = mode === "create" ? generatedSourceContent : sourceContent.trim();
   const effectiveSourceFormat = mode === "create" ? "ttl" : sourceFormat.trim() || "ttl";
-  const editStepValid = mode !== null && validateStep(1) === null;
 
-  function validateStep(nextStep: number): string | null {
-    if (nextStep === 0) {
+  const manualValidationChecks = useMemo((): ValidationCheck[] => {
+    if (mode !== "create") {
+      return [];
+    }
+
+    return [
+      { id: "title", label: "Title provided", passed: Boolean(title.trim()) },
+      {
+        id: "namespace",
+        label: "Namespace / base IRI provided",
+        passed: Boolean(namespaceIri.trim()),
+      },
+      { id: "prefix", label: "Prefix provided", passed: Boolean(normalizedPrefix) },
+      {
+        id: "prefix-pattern",
+        label: "Prefix uses valid characters",
+        passed: !normalizedPrefix || PREFIX_PATTERN.test(normalizedPrefix),
+      },
+      {
+        id: "document",
+        label: "Generated ontology document is non-empty",
+        passed: Boolean(generatedSourceContent.trim()),
+      },
+    ];
+  }, [generatedSourceContent, mode, namespaceIri, normalizedPrefix, title]);
+
+  const importValidationChecks = useMemo((): ValidationCheck[] => {
+    if (mode !== "import") {
+      return [];
+    }
+
+    const trimmedContent = sourceContent.trim();
+
+    return [
+      { id: "title", label: "Title provided", passed: Boolean(title.trim()) },
+      {
+        id: "source",
+        label:
+          sourceMethod === "file"
+            ? "Ontology file uploaded"
+            : "Ontology content pasted",
+        passed: Boolean(trimmedContent),
+      },
+      {
+        id: "format",
+        label: "Source format selected",
+        passed: Boolean(sourceFormat.trim()),
+      },
+      {
+        id: "rdf-structure",
+        label: "Basic RDF structure detected",
+        passed: !trimmedContent || hasBasicRdfStructure(trimmedContent),
+      },
+    ];
+  }, [mode, sourceContent, sourceFormat, sourceMethod, title]);
+
+  const editStepValid =
+    mode !== null &&
+    (mode === "create"
+      ? manualValidationChecks.every((check) => check.passed)
+      : importValidationChecks.every((check) => check.passed));
+
+  function validatePhase(phase: WizardPhase): string | null {
+    if (phase === "mode") {
       if (!mode) {
         return "Choose Manual or OWL Import to continue";
       }
     }
 
-    if (nextStep === 1) {
+    if (phase === "edit") {
       if (!mode) {
         return "Choose Manual or OWL Import to continue";
       }
@@ -251,7 +402,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       }
     }
 
-    if (nextStep === 2) {
+    if (phase === "connector") {
       if (!connectorId) {
         return "Connector is required";
       }
@@ -275,14 +426,14 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   }
 
   function handleNext() {
-    const message = validateStep(step);
+    const message = validatePhase(currentPhase);
     if (message) {
       setStepError(message);
       return;
     }
 
     setStepError(null);
-    setStep((current) => Math.min(current + 1, WIZARD_STEPS.length - 1));
+    setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
   }
 
   function handleBack() {
@@ -293,7 +444,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const reviewValidation = validateStep(2);
+    const reviewValidation = validatePhase("connector");
     if (reviewValidation) {
       setStepError(reviewValidation);
       return;
@@ -321,6 +472,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         ...(createdByValue ? { created_by: createdByValue } : {}),
         ...(descriptionValue ? { description: descriptionValue } : {}),
       });
+      const connector =
+        state.kind === "ready"
+          ? state.connectors.find((item) => item.id === connectorId)
+          : undefined;
       setState({
         kind: "imported",
         ontologyId: ontology.id,
@@ -328,6 +483,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         semanticTransactionId: ontology.semantic_transaction_id ?? null,
         title: ontology.title,
         mode: mode ?? "import",
+        connectorLabel: connector ? formatConnectorLabel(connector) : "Selected connector",
       });
     } catch (error: unknown) {
       const message =
@@ -352,6 +508,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       const text = await readUploadedFile(file);
       setSourceMethod("file");
       setSourceFileName(file.name);
+      setSourceFileSize(file.size);
       setSourceContent(text);
       setSourceFormat(inferSourceFormat(file.name));
       setStepError(null);
@@ -388,46 +545,81 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         <Link to={backHref} className="agent-run-detail__back">
           ← Back to ontologies
         </Link>
-        <h2 id="ontology-create-heading">Create ontology</h2>
-        <div className="agent-runs-page__empty" role="status">
-          <p>
+        <h2 id="ontology-create-heading">{pageTitle}</h2>
+
+        <article className="ontology-wizard__completion-card" role="status">
+          <p className="ontology-wizard__completion-status">
             {state.mode === "create"
-              ? "Ontology created successfully."
-              : "Ontology imported successfully."}
+              ? "Ontology materialized successfully"
+              : "Ontology imported successfully"}
           </p>
-          <p>
-            <strong>{state.title}</strong> is registered and materialized through the selected
-            connector.
-          </p>
-          {state.artifactUri && (
-            <p>
-              Artifact URI: <code>{state.artifactUri}</code>
-            </p>
-          )}
-          <p>
-            <Link to={`/applications/${applicationId}/ontology#ontology-${state.ontologyId}`}>
-              View created ontology
-            </Link>
-            {state.semanticTransactionId && (
-              <>
-                {" · "}
-                <Link
-                  to={`/applications/${applicationId}/semantic-transactions/${state.semanticTransactionId}`}
-                >
-                  View semantic transaction
-                </Link>
-              </>
+
+          <dl className="ontology-wizard__completion-meta">
+            <div>
+              <dt>Title</dt>
+              <dd>{state.title}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>Draft · v1</dd>
+            </div>
+            <div>
+              <dt>Connector</dt>
+              <dd>{state.connectorLabel}</dd>
+            </div>
+            {state.artifactUri && (
+              <div>
+                <dt>Artifact URI</dt>
+                <dd>
+                  <code>{state.artifactUri}</code>
+                </dd>
+              </div>
             )}
+          </dl>
+
+          <section className="ontology-wizard__completion-semantic" aria-labelledby="semantic-tx-heading">
+            <h3 id="semantic-tx-heading">Semantic transaction</h3>
+            {state.semanticTransactionId ? (
+              <>
+                <p className="ontology-wizard__completion-copy">
+                  Recorded as <code>ontology.imported</code> with orchestrated trace steps.
+                </p>
+                <p>
+                  <Link
+                    to={`/applications/${applicationId}/semantic-transactions/${state.semanticTransactionId}`}
+                    className="ontologies-page__button ontologies-page__button--primary"
+                  >
+                    View semantic transaction
+                  </Link>
+                </p>
+                <ul className="ontology-wizard__completion-steps">
+                  {SEMANTIC_TRANSACTION_STEPS.map((stepName) => (
+                    <li key={stepName}>{stepName}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="agent-runs-page__error" role="alert">
+                Ontology was materialized but no semantic transaction id was returned. Check
+                semantic transactions for the latest ontology lineage entry.
+              </p>
+            )}
+          </section>
+
+          <p className="ontology-wizard__completion-links">
+            <Link to={`/applications/${applicationId}/ontology#ontology-${state.ontologyId}`}>
+              View ontology
+            </Link>
             {!state.semanticTransactionId && (
               <>
                 {" · "}
                 <Link to={`/applications/${applicationId}/semantic-transactions`}>
-                  View semantic transactions
+                  Open semantic transactions
                 </Link>
               </>
             )}
           </p>
-        </div>
+        </article>
       </section>
     );
   }
@@ -436,6 +628,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const selectedConnector =
     connectors.find((connector) => connector.id === connectorId) ?? connectors[0] ?? null;
   const sourcePreview = previewSourceContent(contentForSubmission);
+  const stepNumber = step + 1;
 
   return (
     <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
@@ -444,11 +637,13 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           <Link to={backHref} className="agent-run-detail__back">
             ← Back to ontologies
           </Link>
-          <h2 id="ontology-create-heading">Create ontology</h2>
+          <h2 id="ontology-create-heading">{pageTitle}</h2>
           <p className="agent-runs-page__lead">
-            Capture business meaning for this application. The ontology is not another
-            database — it defines the semantic context that agents and data products rely
-            on. Materialization runs through the connector framework.
+            {mode === "create"
+              ? "Define business meaning from scratch. A minimal ontology document is generated, validated, and materialized through your connector."
+              : mode === "import"
+                ? "Import existing OWL/RDF semantics. Content is validated client-side, then materialized through the connector framework."
+                : "Capture business meaning for this application. Choose Manual or OWL Import to continue."}
           </p>
         </div>
       </div>
@@ -470,7 +665,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           aria-label="Create ontology"
         >
           <ol className="ontology-wizard__steps" aria-label="Creation steps">
-            {WIZARD_STEPS.map((label, index) => {
+            {visibleSteps.map((label, index) => {
               const stateLabel =
                 index === step ? "current" : index < step ? "complete" : "upcoming";
 
@@ -489,9 +684,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             })}
           </ol>
 
-          {step === 0 && (
+          {currentPhase === "mode" && (
             <div className="ontologies-page__create-panel">
-              <h3 className="ontologies-page__create-title">Step 1 · Mode</h3>
+              <h3 className="ontologies-page__create-title">Step {stepNumber} · Mode</h3>
               <div className="ontology-wizard__mode-grid" role="radiogroup" aria-label="Mode">
                 <label className="ontology-wizard__mode-card">
                   <input
@@ -524,9 +719,94 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             </div>
           )}
 
-          {step === 1 && mode && (
+          {currentPhase === "edit" && mode === "create" && (
             <div className="ontologies-page__create-panel">
-              <h3 className="ontologies-page__create-title">Step 2 · Edit & validate</h3>
+              <h3 className="ontologies-page__create-title">
+                Step {stepNumber} · Define ontology
+              </h3>
+              <p className="ontology-wizard__panel-lead">
+                Manual mode captures namespace and prefix, then generates Turtle for
+                materialization — not application metadata alone.
+              </p>
+              <div className="ontology-wizard__edit-grid">
+                <div className="ontology-wizard__edit-form">
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-title">Title</label>
+                    <input
+                      id="ontology-title"
+                      value={title}
+                      onChange={(event) => {
+                        setTitle(event.target.value);
+                        setStepError(null);
+                      }}
+                    />
+                  </div>
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-namespace">Namespace / base IRI</label>
+                    <input
+                      id="ontology-namespace"
+                      placeholder="https://example.com/ontology#"
+                      value={namespaceIri}
+                      onChange={(event) => {
+                        setNamespaceIri(event.target.value);
+                        setStepError(null);
+                      }}
+                    />
+                    <p className="agent-runs-page__field-hint">
+                      This IRI identifies the ontology document in the semantic layer.
+                    </p>
+                  </div>
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-prefix">Prefix</label>
+                    <input
+                      id="ontology-prefix"
+                      placeholder="ex"
+                      value={prefix}
+                      onChange={(event) => {
+                        setPrefix(event.target.value);
+                        setStepError(null);
+                      }}
+                    />
+                  </div>
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-manual-description">
+                      Description <span className="agent-runs-page__optional">(optional)</span>
+                    </label>
+                    <textarea
+                      id="ontology-manual-description"
+                      rows={3}
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
+                  </div>
+                  <ValidationChecklist checks={manualValidationChecks} />
+                </div>
+                <div className="ontology-wizard__review-card">
+                  <h4>Live Turtle preview</h4>
+                  <pre className="ontology-wizard__source-preview">
+                    {generatedSourceContent.trim()
+                      ? previewSourceContent(generatedSourceContent)
+                      : "Complete the fields to preview the generated ontology document."}
+                  </pre>
+                </div>
+              </div>
+              {editStepValid && (
+                <p className="platform-page__field-hint" role="status">
+                  Basic validation passed — ready to choose a connector.
+                </p>
+              )}
+            </div>
+          )}
+
+          {currentPhase === "edit" && mode === "import" && (
+            <div className="ontologies-page__create-panel">
+              <h3 className="ontologies-page__create-title">
+                Step {stepNumber} · Import OWL/RDF
+              </h3>
+              <p className="ontology-wizard__panel-lead">
+                Upload or paste ontology content. Basic RDF structure is checked before
+                connector materialization.
+              </p>
               <div className="ontology-wizard__step-body">
                 <div className="agent-runs-page__field">
                   <label htmlFor="ontology-title">Title</label>
@@ -540,95 +820,72 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                 </div>
 
-                {mode === "create" ? (
-                  <>
-                    <div className="agent-runs-page__field">
-                      <label htmlFor="ontology-namespace">Namespace / base IRI</label>
-                      <input
-                        id="ontology-namespace"
-                        placeholder="https://example.com/ontology#"
-                        value={namespaceIri}
-                        onChange={(event) => {
-                          setNamespaceIri(event.target.value);
-                          setStepError(null);
-                        }}
-                      />
-                    </div>
-                    <div className="agent-runs-page__field">
-                      <label htmlFor="ontology-prefix">Prefix</label>
-                      <input
-                        id="ontology-prefix"
-                        placeholder="ex"
-                        value={prefix}
-                        onChange={(event) => {
-                          setPrefix(event.target.value);
-                          setStepError(null);
-                        }}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <fieldset className="ontology-wizard__source-options">
-                      <legend>Import source</legend>
-                      <label>
-                        <input
-                          type="radio"
-                          name="ontology-source-method"
-                          value="file"
-                          checked={sourceMethod === "file"}
-                          onChange={() => {
-                            setSourceMethod("file");
-                            setStepError(null);
-                          }}
-                        />
-                        <span>Upload file</span>
-                      </label>
-                      <label>
-                        <input
-                          type="radio"
-                          name="ontology-source-method"
-                          value="paste"
-                          checked={sourceMethod === "paste"}
-                          onChange={() => {
-                            setSourceMethod("paste");
-                            setStepError(null);
-                          }}
-                        />
-                        <span>Paste text</span>
-                      </label>
-                    </fieldset>
+                <div className="ontology-wizard__source-tabs" role="tablist" aria-label="Import source">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={sourceMethod === "file"}
+                    className={`ontology-wizard__source-tab${
+                      sourceMethod === "file" ? " ontology-wizard__source-tab--active" : ""
+                    }`}
+                    onClick={() => {
+                      setSourceMethod("file");
+                      setStepError(null);
+                    }}
+                  >
+                    Upload file
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={sourceMethod === "paste"}
+                    className={`ontology-wizard__source-tab${
+                      sourceMethod === "paste" ? " ontology-wizard__source-tab--active" : ""
+                    }`}
+                    onClick={() => {
+                      setSourceMethod("paste");
+                      setStepError(null);
+                    }}
+                  >
+                    Paste text
+                  </button>
+                </div>
 
-                    {sourceMethod === "file" ? (
-                      <div className="agent-runs-page__field">
-                        <label htmlFor="ontology-import-file">Ontology file</label>
-                        <input
-                          id="ontology-import-file"
-                          type="file"
-                          accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
-                          onChange={(event) => void handleFileChange(event)}
-                        />
-                        <p className="agent-runs-page__field-hint">
-                          {sourceFileName
-                            ? `Loaded ${sourceFileName}`
-                            : "Accepted formats include TTL, RDF/XML, OWL, and JSON-LD."}
-                        </p>
-                      </div>
+                {sourceMethod === "file" ? (
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-import-file">Ontology file</label>
+                    <input
+                      id="ontology-import-file"
+                      type="file"
+                      accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
+                      onChange={(event) => void handleFileChange(event)}
+                    />
+                    {sourceFileName ? (
+                      <p className="ontology-wizard__file-info" role="status">
+                        {sourceFileName}
+                        {sourceFileSize !== null && ` · ${formatFileSize(sourceFileSize)}`}
+                        {` · format: ${effectiveSourceFormat}`}
+                      </p>
                     ) : (
-                      <div className="agent-runs-page__field">
-                        <label htmlFor="ontology-import-content">Ontology content</label>
-                        <textarea
-                          id="ontology-import-content"
-                          rows={12}
-                          value={sourceContent}
-                          onChange={(event) => {
-                            setSourceContent(event.target.value);
-                            setStepError(null);
-                          }}
-                        />
-                      </div>
+                      <p className="agent-runs-page__field-hint">
+                        Accepted formats include TTL, RDF/XML, OWL, and JSON-LD.
+                      </p>
                     )}
-                  </>
+                  </div>
+                ) : (
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-import-content">Ontology content</label>
+                    <textarea
+                      id="ontology-import-content"
+                      rows={14}
+                      className="ontology-wizard__import-textarea"
+                      value={sourceContent}
+                      onChange={(event) => {
+                        setSourceContent(event.target.value);
+                        setStepError(null);
+                      }}
+                    />
+                  </div>
                 )}
 
                 {contentForSubmission && (
@@ -640,6 +897,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   </div>
                 )}
 
+                <ValidationChecklist checks={importValidationChecks} />
                 {editStepValid && (
                   <p className="platform-page__field-hint" role="status">
                     Basic validation passed — ready to choose a connector.
@@ -649,9 +907,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             </div>
           )}
 
-          {step === 2 && (
+          {currentPhase === "connector" && (
             <div className="ontologies-page__create-panel">
-              <h3 className="ontologies-page__create-title">Step 3 · Connector</h3>
+              <h3 className="ontologies-page__create-title">Step {stepNumber} · Connector</h3>
               <div className="ontology-wizard__step-body">
                 <div className="agent-runs-page__field">
                   <label htmlFor="ontology-import-connector">Target connector</label>
@@ -688,21 +946,23 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                   <p className="agent-runs-page__field-hint">
                     {mode === "create"
-                      ? "Manual mode generates Turtle and submits it through the import pipeline."
+                      ? "Manual mode always generates Turtle and submits it through the import pipeline."
                       : "Adjust this if the pasted or uploaded content uses a different RDF serialization."}
                   </p>
                 </div>
-                <div className="agent-runs-page__field">
-                  <label htmlFor="ontology-import-description">
-                    Description <span className="agent-runs-page__optional">(optional)</span>
-                  </label>
-                  <textarea
-                    id="ontology-import-description"
-                    rows={4}
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                  />
-                </div>
+                {mode === "import" && (
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-import-description">
+                      Description <span className="agent-runs-page__optional">(optional)</span>
+                    </label>
+                    <textarea
+                      id="ontology-import-description"
+                      rows={4}
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
+                  </div>
+                )}
                 <div className="agent-runs-page__field">
                   <label htmlFor="ontology-import-created-by">
                     Created by <span className="agent-runs-page__optional">(optional)</span>
@@ -717,9 +977,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             </div>
           )}
 
-          {step === 3 && (
+          {currentPhase === "review" && (
             <div className="ontologies-page__create-panel">
-              <h3 className="ontologies-page__create-title">Step 4 · Review & run</h3>
+              <h3 className="ontologies-page__create-title">Step {stepNumber} · Review & run</h3>
               <div className="ontology-wizard__review-grid">
                 <div className="ontology-wizard__review-card">
                   <h4>Summary</h4>
@@ -750,7 +1010,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       <div>
                         <dt>Import source</dt>
                         <dd>
-                          {sourceMethod === "file" ? sourceFileName || "Uploaded file" : "Pasted text"}
+                          {sourceMethod === "file"
+                            ? sourceFileName || "Uploaded file"
+                            : "Pasted text"}
                         </dd>
                       </div>
                     )}
@@ -782,6 +1044,16 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   <pre className="ontology-wizard__source-preview">{sourcePreview}</pre>
                 </div>
               </div>
+
+              <div className="ontology-wizard__what-happens">
+                <h4>What will happen</h4>
+                <ol>
+                  <li>Validate the submitted ontology artifact</li>
+                  <li>Materialize content through the selected connector</li>
+                  <li>Register the ontology definition as Draft</li>
+                  <li>Record a semantic transaction (<code>ontology.imported</code>)</li>
+                </ol>
+              </div>
             </div>
           )}
 
@@ -797,17 +1069,13 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 Back
               </button>
             )}
-            {step < WIZARD_STEPS.length - 1 ? (
+            {step < visibleSteps.length - 1 ? (
               <button type="button" onClick={handleNext}>
                 Next
               </button>
             ) : (
               <button type="submit" disabled={submitting}>
-                {submitting
-                  ? "Materializing…"
-                  : mode === "create"
-                    ? "Materialize ontology"
-                    : "Materialize ontology"}
+                {submitting ? "Materializing…" : "Materialize ontology"}
               </button>
             )}
           </div>

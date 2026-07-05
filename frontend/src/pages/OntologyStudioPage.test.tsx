@@ -66,9 +66,9 @@ const importedOntology: OntologyDefinitionResponse = {
   semantic_transaction_id: "txn-1",
 };
 
-function renderPage() {
+function renderPage(initialEntry = "/applications/app-1/ontology/create") {
   return render(
-    <MemoryRouter initialEntries={["/applications/app-1/ontology/create"]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route
           path="/applications/:applicationId/ontology/create"
@@ -89,14 +89,13 @@ describe("OntologyStudioPage", () => {
   it("creates a minimal ontology and submits it through the import API", async () => {
     vi.mocked(importOntology).mockResolvedValue(importedOntology);
 
-    renderPage();
+    renderPage("/applications/app-1/ontology/create?mode=manual");
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create ontology · Manual" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("radio", { name: /Manual/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Step 1 · Define ontology" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Customer Ontology" },
@@ -107,20 +106,16 @@ describe("OntologyStudioPage", () => {
     fireEvent.change(screen.getByLabelText("Prefix"), {
       target: { value: "cust" },
     });
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Step 2 · Edit & validate" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Description/), {
+      target: { value: "Business vocabulary" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Step 3 · Connector" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Step 2 · Connector" })).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText(/Description/), {
-      target: { value: "Business vocabulary" },
-    });
     fireEvent.change(screen.getByLabelText(/Created by/), {
       target: { value: "alice@example.com" },
     });
@@ -128,7 +123,7 @@ describe("OntologyStudioPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Submitted artifact preview")).toBeInTheDocument();
+      expect(screen.getByText("What will happen")).toBeInTheDocument();
     });
 
     expect(screen.getByText("Manual")).toBeInTheDocument();
@@ -158,10 +153,11 @@ describe("OntologyStudioPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Ontology created successfully.")).toBeInTheDocument();
+      expect(screen.getByText("Ontology materialized successfully")).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("link", { name: "View created ontology" })).toHaveAttribute(
+    expect(screen.getByText(/ontology\.imported/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View ontology" })).toHaveAttribute(
       "href",
       "/applications/app-1/ontology#ontology-onto-1",
     );
@@ -178,19 +174,18 @@ describe("OntologyStudioPage", () => {
       source_format: "rdf",
     });
 
-    renderPage();
+    renderPage("/applications/app-1/ontology/create?mode=import");
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("radio", { name: /OWL Import/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Step 1 · Import OWL/RDF" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Imported Ontology" },
     });
-    fireEvent.click(screen.getByRole("radio", { name: /Paste text/i }));
+    fireEvent.click(screen.getByRole("tab", { name: "Paste text" }));
     fireEvent.change(screen.getByLabelText("Ontology content"), {
       target: { value: "<rdf:RDF></rdf:RDF>" },
     });
@@ -198,7 +193,7 @@ describe("OntologyStudioPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Step 3 · Connector" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Step 2 · Connector" })).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText("Source format"), {
@@ -220,14 +215,11 @@ describe("OntologyStudioPage", () => {
   });
 
   it("supports importing ontology content from a file upload", async () => {
-    renderPage();
+    renderPage("/applications/app-1/ontology/create?mode=import");
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByRole("radio", { name: /OWL Import/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     const file = new File(["@prefix ex: <https://example.com/> ."], "vendor.ttl", {
       type: "text/turtle",
@@ -240,7 +232,8 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByDisplayValue("vendor")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Loaded vendor.ttl")).toBeInTheDocument();
+    expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
+    expect(screen.getByText(/format: ttl/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
@@ -265,20 +258,13 @@ describe("OntologyStudioPage", () => {
     });
   });
 
-  it("pre-selects manual mode from query string", async () => {
-    render(
-      <MemoryRouter initialEntries={["/applications/app-1/ontology/create?mode=manual"]}>
-        <Routes>
-          <Route
-            path="/applications/:applicationId/ontology/create"
-            element={<OntologyStudioPage applicationId="app-1" />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
+  it("pre-selects manual mode from query string and skips mode step", async () => {
+    renderPage("/applications/app-1/ontology/create?mode=manual");
 
     await waitFor(() => {
-      expect(screen.getByRole("radio", { name: /Manual/i })).toBeChecked();
+      expect(screen.getByRole("heading", { name: "Step 1 · Define ontology" })).toBeInTheDocument();
     });
+
+    expect(screen.queryByRole("heading", { name: /Step 1 · Mode/i })).not.toBeInTheDocument();
   });
 });
