@@ -110,7 +110,7 @@ This is not a deployment problem. It is a **domain semantics and UX contract** p
 ## 6. Sprint 32 proposed work items
 
 1. **Epic:** Semantic Transaction v2 — separate semantic lineage from audit trace surface
-2. **Issue:** Domain taxonomy and eligibility contract
+2. **Issue:** Domain taxonomy and eligibility contract — see [SIP_Semantic_Transaction_Taxonomy_and_Eligibility_Contract.md](./SIP_Semantic_Transaction_Taxonomy_and_Eligibility_Contract.md)
 3. **Issue:** Backend query surface realignment
 4. **Issue:** Console IA / UX split
 5. **Issue:** Sprint 30/31 governance-document correction
