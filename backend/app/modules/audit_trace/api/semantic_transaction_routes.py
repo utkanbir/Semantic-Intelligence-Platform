@@ -1,4 +1,4 @@
-"""REST API routes for the audit_trace module."""
+"""REST API routes for semantic lineage transactions."""
 
 from __future__ import annotations
 
@@ -31,13 +31,11 @@ def _get_service(db: Session) -> AuditTraceService:
 
 
 @router.get("", response_model=list[SemanticTransactionResponse])
-def list_audit_traces(
+def list_semantic_transactions(
     db: DbSession,
     resource_id: Annotated[str | None, Query(min_length=1, max_length=255)] = None,
     application_id: Annotated[UUID | None, Query()] = None,
     resource_type: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
-    transaction_type_prefix: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
-    trace_audience: Annotated[TraceAudience | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
 ) -> list[SemanticTransactionResponse]:
     if resource_id is not None and application_id is not None:
@@ -51,18 +49,19 @@ def list_audit_traces(
         resource_id=resource_id,
         application_id=application_id,
         resource_type=resource_type,
-        transaction_type_prefix=transaction_type_prefix,
-        trace_audience=trace_audience,
+        trace_audience=TraceAudience.SEMANTIC_LINEAGE,
         limit=limit,
     )
     return [to_semantic_transaction_response(record) for record in records]
 
 
 @router.get("/{transaction_id}", response_model=SemanticTransactionResponse)
-def get_audit_trace(transaction_id: UUID, db: DbSession) -> SemanticTransactionResponse:
+def get_semantic_transaction(
+    transaction_id: UUID, db: DbSession
+) -> SemanticTransactionResponse:
     service = _get_service(db)
     try:
-        record = service.get_transaction(transaction_id)
+        record = service.get_semantic_lineage_transaction(transaction_id)
     except SemanticTransactionNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     return to_semantic_transaction_response(record)

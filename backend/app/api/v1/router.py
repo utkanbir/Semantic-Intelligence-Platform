@@ -30,6 +30,9 @@ from app.modules.agents.api.routes import router as agents_router
 from app.modules.applications.api.routes import router as applications_router
 from app.modules.assets.api.routes import router as assets_router
 from app.modules.audit_trace.api.routes import router as audit_trace_router
+from app.modules.audit_trace.api.semantic_transaction_routes import (
+    router as semantic_transactions_router,
+)
 from app.modules.blueprints.api.routes import router as blueprints_router
 from app.modules.discovery.api.routes import router as discovery_router
 from app.modules.governance.api.routes import router as policies_router
@@ -51,6 +54,11 @@ api_v1_router.include_router(
     audit_trace_router,
     prefix="/audit-traces",
     tags=["audit-traces"],
+)
+api_v1_router.include_router(
+    semantic_transactions_router,
+    prefix="/semantic-transactions",
+    tags=["semantic-transactions"],
 )
 api_v1_router.include_router(products_router, prefix="/products", tags=["products"])
 api_v1_router.include_router(agents_router, prefix="/agents", tags=["agents"])
