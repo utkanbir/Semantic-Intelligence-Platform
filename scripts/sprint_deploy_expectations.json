@@ -1,0 +1,24 @@
+{
+  "$schema_note": "PMO/DevOps: starting with enforce_from_sprint, add one entry per sprint and record the exact sip-dev frontend/backend images expected at sprint close. Carry forward unchanged image tags so verify-sprint-close can block stale rollouts.",
+  "enforce_from_sprint": 31,
+  "default_namespace": "sip-dev",
+  "default_overlay_kustomization": "infra/kubernetes/overlays/dev/kustomization.yaml",
+  "default_rollout_timeout_seconds": 180,
+  "sprints": {
+    "31": {
+      "label": "Ontology Wizard & Semantic Transactions v2",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s35"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s35"
+        }
+      ]
+    }
+  }
+}
