@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { ApiError } from "../api";
 import {
-  getAuditTrace,
+  getSemanticTransaction,
   type SemanticTransactionResponse,
 } from "../api/auditTrace";
 import { ApplicationSemanticTransactionDetailPage } from "./ApplicationSemanticTransactionDetailPage";
 
 vi.mock("../api/auditTrace", () => ({
-  getAuditTrace: vi.fn(),
+  getSemanticTransaction: vi.fn(),
 }));
 
 const mockTransaction: SemanticTransactionResponse = {
@@ -52,11 +52,11 @@ function renderPage(applicationId = "app-1", transactionId = "txn-1") {
 
 describe("ApplicationSemanticTransactionDetailPage", () => {
   beforeEach(() => {
-    vi.mocked(getAuditTrace).mockReset();
+    vi.mocked(getSemanticTransaction).mockReset();
   });
 
   it("renders loading then transaction detail with trace timeline", async () => {
-    vi.mocked(getAuditTrace).mockImplementation(
+    vi.mocked(getSemanticTransaction).mockImplementation(
       () =>
         new Promise((resolve) => {
           setTimeout(() => resolve(mockTransaction), 0);
@@ -71,17 +71,17 @@ describe("ApplicationSemanticTransactionDetailPage", () => {
       expect(screen.getByText("ontology.imported")).toBeInTheDocument();
     });
 
-    expect(getAuditTrace).toHaveBeenCalledWith("txn-1");
+    expect(getSemanticTransaction).toHaveBeenCalledWith("txn-1");
     expect(screen.getByText("Validated ontology import request")).toBeInTheDocument();
     expect(screen.getByText("Stored ontology definition")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "← Back to semantic transactions" })).toHaveAttribute(
       "href",
-      "/applications/app-1/audit-trace",
+      "/applications/app-1/semantic-transactions",
     );
   });
 
   it("renders not-found when transaction belongs to another application", async () => {
-    vi.mocked(getAuditTrace).mockResolvedValue({
+    vi.mocked(getSemanticTransaction).mockResolvedValue({
       ...mockTransaction,
       application_id: "other-app",
     });
@@ -94,7 +94,7 @@ describe("ApplicationSemanticTransactionDetailPage", () => {
   });
 
   it("renders not-found on 404", async () => {
-    vi.mocked(getAuditTrace).mockRejectedValue(new ApiError("Not found", 404));
+    vi.mocked(getSemanticTransaction).mockRejectedValue(new ApiError("Not found", 404));
 
     renderPage();
 
@@ -104,7 +104,7 @@ describe("ApplicationSemanticTransactionDetailPage", () => {
   });
 
   it("renders error state", async () => {
-    vi.mocked(getAuditTrace).mockRejectedValue(new ApiError("Server error", 500));
+    vi.mocked(getSemanticTransaction).mockRejectedValue(new ApiError("Server error", 500));
 
     renderPage();
 

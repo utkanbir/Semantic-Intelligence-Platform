@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getAuditTrace,
+  getSemanticTransaction,
   listApplicationAuditTraces,
   listAuditTraces,
+  listApplicationSemanticTransactions,
+  listSemanticTransactions,
   type SemanticTransactionResponse,
 } from "./auditTrace";
 
@@ -110,6 +113,63 @@ describe("auditTrace API", () => {
     await expect(getAuditTrace("txn-1")).resolves.toEqual(mockTransaction);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/audit-traces/txn-1",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("listSemanticTransactions calls GET on semantic-transactions", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify([mockTransaction]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      listSemanticTransactions({
+        resourceType: "OntologyDefinition",
+      }),
+    ).resolves.toEqual([mockTransaction]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/semantic-transactions?resource_type=OntologyDefinition",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("listApplicationSemanticTransactions calls GET with application_id", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify([mockTransaction]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(listApplicationSemanticTransactions("app-1", {})).resolves.toEqual([
+      mockTransaction,
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/semantic-transactions?application_id=app-1",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("getSemanticTransaction calls GET for a semantic lineage transaction", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockTransaction), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(getSemanticTransaction("txn-1")).resolves.toEqual(mockTransaction);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/semantic-transactions/txn-1",
       expect.objectContaining({
         headers: expect.any(Headers),
       }),

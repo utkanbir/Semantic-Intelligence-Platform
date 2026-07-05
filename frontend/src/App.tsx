@@ -1,8 +1,9 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { PlatformShell } from "./components/PlatformShell";
 import { ApplicationDetailPage } from "./pages/ApplicationDetailPage";
 import { ApplicationsPage } from "./pages/ApplicationsPage";
 import { AuditTracePage } from "./pages/platform/AuditTracePage";
+import { SemanticTransactionsPage } from "./pages/platform/SemanticTransactionsPage";
 import {
   AdaptersPageRedirect,
   ConnectorsPage,
@@ -24,7 +25,7 @@ export default function App() {
           <Route path="/semantic-connectors" element={<SemanticConnectorsPageRedirect />} />
           <Route path="/governance" element={<GovernancePage />} />
           <Route path="/audit-trace" element={<AuditTracePage />} />
-          <Route path="/semantic-transactions" element={<Navigate to="/audit-trace" replace />} />
+          <Route path="/semantic-transactions" element={<SemanticTransactionsPage />} />
           <Route path="/applications" element={<ApplicationsPage />} />
           <Route
             path="/applications/:applicationId/*"

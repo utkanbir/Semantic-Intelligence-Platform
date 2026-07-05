@@ -163,7 +163,7 @@ describe("OntologyStudioPage", () => {
     );
     expect(screen.getByRole("link", { name: "View semantic transaction" })).toHaveAttribute(
       "href",
-      "/applications/app-1/audit-trace/txn-1",
+      "/applications/app-1/semantic-transactions/txn-1",
     );
   });
 

@@ -8,7 +8,10 @@ import {
 import { listAgents } from "../api/agents";
 import { listAgentRuns, getAgentRun } from "../api/agentRuns";
 import { listConnectors } from "../api/adapters";
-import { listApplicationAuditTraces } from "../api/auditTrace";
+import {
+  listApplicationAuditTraces,
+  listApplicationSemanticTransactions,
+} from "../api/auditTrace";
 import { listAssets } from "../api/assets";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
@@ -77,6 +80,7 @@ vi.mock("../api/adapters", async (importOriginal) => {
 
 vi.mock("../api/auditTrace", () => ({
   listApplicationAuditTraces: vi.fn(),
+  listApplicationSemanticTransactions: vi.fn(),
 }));
 
 vi.mock("../api/assets", async (importOriginal) => {
@@ -167,6 +171,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listConnectors).mockResolvedValue([]);
     vi.mocked(listApplicationAuditTraces).mockReset();
     vi.mocked(listApplicationAuditTraces).mockResolvedValue([]);
+    vi.mocked(listApplicationSemanticTransactions).mockReset();
+    vi.mocked(listApplicationSemanticTransactions).mockResolvedValue([]);
     vi.mocked(listOntologies).mockReset();
     vi.mocked(listOntologies).mockResolvedValue([]);
     vi.mocked(listKnowledgeGraphs).mockReset();
@@ -536,7 +542,7 @@ describe("ApplicationDetailPage", () => {
   });
 
   it("navigates to semantic transactions list", async () => {
-    vi.mocked(listApplicationAuditTraces).mockResolvedValue([
+    vi.mocked(listApplicationSemanticTransactions).mockResolvedValue([
       {
         id: "txn-1",
         transaction_type: "ontology.created",
@@ -560,7 +566,7 @@ describe("ApplicationDetailPage", () => {
       expect(screen.getByText("ontology.created")).toBeInTheDocument();
     });
 
-    expect(listApplicationAuditTraces).toHaveBeenCalledWith("app-1", {});
+    expect(listApplicationSemanticTransactions).toHaveBeenCalledWith("app-1", {});
     expect(screen.getByRole("heading", { name: "Semantic transactions" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
@@ -609,6 +615,7 @@ describe("ApplicationDetailPage", () => {
     ["products"],
     ["agents"],
     ["agent-runs"],
+    ["semantic-transactions"],
     ["audit-trace"],
   ] as const)("shows breadcrumb on %s route", async (segment) => {
     renderDetailPage(`/applications/app-1/${segment}`);

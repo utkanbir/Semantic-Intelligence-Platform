@@ -9,8 +9,10 @@ import {
 import { ApplicationShell } from "../components/ApplicationShell";
 import { AgentsPage } from "./AgentsPage";
 import { AgentRunsPage } from "./AgentRunsPage";
+import { ApplicationAuditTraceDetailPage } from "./ApplicationAuditTraceDetailPage";
 import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
 import { ApplicationSemanticTransactionDetailPage } from "./ApplicationSemanticTransactionDetailPage";
+import { ApplicationSemanticTransactionsPage } from "./ApplicationSemanticTransactionsPage";
 import { AssetsPage } from "./AssetsPage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
@@ -113,6 +115,25 @@ function AgentRunDetailRoute({ applicationId }: { applicationId: string }) {
   }
 
   return <AgentRunDetailPage applicationId={applicationId} runId={runId} />;
+}
+
+function AuditTraceDetailRoute({ applicationId }: { applicationId: string }) {
+  const { transactionId } = useParams<{ transactionId: string }>();
+
+  if (!transactionId) {
+    return (
+      <div className="agent-runs-page__error" role="alert">
+        Transaction ID is required
+      </div>
+    );
+  }
+
+  return (
+    <ApplicationAuditTraceDetailPage
+      applicationId={applicationId}
+      transactionId={transactionId}
+    />
+  );
 }
 
 function SemanticTransactionDetailRoute({ applicationId }: { applicationId: string }) {
@@ -228,12 +249,20 @@ export function ApplicationDetailPage() {
           }
         />
         <Route
+          path="semantic-transactions"
+          element={<ApplicationSemanticTransactionsPage applicationId={application.id} />}
+        />
+        <Route
+          path="semantic-transactions/:transactionId"
+          element={<SemanticTransactionDetailRoute applicationId={application.id} />}
+        />
+        <Route
           path="audit-trace"
           element={<ApplicationAuditTracePage applicationId={application.id} />}
         />
         <Route
           path="audit-trace/:transactionId"
-          element={<SemanticTransactionDetailRoute applicationId={application.id} />}
+          element={<AuditTraceDetailRoute applicationId={application.id} />}
         />
       </Routes>
     </ApplicationShell>

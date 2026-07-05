@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ApiError } from "../../api";
 import {
-  listAuditTraces,
-  type AuditTraceListQuery,
+  listSemanticTransactions,
+  type SemanticTransactionListQuery,
   type SemanticTransactionResponse,
 } from "../../api/auditTrace";
 
@@ -11,10 +11,8 @@ type PageState =
   | { kind: "error"; message: string }
   | { kind: "success"; transactions: SemanticTransactionResponse[] };
 
-type TraceAudienceFilter = AuditTraceListQuery["traceAudience"] | "all";
-
-interface AuditTraceFilters {
-  traceAudience: TraceAudienceFilter;
+interface SemanticTransactionFilters {
+  ontologyOnly: boolean;
   resourceId?: string;
 }
 
@@ -28,18 +26,18 @@ function formatDate(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-export function AuditTracePage() {
+export function SemanticTransactionsPage() {
   const [resourceId, setResourceId] = useState("");
-  const [filters, setFilters] = useState<AuditTraceFilters>({ traceAudience: "all" });
+  const [filters, setFilters] = useState<SemanticTransactionFilters>({ ontologyOnly: true });
   const [state, setState] = useState<PageState>({ kind: "loading" });
 
   useEffect(() => {
     let cancelled = false;
-    const query = buildAuditTraceQuery(filters);
+    const query = buildSemanticTransactionQuery(filters);
 
     setState({ kind: "loading" });
 
-    listAuditTraces(query)
+    listSemanticTransactions(query)
       .then((transactions) => {
         if (!cancelled) {
           setState({ kind: "success", transactions });
@@ -52,7 +50,7 @@ export function AuditTracePage() {
               ? error.message
               : error instanceof Error
                 ? error.message
-                : "Failed to load audit trace records";
+                : "Failed to load semantic transactions";
           setState({ kind: "error", message });
         }
       });
@@ -72,12 +70,13 @@ export function AuditTracePage() {
     }));
   }
 
-  function buildAuditTraceQuery(nextFilters: AuditTraceFilters): AuditTraceListQuery {
-    const query: AuditTraceListQuery = {};
+  function buildSemanticTransactionQuery(
+    nextFilters: SemanticTransactionFilters,
+  ): SemanticTransactionListQuery {
+    const query: SemanticTransactionListQuery = nextFilters.ontologyOnly
+      ? { resourceType: "OntologyDefinition" }
+      : {};
 
-    if (nextFilters.traceAudience !== "all") {
-      query.traceAudience = nextFilters.traceAudience;
-    }
     if (nextFilters.resourceId) {
       query.resourceId = nextFilters.resourceId;
     }
@@ -89,45 +88,30 @@ export function AuditTracePage() {
   const hasTransactions = state.kind === "success" && state.transactions.length > 0;
 
   return (
-    <section className="platform-page" aria-labelledby="audit-trace-heading">
-      <h1 id="audit-trace-heading">Audit trace</h1>
+    <section className="platform-page" aria-labelledby="semantic-transactions-heading">
+      <h1 id="semantic-transactions-heading">Semantic transactions</h1>
       <p className="platform-page__lead">
-        Explore operational and platform trace records, including connector provisioning and
-        workspace events. Semantic lineage lives on the Semantic transactions page.
+        Review semantic lineage across the platform — how meaning evolved for ontologies,
+        products, agents, and related semantic assets.
+      </p>
+      <p className="platform-page__field-hint">
+        Connector provisioning and other operational audit events appear under Audit trace,
+        not here.
       </p>
 
       <form
         className="platform-page__filter-form"
         onSubmit={handleSubmit}
-        aria-label="Refine audit trace records"
+        aria-label="Refine semantic transactions"
       >
         <div className="platform-page__field">
-          <label htmlFor="audit-trace-audience">Trace audience</label>
-          <select
-            id="audit-trace-audience"
-            value={filters.traceAudience}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                traceAudience: event.target.value as TraceAudienceFilter,
-              }))
-            }
-            disabled={state.kind === "loading"}
-          >
-            <option value="all">All trace records</option>
-            <option value="operational_audit">Operational audit</option>
-            <option value="platform_provisioning">Platform provisioning</option>
-            <option value="semantic_lineage">Semantic lineage</option>
-          </select>
-        </div>
-        <div className="platform-page__field">
-          <label htmlFor="audit-trace-resource-id">Resource ID</label>
+          <label htmlFor="semantic-transactions-resource-id">Resource ID</label>
           <p className="platform-page__field-hint">
-            Optional: narrow the list to a known resource ID
+            Optional: narrow the list to a known semantic asset resource ID
           </p>
           <div className="platform-page__field-row">
             <input
-              id="audit-trace-resource-id"
+              id="semantic-transactions-resource-id"
               name="resource_id"
               type="text"
               value={resourceId}
@@ -145,11 +129,25 @@ export function AuditTracePage() {
             </button>
           </div>
         </div>
+        <label className="platform-page__field-hint">
+          <input
+            type="checkbox"
+            checked={filters.ontologyOnly}
+            onChange={(event) =>
+              setFilters((current) => ({
+                ...current,
+                ontologyOnly: event.target.checked,
+              }))
+            }
+            disabled={state.kind === "loading"}
+          />{" "}
+          Show ontology semantic lineage only
+        </label>
       </form>
 
       {state.kind === "loading" && (
         <p className="platform-page__status" role="status" aria-live="polite">
-          Loading audit trace records…
+          Loading semantic transactions…
         </p>
       )}
 
@@ -161,7 +159,7 @@ export function AuditTracePage() {
 
       {isEmpty && (
         <div className="platform-page__empty" role="status">
-          <p>No audit trace records found yet.</p>
+          <p>No semantic transactions found yet.</p>
         </div>
       )}
 

@@ -373,7 +373,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               <>
                 {" · "}
                 <Link
-                  to={`/applications/${applicationId}/audit-trace/${state.semanticTransactionId}`}
+                  to={`/applications/${applicationId}/semantic-transactions/${state.semanticTransactionId}`}
                 >
                   View semantic transaction
                 </Link>
@@ -382,7 +382,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             {!state.semanticTransactionId && (
               <>
                 {" · "}
-                <Link to={`/applications/${applicationId}/audit-trace`}>
+                <Link to={`/applications/${applicationId}/semantic-transactions`}>
                   View semantic transactions
                 </Link>
               </>
