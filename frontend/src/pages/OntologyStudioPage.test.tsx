@@ -264,4 +264,21 @@ describe("OntologyStudioPage", () => {
       );
     });
   });
+
+  it("pre-selects manual mode from query string", async () => {
+    render(
+      <MemoryRouter initialEntries={["/applications/app-1/ontology/create?mode=manual"]}>
+        <Routes>
+          <Route
+            path="/applications/:applicationId/ontology/create"
+            element={<OntologyStudioPage applicationId="app-1" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("radio", { name: /Manual/i })).toBeChecked();
+    });
+  });
 });

@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import { importOntology } from "../api/ontologies";
 import {
@@ -125,6 +125,7 @@ function readUploadedFile(file: File): Promise<string> {
 }
 
 export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
+  const [searchParams] = useSearchParams();
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<WizardMode | null>(null);
@@ -141,6 +142,23 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [stepError, setStepError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const initialMode = useMemo((): WizardMode | null => {
+    const modeParam = searchParams.get("mode")?.toLowerCase();
+    if (modeParam === "manual" || modeParam === "create") {
+      return "create";
+    }
+    if (modeParam === "import") {
+      return "import";
+    }
+    return null;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (initialMode) {
+      setMode(initialMode);
+    }
+  }, [initialMode]);
 
   useEffect(() => {
     let cancelled = false;

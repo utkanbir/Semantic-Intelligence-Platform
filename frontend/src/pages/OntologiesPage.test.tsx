@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { listConnectors } from "../api/adapters";
 import { ApiError } from "../api";
 import {
   forkOntologyVersion,
@@ -9,6 +10,18 @@ import {
   type OntologyDefinitionResponse,
 } from "../api/ontologies";
 import { OntologiesPage } from "./OntologiesPage";
+
+vi.mock("../api/adapters", () => ({
+  listConnectors: vi.fn(),
+  CONNECTOR_TYPE_LABELS: {
+    ontology_knowledge_graph: "Ontology / knowledge graph",
+  },
+}));
+
+vi.mock("../connectors/catalog", () => ({
+  getVendorLabel: vi.fn(() => "Apache Jena Fuseki"),
+  readConnectorVendor: vi.fn(() => "apache_fuseki"),
+}));
 
 vi.mock("../api/ontologies", () => ({
   listOntologies: vi.fn(),
@@ -42,6 +55,25 @@ vi.mock("../api/ontologies", () => ({
   }),
 }));
 
+const connector = {
+  id: "connector-1",
+  connector_type: "ontology_knowledge_graph" as const,
+  connector_key: "fuseki",
+  status: "Active" as const,
+  title: "Primary Fuseki",
+  description: null,
+  created_by: "alice@example.com",
+  created_at: "2025-06-01T10:00:00Z",
+  updated_at: "2025-06-01T10:00:00Z",
+  configured_at: "2025-06-01T10:00:00Z",
+  activated_at: "2025-06-01T10:00:00Z",
+  deprecated_at: null,
+  retired_at: null,
+  connector_configuration: {
+    vendor: "apache_fuseki",
+  },
+};
+
 const mockOntology: OntologyDefinitionResponse = {
   id: "onto-1",
   application_id: "app-1",
@@ -58,6 +90,10 @@ const mockOntology: OntologyDefinitionResponse = {
   published_at: "2025-06-04T10:00:00Z",
   version_created_at: null,
   ontology_definition: {},
+  connector_id: "connector-1",
+  artifact_uri: "fuseki://app-demo/ontologies/onto-1/artifact.ttl",
+  source_format: "ttl",
+  semantic_transaction_id: "txn-1",
 };
 
 const draftOntology: OntologyDefinitionResponse = {
@@ -68,6 +104,7 @@ const draftOntology: OntologyDefinitionResponse = {
   published_at: null,
   validated_at: null,
   approved_at: null,
+  semantic_transaction_id: null,
 };
 
 const validatedOntology: OntologyDefinitionResponse = {
@@ -85,6 +122,7 @@ function renderPage(initialEntry = "/applications/app-1/ontology") {
           element={<OntologiesPage applicationId="app-1" />}
         />
         <Route path="/applications/:applicationId/ontology/create" element={<div>Create</div>} />
+        <Route path="/connectors" element={<div>Connectors</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -93,11 +131,13 @@ function renderPage(initialEntry = "/applications/app-1/ontology") {
 describe("OntologiesPage", () => {
   beforeEach(() => {
     vi.mocked(listOntologies).mockReset();
+    vi.mocked(listConnectors).mockReset();
     vi.mocked(updateOntologyStatus).mockReset();
     vi.mocked(forkOntologyVersion).mockReset();
+    vi.mocked(listConnectors).mockResolvedValue([connector]);
   });
 
-  it("renders loading then ontologies table", async () => {
+  it("renders loading then primary ontology card", async () => {
     vi.mocked(listOntologies).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -110,28 +150,45 @@ describe("OntologiesPage", () => {
     expect(screen.getByText("Loading ontologies…")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("Customer Ontology")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Customer Ontology", level: 3 })).toBeInTheDocument();
     });
 
     expect(listOntologies).toHaveBeenCalledWith("app-1");
-    expect(screen.getByText("Published")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getAllByText("Published").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Version 2/)).toBeInTheDocument();
+    expect(screen.getByText("Primary Fuseki — Apache Jena Fuseki")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View semantic transaction" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/semantic-transactions/txn-1",
+    );
   });
 
-  it("renders empty state with create form", async () => {
+  it("renders empty state with mode entry cards", async () => {
     vi.mocked(listOntologies).mockResolvedValue([]);
+    vi.mocked(listConnectors).mockResolvedValue([]);
 
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("No ontology definitions yet.")).toBeInTheDocument();
+      expect(
+        screen.getByText("No ontology defined for this application yet."),
+      ).toBeInTheDocument();
     });
 
-    const createLinks = screen.getAllByRole("link", { name: "Create or import ontology" });
-    expect(createLinks[0]).toHaveAttribute("href", "/applications/app-1/ontology/create");
+    expect(screen.getByRole("link", { name: "Manual: Start manual" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology/create?mode=manual",
+    );
+    expect(screen.getByRole("link", { name: "OWL Import: Import OWL" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology/create?mode=import",
+    );
+    expect(screen.getByText("Document-assisted")).toBeInTheDocument();
+    expect(screen.getAllByText("Coming soon").length).toBe(2);
+    expect(screen.getByRole("link", { name: "Open connectors" })).toBeInTheDocument();
   });
 
-  it("shows the wizard entry link when ontologies exist", async () => {
+  it("shows the create link when ontologies exist", async () => {
     vi.mocked(listOntologies).mockResolvedValue([mockOntology]);
 
     renderPage();
@@ -140,8 +197,10 @@ describe("OntologiesPage", () => {
       expect(screen.getByText("Customer Ontology")).toBeInTheDocument();
     });
 
-    const createLinks = screen.getAllByRole("link", { name: "Create or import ontology" });
-    expect(createLinks[0]).toHaveAttribute("href", "/applications/app-1/ontology/create");
+    expect(screen.getByRole("link", { name: "Create or import ontology" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology/create",
+    );
   });
 
   it("validates draft ontology via lifecycle action", async () => {
@@ -163,7 +222,7 @@ describe("OntologiesPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Validated")).toBeInTheDocument();
+      expect(screen.getAllByText("Validated").length).toBeGreaterThan(0);
     });
   });
 
@@ -190,6 +249,7 @@ describe("OntologiesPage", () => {
     vi.mocked(listOntologies)
       .mockResolvedValueOnce([mockOntology])
       .mockResolvedValueOnce([
+        mockOntology,
         {
           ...mockOntology,
           id: "onto-2",
@@ -218,7 +278,7 @@ describe("OntologiesPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Customer Ontology v2")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Customer Ontology v2", level: 3 })).toBeInTheDocument();
     });
   });
 
