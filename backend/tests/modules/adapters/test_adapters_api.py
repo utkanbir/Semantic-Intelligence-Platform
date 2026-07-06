@@ -66,7 +66,7 @@ def test_create_adapter(client: TestClient) -> None:
     )
     assert response.status_code == 201
     body = response.json()
-    assert body["status"] == "Registered"
+    assert body["status"] == "Active"
     assert body["connector_type"] == "database"
 
 
@@ -104,21 +104,21 @@ def test_adapter_lifecycle_and_ping(client: TestClient) -> None:
         },
     )
     adapter_id = create.json()["id"]
-
-    ping_before_active = client.post(f"/api/v1/connectors/{adapter_id}/ping")
-    assert ping_before_active.status_code == 422
-
-    for next_status in ("Configured", "Active"):
-        patch = client.patch(
-            f"/api/v1/connectors/{adapter_id}/status",
-            json={"status": next_status},
-        )
-        assert patch.status_code == 200
+    assert create.json()["status"] == "Active"
 
     ping = client.post(f"/api/v1/connectors/{adapter_id}/ping")
     assert ping.status_code == 200
     assert ping.json()["status"] == "ok"
     assert ping.json()["connector_type"] == "database"
+
+    patch = client.patch(
+        f"/api/v1/connectors/{adapter_id}/status",
+        json={"status": "Deprecated"},
+    )
+    assert patch.status_code == 200
+
+    ping_after_deprecate = client.post(f"/api/v1/connectors/{adapter_id}/ping")
+    assert ping_after_deprecate.status_code == 422
 
 
 def test_duplicate_adapter_key_returns_422(client: TestClient) -> None:
@@ -126,7 +126,7 @@ def test_duplicate_adapter_key_returns_422(client: TestClient) -> None:
     first = client.post(
         "/api/v1/connectors",
         json={
-            "connector_type": "ontology_knowledge_graph",
+            "connector_type": "database",
             "connector_key": adapter_key,
             "title": "First",
         },
@@ -136,7 +136,7 @@ def test_duplicate_adapter_key_returns_422(client: TestClient) -> None:
     second = client.post(
         "/api/v1/connectors",
         json={
-            "connector_type": "ontology_knowledge_graph",
+            "connector_type": "database",
             "connector_key": adapter_key,
             "title": "Second",
         },
@@ -206,18 +206,48 @@ def test_create_vector_database_connector_and_ping(client: TestClient) -> None:
     assert create.status_code == 201
     body = create.json()
     assert body["connector_type"] == "vector_database"
+    assert body["status"] == "Active"
     adapter_id = body["id"]
-
-    for next_status in ("Configured", "Active"):
-        patch = client.patch(
-            f"/api/v1/connectors/{adapter_id}/status",
-            json={"status": next_status},
-        )
-        assert patch.status_code == 200
 
     ping = client.post(f"/api/v1/connectors/{adapter_id}/ping")
     assert ping.status_code == 200
     assert ping.json() == {"status": "ok", "connector_type": "vector_database"}
+
+
+def test_test_connector_configuration(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/connectors/test",
+        json={
+            "connector_type": "vector_database",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "qdrant",
+                "connection_method": "existing_instance",
+                "connection": {"host": "qdrant.local", "port": "6333", "collection": "embeddings"},
+            },
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "connector_type": "vector_database"}
+
+
+def test_test_connector_configuration_rejects_invalid_fuseki_endpoint(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/api/v1/connectors/test",
+        json={
+            "connector_type": "ontology_knowledge_graph",
+            "connector_configuration": {
+                "schema_version": "2",
+                "vendor": "apache_fuseki",
+                "connection_method": "existing_instance",
+                "connection": {},
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "endpoint" in response.json()["detail"].lower()
 
 
 def test_create_adapter_accepts_explicit_connector_key(client: TestClient) -> None:

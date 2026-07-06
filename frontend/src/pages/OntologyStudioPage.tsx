@@ -23,7 +23,6 @@ type PageState =
   | {
       kind: "ready";
       activeConnectors: ConnectorResponse[];
-      inactiveConnectors: ConnectorResponse[];
     }
   | {
       kind: "imported";
@@ -46,17 +45,8 @@ const SEMANTIC_TRANSACTION_STEPS = [
 ] as const;
 const PREFIX_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
-function splitOntologyConnectors(connectors: ConnectorResponse[]): {
-  activeConnectors: ConnectorResponse[];
-  inactiveConnectors: ConnectorResponse[];
-} {
-  const activeConnectors = connectors.filter((connector) => connector.status === "Active");
-  const inactiveConnectors = connectors.filter((connector) => connector.status !== "Active");
-  return { activeConnectors, inactiveConnectors };
-}
-
-function connectorStatusClassName(status: ConnectorResponse["status"]): string {
-  return `platform-table__status platform-table__status--${status.toLowerCase()}`;
+function listActiveOntologyConnectors(connectors: ConnectorResponse[]): ConnectorResponse[] {
+  return connectors.filter((connector) => connector.status === "Active");
 }
 
 function formatConnectorLabel(connector: ConnectorResponse): string {
@@ -222,38 +212,6 @@ function ValidationChecklist({ checks }: { checks: ValidationCheck[] }) {
   );
 }
 
-function ConnectorGatePanel({ connectors }: { connectors: ConnectorResponse[] }) {
-  return (
-    <div className="ontology-wizard__connector-gate" role="status">
-      <h3 className="ontology-wizard__connector-gate-title">Activate a connector to continue</h3>
-      <p className="ontology-wizard__connector-gate-copy">
-        Ontology materialization requires an <strong>Active</strong> ontology / knowledge graph
-        connector. The connectors below exist but are not active yet.
-      </p>
-      <ul className="ontology-wizard__connector-gate-list">
-        {connectors.map((connector) => (
-          <li key={connector.id} className="ontology-wizard__connector-gate-item">
-            <div>
-              <p className="ontology-wizard__connector-gate-name">
-                {formatConnectorLabel(connector)}
-              </p>
-              <span className={connectorStatusClassName(connector.status)}>
-                {connector.status}
-              </span>
-            </div>
-            <Link to="/connectors" className="ontologies-page__inline-link">
-              Activate in Connectors
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <p className="agent-runs-page__hint">
-        <Link to="/connectors">Open connectors</Link>
-      </p>
-    </div>
-  );
-}
-
 export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [searchParams] = useSearchParams();
   const initialMode = useMemo((): WizardMode | null => {
@@ -307,8 +265,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     })
       .then((connectors) => {
         if (!cancelled) {
-          const { activeConnectors, inactiveConnectors } = splitOntologyConnectors(connectors);
-          setState({ kind: "ready", activeConnectors, inactiveConnectors });
+          const activeConnectors = listActiveOntologyConnectors(connectors);
+          setState({ kind: "ready", activeConnectors });
           if (activeConnectors.length > 0) {
             setConnectorId(activeConnectors[0].id);
           }
@@ -673,7 +631,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     );
   }
 
-  const { activeConnectors, inactiveConnectors } = state;
+  const { activeConnectors } = state;
   const selectedConnector =
     activeConnectors.find((connector) => connector.id === connectorId) ??
     activeConnectors[0] ??
@@ -681,8 +639,6 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const sourcePreview = previewSourceContent(contentForSubmission);
   const stepNumber = step + 1;
   const hasActiveConnectors = activeConnectors.length > 0;
-  const hasInactiveConnectors = inactiveConnectors.length > 0;
-  const hasNoOntologyConnectors = !hasActiveConnectors && !hasInactiveConnectors;
 
   return (
     <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
@@ -702,18 +658,16 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         </div>
       </div>
 
-      {hasNoOntologyConnectors ? (
+      {!hasActiveConnectors ? (
         <div className="agent-runs-page__empty" role="status">
           <p>
-            No ontology / knowledge graph connectors yet. Create one under Platform →
-            Connectors, configure it, activate it, then return here to create an ontology.
+            No ontology / knowledge graph connector is ready yet. Create one under Platform →
+            Connectors, test the connection, and save it — then return here to create an ontology.
           </p>
           <p className="agent-runs-page__hint">
             <Link to="/connectors">Open connectors</Link>
           </p>
         </div>
-      ) : !hasActiveConnectors && hasInactiveConnectors ? (
-        <ConnectorGatePanel connectors={inactiveConnectors} />
       ) : (
         <form
           className="agent-runs-page__form ontology-wizard"

@@ -38,6 +38,11 @@ class TechnologyAdapterCreateRequest(BaseModel):
     connector_configuration: dict[str, Any] | None = None
 
 
+class ConnectorTestRequest(BaseModel):
+    connector_type: ConnectorType
+    connector_configuration: dict[str, Any]
+
+
 class TechnologyAdapterUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None

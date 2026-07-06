@@ -81,14 +81,11 @@ def _create_active_fuseki_connector(client: TestClient) -> str:
             },
         },
     ).json()["id"]
-    provision = client.post(f"/api/v1/connectors/{connector_id}/provision")
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 200
+        provision = client.post(f"/api/v1/connectors/{connector_id}/provision")
     assert provision.status_code == 200
-    for next_status in ("Configured", "Active"):
-        patch_status = client.patch(
-            f"/api/v1/connectors/{connector_id}/status",
-            json={"status": next_status},
-        )
-        assert patch_status.status_code == 200
+    assert client.get(f"/api/v1/connectors/{connector_id}").json()["status"] == "Active"
     return connector_id
 
 

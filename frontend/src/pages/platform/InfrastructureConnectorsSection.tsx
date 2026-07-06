@@ -3,13 +3,13 @@ import { ApiError } from "../../api";
 import {
   CONNECTOR_TYPE_LABELS,
   createConnector,
+  formatConnectorStatusLabel,
   getConnectorStatusActionLabel,
   getNextConnectorStatuses,
   listConnectors,
-  pingConnector,
   provisionConnector,
+  testConnectorConfiguration,
   updateConnectorStatus,
-  canPingConnector,
   type ConnectorProvisionResponse,
   type ConnectorResponse,
   type ConnectorStatus,
@@ -30,6 +30,8 @@ type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "success"; connectors: ConnectorResponse[] };
+
+type TestState = "idle" | "testing" | "passed" | "failed";
 
 function formatDate(iso: string | null): string {
   if (!iso) {
@@ -80,11 +82,20 @@ function ConnectorCreateForm({
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [testState, setTestState] = useState<TestState>("idle");
+  const [testMessage, setTestMessage] = useState<string | null>(null);
 
   const connectionFields = useMemo(
     () => getConnectionFields(fields.vendor),
     [fields.vendor],
   );
+  const isProvision = fields.connection_method === "provision_in_cluster";
+  const canSave = isProvision || testState === "passed";
+
+  function resetTestState() {
+    setTestState("idle");
+    setTestMessage(null);
+  }
 
   function handleConnectorTypeChange(connectorType: ConnectorType) {
     const vendor = getDefaultVendor(connectorType);
@@ -95,6 +106,7 @@ function ConnectorCreateForm({
       connection: emptyConnectionValues(vendor),
     }));
     setConnectionError(null);
+    resetTestState();
   }
 
   function handleVendorChange(vendor: string) {
@@ -104,6 +116,7 @@ function ConnectorCreateForm({
       connection: emptyConnectionValues(vendor),
     }));
     setConnectionError(null);
+    resetTestState();
   }
 
   function handleConnectionChange(fieldId: string, value: string) {
@@ -114,13 +127,56 @@ function ConnectorCreateForm({
     if (connectionError) {
       setConnectionError(null);
     }
+    resetTestState();
+  }
+
+  function buildConfiguration(trimmedConnection: Record<string, string>) {
+    return buildConnectorConfiguration(
+      fields.vendor,
+      fields.connection_method,
+      trimmedConnection,
+    );
+  }
+
+  async function handleTestConnection() {
+    setConnectionError(null);
+    setTestMessage(null);
+
+    const missingRequired = connectionFields.find(
+      (field) => field.required && !fields.connection[field.id]?.trim(),
+    );
+    if (missingRequired) {
+      setConnectionError(`${missingRequired.label} is required`);
+      return;
+    }
+
+    const trimmedConnection = Object.fromEntries(
+      Object.entries(fields.connection).map(([key, value]) => [key, value.trim()]),
+    );
+
+    setTestState("testing");
+    try {
+      const result = await testConnectorConfiguration({
+        connector_type: fields.connector_type,
+        connector_configuration: buildConfiguration(trimmedConnection),
+      });
+      setTestState("passed");
+      setTestMessage(`Connection successful (${result.connector_type}).`);
+    } catch (error: unknown) {
+      setTestState("failed");
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Connection test failed";
+      setTestMessage(message);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
-
-    const isProvision = fields.connection_method === "provision_in_cluster";
 
     const trimmedTitle = fields.title.trim();
     if (!trimmedTitle) {
@@ -138,6 +194,10 @@ function ConnectorCreateForm({
         return;
       }
       setConnectionError(null);
+      if (testState !== "passed") {
+        setSubmitError("Test the connection before saving.");
+        return;
+      }
     }
 
     const trimmedConnection = isProvision
@@ -153,11 +213,7 @@ function ConnectorCreateForm({
       const created = await createConnector({
         connector_type: fields.connector_type,
         title: trimmedTitle,
-        connector_configuration: buildConnectorConfiguration(
-          fields.vendor,
-          fields.connection_method,
-          trimmedConnection,
-        ),
+        connector_configuration: buildConfiguration(trimmedConnection),
         ...(description ? { description } : {}),
         ...(createdBy ? { created_by: createdBy } : {}),
       });
@@ -173,7 +229,7 @@ function ConnectorCreateForm({
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to create connector";
+            : "Failed to save connector";
       setSubmitError(message);
     } finally {
       setSubmitting(false);
@@ -209,12 +265,13 @@ function ConnectorCreateForm({
               name="connection_method"
               value="existing_instance"
               checked={fields.connection_method === "existing_instance"}
-              onChange={() =>
+              onChange={() => {
                 setFields((current) => ({
                   ...current,
                   connection_method: "existing_instance",
-                }))
-              }
+                }));
+                resetTestState();
+              }}
               disabled={submitting}
             />
             Connect to existing instance
@@ -226,12 +283,13 @@ function ConnectorCreateForm({
               name="connection_method"
               value="provision_in_cluster"
               checked={fields.connection_method === "provision_in_cluster"}
-              onChange={() =>
+              onChange={() => {
                 setFields((current) => ({
                   ...current,
                   connection_method: "provision_in_cluster",
-                }))
-              }
+                }));
+                resetTestState();
+              }}
               disabled={submitting}
             />
             Provision in cluster
@@ -265,13 +323,35 @@ function ConnectorCreateForm({
               {connectionError}
             </p>
           )}
+          <div className="platform-page__form-actions platform-page__form-actions--inline">
+            <button
+              type="button"
+              className="platform-page__button"
+              disabled={submitting || testState === "testing"}
+              onClick={() => void handleTestConnection()}
+            >
+              {testState === "testing" ? "Testing…" : "Test connection"}
+            </button>
+          </div>
+          {testMessage && (
+            <p
+              className={
+                testState === "passed"
+                  ? "platform-page__hint"
+                  : "platform-page__field-error"
+              }
+              role="status"
+            >
+              {testMessage}
+            </p>
+          )}
         </div>
       )}
 
       {fields.connection_method === "provision_in_cluster" && (
         <div className="platform-page__hint" role="status">
           A {getVendorLabel(fields.connector_type, fields.vendor)} instance will be provisioned in
-          the cluster after you create the connector.
+          the cluster when you save the connector.
         </div>
       )}
 
@@ -337,13 +417,13 @@ function ConnectorCreateForm({
         <button
           type="submit"
           className="platform-page__button platform-page__button--primary"
-          disabled={submitting}
+          disabled={submitting || !canSave}
         >
           {submitting
             ? fields.connection_method === "provision_in_cluster"
-              ? "Provisioning…"
-              : "Creating…"
-            : "Create connector"}
+              ? "Saving & provisioning…"
+              : "Saving…"
+            : "Save connector"}
         </button>
       </div>
     </form>
@@ -357,7 +437,7 @@ export function ConnectorsSection() {
   const [provisionSuccess, setProvisionSuccess] = useState<ConnectorProvisionResponse | null>(
     null,
   );
-  const [pingResults, setPingResults] = useState<Record<string, string>>({});
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   const loadConnectors = useCallback((options?: { silent?: boolean }) => {
@@ -408,6 +488,7 @@ export function ConnectorsSection() {
   function handleCreated(provisionResult?: ConnectorProvisionResponse) {
     setShowCreateForm(false);
     setProvisionSuccess(provisionResult ?? null);
+    setSaveSuccess(!provisionResult);
     void loadConnectors({ silent: true });
   }
 
@@ -424,28 +505,6 @@ export function ConnectorsSection() {
           : error instanceof Error
             ? error.message
             : "Failed to update connector status";
-      setActionError(message);
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  async function handlePing(connectorId: string) {
-    setActionError(null);
-    setPendingId(connectorId);
-    try {
-      const result = await pingConnector(connectorId);
-      setPingResults((current) => ({
-        ...current,
-        [connectorId]: `${result.status} (${result.connector_type})`,
-      }));
-    } catch (error: unknown) {
-      const message =
-        error instanceof ApiError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : "Failed to ping connector";
       setActionError(message);
     } finally {
       setPendingId(null);
@@ -475,9 +534,15 @@ export function ConnectorsSection() {
         </div>
       )}
 
+      {saveSuccess && (
+        <div className="platform-page__hint" role="status" aria-live="polite">
+          Connector saved and ready to use.
+        </div>
+      )}
+
       {provisionSuccess && (
         <div className="platform-page__hint" role="status" aria-live="polite">
-          Connector provisioned — status: <strong>{provisionSuccess.status}</strong>
+          Connector saved and provisioned — status: <strong>{provisionSuccess.status}</strong>
           {provisionSuccess.endpoint && (
             <>
               {" "}
@@ -532,26 +597,13 @@ export function ConnectorsSection() {
                     <code className="platform-table__code">{connector.connector_key}</code>
                   </td>
                   <td>
-                    <span className={statusClassName(connector.status)}>{connector.status}</span>
-                    {pingResults[connector.id] && (
-                      <span className="platform-table__ping-result">
-                        Ping: {pingResults[connector.id]}
-                      </span>
-                    )}
+                    <span className={statusClassName(connector.status)}>
+                      {formatConnectorStatusLabel(connector.status)}
+                    </span>
                   </td>
                   <td>{formatDate(connector.created_at)}</td>
                   <td>
                     <div className="platform-table__actions">
-                      {canPingConnector(connector) && (
-                        <button
-                          type="button"
-                          className="platform-page__button platform-table__action"
-                          disabled={pendingId === connector.id}
-                          onClick={() => void handlePing(connector.id)}
-                        >
-                          Ping
-                        </button>
-                      )}
                       {getNextConnectorStatuses(connector.status).map((nextStatus) => (
                         <button
                           key={nextStatus}
@@ -577,7 +629,11 @@ export function ConnectorsSection() {
           <button
             type="button"
             className="platform-page__button platform-page__button--primary"
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => {
+              setSaveSuccess(false);
+              setProvisionSuccess(null);
+              setShowCreateForm(true);
+            }}
           >
             New connector
           </button>

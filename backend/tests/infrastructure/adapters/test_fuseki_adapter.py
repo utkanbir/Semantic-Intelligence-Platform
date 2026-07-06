@@ -13,6 +13,23 @@ from app.infrastructure.adapters.fuseki import (
 )
 
 
+def test_fuseki_ping_checks_server_endpoint() -> None:
+    configuration = {
+        "connection": {"endpoint": "http://fuseki.example:3030"},
+    }
+    adapter = FusekiKnowledgeGraphAdapter(configuration)
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 200
+        result = adapter.ping()
+
+    assert result["status"] == "ok"
+    assert result["endpoint"] == "http://fuseki.example:3030"
+    request = mock_urlopen.call_args.args[0]
+    assert request.full_url == "http://fuseki.example:3030/$/ping"
+    assert request.method == "GET"
+
+
 def test_fuseki_import_data_posts_rdf_to_dataset_endpoint() -> None:
     configuration = {
         "schema_version": "2",

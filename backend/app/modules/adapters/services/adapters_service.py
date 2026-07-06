@@ -9,11 +9,15 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
+from app.infrastructure.adapters.connector_port_resolver import (
+    UnsupportedConnectorPortError,
+    resolve_connector_port,
+)
+from app.infrastructure.adapters.fuseki import FusekiImportError
 from app.modules.adapters.domain.enums import ConnectorType, TechnologyAdapterStatus
 from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.ports.interfaces import TraceRecorder
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
-from app.modules.adapters.services.adapter_stubs import AdapterFactory
 from app.modules.adapters.services.connector_key import resolve_unique_connector_key
 from app.modules.adapters.services.connector_provision import (
     build_provision_block,
@@ -61,6 +65,10 @@ class ConnectorProvisionNotAllowedError(Exception):
 
 class UnsupportedProvisionVendorError(Exception):
     """Raised when vendor has no in-cluster endpoint stub."""
+
+
+class ConnectorConnectionTestError(Exception):
+    """Raised when connector configuration fails connectivity test."""
 
 
 class _NoOpTraceRecorder:
@@ -124,6 +132,15 @@ class AdaptersService:
             )
         elif self._repository.get_by_key(resolved_key) is not None:
             raise DuplicateAdapterKeyError("Adapter key already exists")
+
+        connection_method = read_connection_method(config)
+        is_provision = connection_method == "provision_in_cluster"
+        if not is_provision:
+            self.test_connector_configuration(
+                technology_type=technology_type,
+                adapter_configuration=config,
+            )
+
         adapter = TechnologyAdapter(
             id=uuid4(),
             technology_type=technology_type,
@@ -142,7 +159,46 @@ class AdaptersService:
             resource_type="TechnologyAdapter",
             resource_id=str(created.id),
         )
-        return created
+        if is_provision:
+            return created
+        return self._activate_after_successful_test(created)
+
+    def test_connector_configuration(
+        self,
+        *,
+        technology_type: ConnectorType,
+        adapter_configuration: dict[str, Any],
+    ) -> dict[str, str]:
+        if self._session is None:
+            raise RuntimeError("Database session required for connector test")
+        try:
+            port = resolve_connector_port(
+                technology_type,
+                adapter_configuration,
+                session=self._session,
+            )
+            return port.ping()
+        except (UnsupportedConnectorPortError, FusekiImportError, ValueError) as error:
+            raise ConnectorConnectionTestError(str(error)) from error
+
+    def _activate_after_successful_test(self, adapter: TechnologyAdapter) -> TechnologyAdapter:
+        self.test_connector_configuration(
+            technology_type=adapter.technology_type,
+            adapter_configuration=adapter.adapter_configuration,
+        )
+        configured = self.update_status(adapter.id, status=TechnologyAdapterStatus.CONFIGURED)
+        activated = self.update_status(configured.id, status=TechnologyAdapterStatus.ACTIVE)
+        self._trace_recorder.record_transaction_with_steps(
+            transaction_type="adapter.activated",
+            resource_type="TechnologyAdapter",
+            resource_id=str(activated.id),
+            steps=[
+                ("test_connection", "Validated connector connectivity"),
+                ("configure", "Marked connector as Configured"),
+                ("activate", "Marked connector as Active"),
+            ],
+        )
+        return activated
 
     def list_adapters(
         self,
@@ -262,8 +318,15 @@ class AdaptersService:
             raise AdapterNotActiveError("Technology adapter must be Active to ping")
         if self._session is None:
             raise RuntimeError("Database session required for adapter ping")
-        factory = AdapterFactory(self._session)
-        return factory.ping(adapter.technology_type.value)
+        try:
+            port = resolve_connector_port(
+                adapter.technology_type,
+                adapter.adapter_configuration,
+                session=self._session,
+            )
+            return port.ping()
+        except (UnsupportedConnectorPortError, FusekiImportError, ValueError) as error:
+            raise ConnectorConnectionTestError(str(error)) from error
 
     def provision_connector(self, adapter_id: UUID) -> dict[str, Any]:
         adapter = self.get_adapter(adapter_id)
@@ -274,23 +337,12 @@ class AdaptersService:
             raise ConnectorProvisionNotAllowedError(
                 "Connector cannot be provisioned in Deprecated or Retired status"
             )
-        if adapter.status not in {
-            TechnologyAdapterStatus.REGISTERED,
-            TechnologyAdapterStatus.CONFIGURED,
-        }:
-            raise ConnectorProvisionNotAllowedError(
-                "Connector must be Registered or Configured to provision"
-            )
 
         configuration = dict(adapter.adapter_configuration)
         connection_method = read_connection_method(configuration)
         if connection_method == "existing_instance":
             raise ConnectorProvisionNotAllowedError(
                 "Connector connection_method existing_instance cannot be provisioned in cluster"
-            )
-        if not requires_provision_in_cluster(configuration):
-            raise ConnectorProvisionNotAllowedError(
-                "Connector connection_method must be provision_in_cluster"
             )
 
         existing_provision = read_provision_block(configuration)
@@ -299,7 +351,21 @@ class AdaptersService:
             if isinstance(existing_provision.get("status"), str)
             else None
         ):
+            if adapter.status != TechnologyAdapterStatus.ACTIVE:
+                adapter = self._activate_after_successful_test(adapter)
             return provision_response_from_block(adapter.id, existing_provision)
+
+        if adapter.status not in {
+            TechnologyAdapterStatus.REGISTERED,
+            TechnologyAdapterStatus.CONFIGURED,
+        }:
+            raise ConnectorProvisionNotAllowedError(
+                "Connector must be Registered or Configured to provision"
+            )
+        if not requires_provision_in_cluster(configuration):
+            raise ConnectorProvisionNotAllowedError(
+                "Connector connection_method must be provision_in_cluster"
+            )
 
         vendor = read_vendor(configuration)
         if vendor is None:
@@ -327,7 +393,8 @@ class AdaptersService:
                 ("finalize", "Connector provision completed"),
             ],
         )
-        return provision_response_from_block(updated.id, provision)
+        activated = self._activate_after_successful_test(updated)
+        return provision_response_from_block(activated.id, provision)
 
     def _apply_configuration_update(
         self,

@@ -185,10 +185,10 @@ describe("OntologiesPage", () => {
     );
     expect(screen.getByText("Document-assisted")).toBeInTheDocument();
     expect(screen.getAllByText("Coming soon").length).toBe(2);
-    expect(screen.getByRole("link", { name: "Open connectors" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "create a connector" })).toBeInTheDocument();
   });
 
-  it("shows activate hint when only configured ontology connectors exist", async () => {
+  it("shows create connector hint when no ready ontology connectors exist", async () => {
     vi.mocked(listOntologies).mockResolvedValue([]);
     vi.mocked(listConnectors).mockResolvedValue([
       {
@@ -202,10 +202,10 @@ describe("OntologiesPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/1 configured/)).toBeInTheDocument();
+      expect(screen.getByText(/None —/)).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("link", { name: "activate to create ontology" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "create a connector" })).toHaveAttribute(
       "href",
       "/connectors",
     );

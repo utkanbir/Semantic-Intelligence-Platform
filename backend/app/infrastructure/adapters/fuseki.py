@@ -54,6 +54,27 @@ class FusekiKnowledgeGraphAdapter:
         self._endpoint = read_fuseki_endpoint(configuration)
 
     def ping(self) -> dict[str, str]:
+        url = f"{self._endpoint}/$/ping"
+        headers: dict[str, str] = {}
+        username, password = read_fuseki_credentials(self._configuration)
+        if username and password:
+            token = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
+            headers["Authorization"] = f"Basic {token}"
+
+        request = Request(url, headers=headers, method="GET")
+        try:
+            with urlopen(request, timeout=15) as response:
+                status = getattr(response, "status", 200)
+        except HTTPError as error:
+            raise FusekiImportError(
+                f"Fuseki ping failed with HTTP {error.code}: {error.reason}"
+            ) from error
+        except URLError as error:
+            raise FusekiImportError(f"Fuseki ping request failed: {error.reason}") from error
+
+        if status not in {200, 204}:
+            raise FusekiImportError(f"Fuseki ping failed with HTTP {status}")
+
         return {
             "status": "ok",
             "connector_type": "ontology_knowledge_graph",

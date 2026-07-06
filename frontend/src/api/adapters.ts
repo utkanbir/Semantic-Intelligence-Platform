@@ -84,6 +84,20 @@ export interface ConnectorCreateRequest {
   connector_configuration?: Record<string, unknown>;
 }
 
+export interface ConnectorTestRequest {
+  connector_type: ConnectorType;
+  connector_configuration: Record<string, unknown>;
+}
+
+export function testConnectorConfiguration(
+  payload: ConnectorTestRequest,
+): Promise<ConnectorPingResponse> {
+  return apiFetch<ConnectorPingResponse>("/connectors/test", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createConnector(
   payload: ConnectorCreateRequest,
 ): Promise<ConnectorResponse> {
@@ -94,12 +108,16 @@ export function createConnector(
 }
 
 const CONNECTOR_NEXT_STATUSES: Record<ConnectorStatus, ConnectorStatus[]> = {
-  Registered: ["Configured"],
-  Configured: ["Active", "Registered"],
+  Registered: [],
+  Configured: [],
   Active: ["Deprecated"],
   Deprecated: ["Retired"],
   Retired: [],
 };
+
+export function formatConnectorStatusLabel(status: ConnectorStatus): string {
+  return status === "Active" ? "Ready" : status;
+}
 
 export function getNextConnectorStatuses(status: ConnectorStatus): ConnectorStatus[] {
   return CONNECTOR_NEXT_STATUSES[status];
