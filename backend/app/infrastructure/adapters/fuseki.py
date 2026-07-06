@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -61,6 +61,14 @@ def _fuseki_auth_headers(configuration: dict[str, Any]) -> dict[str, str]:
     return headers
 
 
+def _format_fuseki_http_error(error: HTTPError, action: str) -> str:
+    body = error.read().decode("utf-8", errors="replace").strip()
+    message = f"{action} with HTTP {error.code}: {error.reason}"
+    if body:
+        message = f"{message} — {body[:500]}"
+    return message
+
+
 class FusekiKnowledgeGraphAdapter:
     """HTTP adapter for Apache Fuseki dataset import."""
 
@@ -75,9 +83,7 @@ class FusekiKnowledgeGraphAdapter:
             with urlopen(request, timeout=15) as response:
                 status = getattr(response, "status", 200)
         except HTTPError as error:
-            raise FusekiImportError(
-                f"Fuseki ping failed with HTTP {error.code}: {error.reason}"
-            ) from error
+            raise FusekiImportError(_format_fuseki_http_error(error, "Fuseki ping failed")) from error
         except URLError as error:
             raise FusekiImportError(f"Fuseki ping request failed: {error.reason}") from error
 
@@ -104,18 +110,26 @@ class FusekiKnowledgeGraphAdapter:
         except HTTPError as error:
             if error.code != 404:
                 raise FusekiImportError(
-                    f"Fuseki dataset lookup failed with HTTP {error.code}: {error.reason}"
+                    _format_fuseki_http_error(error, "Fuseki dataset lookup failed")
                 ) from error
         except URLError as error:
             raise FusekiImportError(
                 f"Fuseki dataset lookup request failed: {error.reason}"
             ) from error
 
-        create_url = (
-            f"{self._endpoint}/$/datasets?dbName={quote('/' + dataset_segment, safe='')}"
-            "&dbType=tdb2"
+        create_body = urlencode(
+            {"dbName": f"/{dataset_segment}", "dbType": "tdb2"}
+        ).encode("utf-8")
+        create_headers = {
+            **_fuseki_auth_headers(self._configuration),
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        create_request = Request(
+            f"{self._endpoint}/$/datasets",
+            data=create_body,
+            headers=create_headers,
+            method="POST",
         )
-        create_request = Request(create_url, headers=headers, method="POST", data=b"")
         try:
             with urlopen(create_request, timeout=30) as response:
                 status = getattr(response, "status", 200)
@@ -123,7 +137,7 @@ class FusekiKnowledgeGraphAdapter:
             if error.code in {409, 422}:
                 return
             raise FusekiImportError(
-                f"Fuseki dataset creation failed with HTTP {error.code}: {error.reason}"
+                _format_fuseki_http_error(error, "Fuseki dataset creation failed")
             ) from error
         except URLError as error:
             raise FusekiImportError(
@@ -151,9 +165,7 @@ class FusekiKnowledgeGraphAdapter:
             with urlopen(request, timeout=30) as response:
                 status = getattr(response, "status", 200)
         except HTTPError as error:
-            raise FusekiImportError(
-                f"Fuseki import failed with HTTP {error.code}: {error.reason}"
-            ) from error
+            raise FusekiImportError(_format_fuseki_http_error(error, "Fuseki import failed")) from error
         except URLError as error:
             raise FusekiImportError(f"Fuseki import request failed: {error.reason}") from error
 

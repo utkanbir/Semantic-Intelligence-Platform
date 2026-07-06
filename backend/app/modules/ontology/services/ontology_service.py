@@ -174,7 +174,7 @@ class OntologyService:
             f"fuseki://{workspace.fuseki_dataset}/ontologies/{ontology_id}/"
             f"artifact.{source_format.lstrip('.')}"
         )
-        content_type = resolve_rdf_content_type(source_format)
+        content_type = resolve_rdf_content_type(source_format, source_content)
 
         knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
         import_result = knowledge_graph.import_data(
