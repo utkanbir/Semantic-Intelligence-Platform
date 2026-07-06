@@ -17,6 +17,7 @@ import app.modules.adapters.repositories.orm_models  # noqa: F401
 import app.modules.applications.repositories.orm_models  # noqa: F401
 import app.modules.audit_trace.repositories.orm_models  # noqa: F401
 import app.modules.ontology.repositories.orm_models  # noqa: F401
+from app.infrastructure.adapters.fuseki import fuseki_dataset_service_path
 from app.infrastructure.database import get_db
 from app.main import app as fastapi_app
 from app.modules.applications.repositories.orm_models import Base
@@ -207,7 +208,7 @@ def test_import_ontology_persists_artifact_to_fuseki(
     assert body["semantic_transaction_id"] is not None
 
     request = mock_urlopen.call_args.args[0]
-    assert request.full_url.endswith(f"/{fuseki_dataset}/data")
+    assert request.full_url.endswith(f"/{fuseki_dataset_service_path(fuseki_dataset)}/data")
     assert request.get_header("Content-type") == "text/turtle"
 
     with Session(db_engine) as session:
@@ -226,7 +227,7 @@ def test_import_ontology_persists_artifact_to_fuseki(
         )
         assert persist_step is not None
         assert "Stub" not in (persist_step.message or "")
-        assert fuseki_dataset in (persist_step.message or "")
+        assert fuseki_dataset_service_path(fuseki_dataset) in (persist_step.message or "")
 
 
 def test_import_ontology_rejects_inactive_connector(client: TestClient) -> None:

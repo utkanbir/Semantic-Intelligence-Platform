@@ -10,7 +10,13 @@ import pytest
 from app.infrastructure.adapters.fuseki import (
     FusekiImportError,
     FusekiKnowledgeGraphAdapter,
+    fuseki_dataset_service_path,
 )
+
+
+def test_fuseki_dataset_service_path_replaces_slashes() -> None:
+    assert fuseki_dataset_service_path("sip/personal-wiki") == "sip-personal-wiki"
+    assert fuseki_dataset_service_path("/sip/test-app/") == "sip-test-app"
 
 
 def test_fuseki_ping_checks_server_endpoint() -> None:
@@ -53,11 +59,12 @@ def test_fuseki_import_data_posts_rdf_to_dataset_endpoint() -> None:
         )
 
     assert result["status"] == "imported"
-    assert result["location"] == "http://fuseki.example:3030/sip/test-app/data"
+    assert result["location"] == "http://fuseki.example:3030/sip-test-app/data"
     assert result["dataset"] == "sip/test-app"
+    assert result["dataset_segment"] == "sip-test-app"
 
     request = mock_urlopen.call_args.args[0]
-    assert request.full_url == "http://fuseki.example:3030/sip/test-app/data"
+    assert request.full_url == "http://fuseki.example:3030/sip-test-app/data"
     assert request.method == "POST"
     assert request.get_header("Content-type") == "text/turtle"
     assert request.get_header("Authorization", "").startswith("Basic ")

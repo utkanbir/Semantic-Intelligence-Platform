@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from typing import Any
+from urllib.parse import quote
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -12,6 +13,11 @@ from app.modules.adapters.services.connector_provision import read_provision_blo
 
 class FusekiImportError(Exception):
     """Raised when Fuseki RDF import fails."""
+
+
+def fuseki_dataset_service_path(dataset: str) -> str:
+    """Map logical workspace dataset names to a single Fuseki URL segment."""
+    return dataset.strip("/").replace("/", "-")
 
 
 def read_fuseki_endpoint(configuration: dict[str, Any]) -> str:
@@ -46,6 +52,15 @@ def read_fuseki_credentials(configuration: dict[str, Any]) -> tuple[str | None, 
     )
 
 
+def _fuseki_auth_headers(configuration: dict[str, Any]) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    username, password = read_fuseki_credentials(configuration)
+    if username and password:
+        token = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
+        headers["Authorization"] = f"Basic {token}"
+    return headers
+
+
 class FusekiKnowledgeGraphAdapter:
     """HTTP adapter for Apache Fuseki dataset import."""
 
@@ -55,13 +70,7 @@ class FusekiKnowledgeGraphAdapter:
 
     def ping(self) -> dict[str, str]:
         url = f"{self._endpoint}/$/ping"
-        headers: dict[str, str] = {}
-        username, password = read_fuseki_credentials(self._configuration)
-        if username and password:
-            token = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
-            headers["Authorization"] = f"Basic {token}"
-
-        request = Request(url, headers=headers, method="GET")
+        request = Request(url, headers=_fuseki_auth_headers(self._configuration), method="GET")
         try:
             with urlopen(request, timeout=15) as response:
                 status = getattr(response, "status", 200)
@@ -81,15 +90,56 @@ class FusekiKnowledgeGraphAdapter:
             "endpoint": self._endpoint,
         }
 
+    def _ensure_dataset_exists(self, dataset_segment: str) -> None:
+        headers = _fuseki_auth_headers(self._configuration)
+        if "Authorization" not in headers:
+            return
+
+        dataset_url = f"{self._endpoint}/$/datasets/{quote(dataset_segment, safe='')}"
+        check_request = Request(dataset_url, headers=headers, method="GET")
+        try:
+            with urlopen(check_request, timeout=15) as response:
+                if getattr(response, "status", 200) == 200:
+                    return
+        except HTTPError as error:
+            if error.code != 404:
+                raise FusekiImportError(
+                    f"Fuseki dataset lookup failed with HTTP {error.code}: {error.reason}"
+                ) from error
+        except URLError as error:
+            raise FusekiImportError(
+                f"Fuseki dataset lookup request failed: {error.reason}"
+            ) from error
+
+        create_url = (
+            f"{self._endpoint}/$/datasets?dbName={quote('/' + dataset_segment, safe='')}"
+            "&dbType=tdb2"
+        )
+        create_request = Request(create_url, headers=headers, method="POST", data=b"")
+        try:
+            with urlopen(create_request, timeout=30) as response:
+                status = getattr(response, "status", 200)
+        except HTTPError as error:
+            if error.code in {409, 422}:
+                return
+            raise FusekiImportError(
+                f"Fuseki dataset creation failed with HTTP {error.code}: {error.reason}"
+            ) from error
+        except URLError as error:
+            raise FusekiImportError(
+                f"Fuseki dataset creation request failed: {error.reason}"
+            ) from error
+
+        if status not in {200, 201, 204}:
+            raise FusekiImportError(f"Fuseki dataset creation failed with HTTP {status}")
+
     def import_data(
         self, *, dataset: str, content: str, content_type: str
     ) -> dict[str, str]:
-        url = f"{self._endpoint}/{dataset}/data"
-        headers = {"Content-Type": content_type}
-        username, password = read_fuseki_credentials(self._configuration)
-        if username and password:
-            token = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
-            headers["Authorization"] = f"Basic {token}"
+        dataset_segment = fuseki_dataset_service_path(dataset)
+        self._ensure_dataset_exists(dataset_segment)
+        url = f"{self._endpoint}/{dataset_segment}/data"
+        headers = {"Content-Type": content_type, **_fuseki_auth_headers(self._configuration)}
 
         request = Request(
             url,
@@ -114,5 +164,6 @@ class FusekiKnowledgeGraphAdapter:
             "status": "imported",
             "location": url,
             "dataset": dataset,
+            "dataset_segment": dataset_segment,
             "endpoint": self._endpoint,
         }
