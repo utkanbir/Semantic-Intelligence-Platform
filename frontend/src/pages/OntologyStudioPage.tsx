@@ -86,23 +86,6 @@ function inferSourceFormat(fileName: string): string {
   }
 }
 
-function inferSourceFormatFromContent(content: string): string | null {
-  const trimmed = content.trim();
-  if (!trimmed) {
-    return null;
-  }
-  if (trimmed.startsWith("<?xml") || trimmed.startsWith("<rdf:RDF")) {
-    return "rdf";
-  }
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    return "jsonld";
-  }
-  if (trimmed.startsWith("@prefix") || trimmed.startsWith("PREFIX ")) {
-    return "ttl";
-  }
-  return null;
-}
-
 function escapeTurtleLiteral(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, "\\n");
 }
