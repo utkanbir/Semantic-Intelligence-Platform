@@ -56,6 +56,26 @@ const passingReport = {
   run_at: "2025-06-01T10:00:00Z",
   run_id: "run-1",
   ai_summary: "Advisory: ontology structure looks usable.",
+  inventory: {
+    classes: [
+      {
+        uri: "http://example.org/Vendor",
+        label: "Vendor",
+        local_name: "Vendor",
+      },
+    ],
+    relations: [
+      {
+        uri: "http://example.org/placedBy",
+        label: "placed by",
+        local_name: "placedBy",
+        property_type: "object" as const,
+        domain: "http://example.org/Order",
+        range: "http://example.org/Customer",
+      },
+    ],
+    truncated: false,
+  },
 };
 
 function renderPage() {
@@ -95,6 +115,8 @@ describe("OntologyValidationPage", () => {
       expect(screen.getByText(/Structural validation passed/)).toBeInTheDocument();
     });
 
+    expect(screen.getByText("Vendor")).toBeInTheDocument();
+    expect(screen.getByText("placed by")).toBeInTheDocument();
     expect(screen.getByText(passingReport.ai_summary!)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm validation" }));

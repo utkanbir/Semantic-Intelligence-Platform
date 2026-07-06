@@ -2,6 +2,7 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from "
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import { importOntology, validateOntologyContent, type OntologyValidationReport } from "../api/ontologies";
+import { OntologyValidationInventoryView } from "../components/OntologyValidationInventory";
 import {
   listConnectors,
   CONNECTOR_TYPE_LABELS,
@@ -1184,6 +1185,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   {backendValidationReport.ai_summary && (
                     <p className="ontology-wizard__hint">{backendValidationReport.ai_summary}</p>
                   )}
+                  <OntologyValidationInventoryView inventory={backendValidationReport.inventory} />
                 </div>
               )}
             </div>

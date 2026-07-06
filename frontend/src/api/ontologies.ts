@@ -8,6 +8,27 @@ export interface ValidationFinding {
   message: string;
 }
 
+export interface OntologyClassSummary {
+  uri: string;
+  label: string | null;
+  local_name: string;
+}
+
+export interface OntologyRelationSummary {
+  uri: string;
+  label: string | null;
+  local_name: string;
+  property_type: "object" | "datatype";
+  domain: string | null;
+  range: string | null;
+}
+
+export interface OntologyValidationInventory {
+  classes: OntologyClassSummary[];
+  relations: OntologyRelationSummary[];
+  truncated: boolean;
+}
+
 export interface OntologyValidationReport {
   passed: boolean;
   error_count: number;
@@ -17,6 +38,7 @@ export interface OntologyValidationReport {
   run_at: string;
   run_id: string;
   ai_summary: string | null;
+  inventory: OntologyValidationInventory | null;
 }
 
 export interface OntologyValidationRunResponse {

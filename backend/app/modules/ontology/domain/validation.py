@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
 ValidationLevel = Literal["error", "warning", "info"]
+RelationPropertyType = Literal["object", "datatype"]
+
+INVENTORY_CLASS_CAP = 200
+INVENTORY_RELATION_CAP = 200
 
 
 @dataclass(slots=True)
@@ -21,6 +25,106 @@ class ValidationFinding:
 
 
 @dataclass(slots=True)
+class OntologyClassSummary:
+    uri: str
+    label: str | None
+    local_name: str
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "uri": self.uri,
+            "label": self.label,
+            "local_name": self.local_name,
+        }
+
+
+@dataclass(slots=True)
+class OntologyRelationSummary:
+    uri: str
+    label: str | None
+    local_name: str
+    property_type: RelationPropertyType
+    domain: str | None
+    range: str | None
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "uri": self.uri,
+            "label": self.label,
+            "local_name": self.local_name,
+            "property_type": self.property_type,
+            "domain": self.domain,
+            "range": self.range,
+        }
+
+
+@dataclass(slots=True)
+class OntologyValidationInventory:
+    classes: list[OntologyClassSummary]
+    relations: list[OntologyRelationSummary]
+    truncated: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "classes": [item.to_dict() for item in self.classes],
+            "relations": [item.to_dict() for item in self.relations],
+            "truncated": self.truncated,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any] | None) -> OntologyValidationInventory | None:
+        if not payload:
+            return None
+
+        classes: list[OntologyClassSummary] = []
+        for item in payload.get("classes", []):
+            if not isinstance(item, dict):
+                continue
+            uri = item.get("uri")
+            local_name = item.get("local_name")
+            if isinstance(uri, str) and isinstance(local_name, str):
+                label = item.get("label")
+                classes.append(
+                    OntologyClassSummary(
+                        uri=uri,
+                        label=str(label) if isinstance(label, str) else None,
+                        local_name=local_name,
+                    )
+                )
+
+        relations: list[OntologyRelationSummary] = []
+        for item in payload.get("relations", []):
+            if not isinstance(item, dict):
+                continue
+            uri = item.get("uri")
+            local_name = item.get("local_name")
+            property_type = item.get("property_type")
+            if (
+                isinstance(uri, str)
+                and isinstance(local_name, str)
+                and property_type in {"object", "datatype"}
+            ):
+                domain = item.get("domain")
+                range_value = item.get("range")
+                relations.append(
+                    OntologyRelationSummary(
+                        uri=uri,
+                        label=str(item["label"]) if isinstance(item.get("label"), str) else None,
+                        local_name=local_name,
+                        property_type=property_type,
+                        domain=str(domain) if isinstance(domain, str) else None,
+                        range=str(range_value) if isinstance(range_value, str) else None,
+                    )
+                )
+
+        return cls(
+            classes=classes,
+            relations=relations,
+            truncated=bool(payload.get("truncated")),
+        )
+
+
+@dataclass(slots=True)
 class OntologyValidationReport:
     passed: bool
     error_count: int
@@ -30,9 +134,10 @@ class OntologyValidationReport:
     run_at: datetime
     run_id: UUID
     ai_summary: str | None = None
+    inventory: OntologyValidationInventory | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "passed": self.passed,
             "error_count": self.error_count,
             "warning_count": self.warning_count,
@@ -42,6 +147,9 @@ class OntologyValidationReport:
             "run_id": str(self.run_id),
             "ai_summary": self.ai_summary,
         }
+        if self.inventory is not None:
+            payload["inventory"] = self.inventory.to_dict()
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> OntologyValidationReport | None:
@@ -70,6 +178,12 @@ class OntologyValidationReport:
             stats = {}
 
         normalized_stats = {str(key): int(value) for key, value in stats.items()}
+        inventory_payload = payload.get("inventory")
+        inventory = (
+            OntologyValidationInventory.from_dict(inventory_payload)
+            if isinstance(inventory_payload, dict)
+            else None
+        )
 
         return cls(
             passed=bool(payload.get("passed")),
@@ -82,6 +196,7 @@ class OntologyValidationReport:
             ai_summary=(
                 str(payload["ai_summary"]) if payload.get("ai_summary") is not None else None
             ),
+            inventory=inventory,
         )
 
 

@@ -89,6 +89,17 @@ const passingValidationReport = {
   run_at: "2025-06-01T10:00:00Z",
   run_id: "run-1",
   ai_summary: "Advisory summary",
+  inventory: {
+    classes: [
+      {
+        uri: "http://example.org/Vendor",
+        label: "Vendor",
+        local_name: "Vendor",
+      },
+    ],
+    relations: [],
+    truncated: false,
+  },
 };
 
 describe("OntologyStudioPage", () => {
@@ -219,6 +230,8 @@ describe("OntologyStudioPage", () => {
     await waitFor(() => {
       expect(screen.getByText("What will happen")).toBeInTheDocument();
     });
+
+    expect(screen.getByText("Vendor")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Materialize ontology" }));
 

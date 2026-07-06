@@ -19,6 +19,27 @@ class ValidationFindingResponse(BaseModel):
     message: str
 
 
+class OntologyClassSummaryResponse(BaseModel):
+    uri: str
+    label: str | None = None
+    local_name: str
+
+
+class OntologyRelationSummaryResponse(BaseModel):
+    uri: str
+    label: str | None = None
+    local_name: str
+    property_type: str
+    domain: str | None = None
+    range: str | None = None
+
+
+class OntologyValidationInventoryResponse(BaseModel):
+    classes: list[OntologyClassSummaryResponse]
+    relations: list[OntologyRelationSummaryResponse]
+    truncated: bool
+
+
 class OntologyValidationReportResponse(BaseModel):
     passed: bool
     error_count: int
@@ -28,6 +49,7 @@ class OntologyValidationReportResponse(BaseModel):
     run_at: datetime
     run_id: UUID
     ai_summary: str | None = None
+    inventory: OntologyValidationInventoryResponse | None = None
 
 
 class OntologyDefinitionResponse(BaseModel):
@@ -102,6 +124,31 @@ class OntologyValidationRunResponse(BaseModel):
 def to_ontology_validation_report_response(
     report: OntologyValidationReport,
 ) -> OntologyValidationReportResponse:
+    inventory = None
+    if report.inventory is not None:
+        inventory = OntologyValidationInventoryResponse(
+            classes=[
+                OntologyClassSummaryResponse(
+                    uri=item.uri,
+                    label=item.label,
+                    local_name=item.local_name,
+                )
+                for item in report.inventory.classes
+            ],
+            relations=[
+                OntologyRelationSummaryResponse(
+                    uri=item.uri,
+                    label=item.label,
+                    local_name=item.local_name,
+                    property_type=item.property_type,
+                    domain=item.domain,
+                    range=item.range,
+                )
+                for item in report.inventory.relations
+            ],
+            truncated=report.inventory.truncated,
+        )
+
     return OntologyValidationReportResponse(
         passed=report.passed,
         error_count=report.error_count,
@@ -118,6 +165,7 @@ def to_ontology_validation_report_response(
         run_at=report.run_at,
         run_id=report.run_id,
         ai_summary=report.ai_summary,
+        inventory=inventory,
     )
 
 

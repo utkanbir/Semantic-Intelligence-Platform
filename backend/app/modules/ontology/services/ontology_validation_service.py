@@ -10,9 +10,11 @@ from rdflib import Graph, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
 from app.modules.ontology.domain.validation import (
+    OntologyValidationInventory,
     OntologyValidationReport,
     ValidationFinding,
 )
+from app.modules.ontology.services.ontology_inventory import build_validation_inventory
 from app.modules.ontology.services.rdf_formats import (
     RDF_CONTENT_TYPES,
     infer_rdf_content_type_from_content,
@@ -65,7 +67,7 @@ class OntologyValidationService:
                     message="Ontology content is empty",
                 )
             )
-            return self._build_report(findings, stats, ai_summary=None)
+            return self._build_report(findings, stats, ai_summary=None, inventory=None)
 
         declared_content_type = resolve_rdf_content_type(source_format, content)
         normalized_format = source_format.lstrip(".").lower()
@@ -99,7 +101,7 @@ class OntologyValidationService:
                     message=f"RDF parse failed: {error}",
                 )
             )
-            return self._build_report(findings, stats, ai_summary=None)
+            return self._build_report(findings, stats, ai_summary=None, inventory=None)
 
         triple_count = len(graph)
         stats["triple_count"] = triple_count
@@ -111,7 +113,7 @@ class OntologyValidationService:
                     message="Parsed ontology graph contains no triples",
                 )
             )
-            return self._build_report(findings, stats, ai_summary=None)
+            return self._build_report(findings, stats, ai_summary=None, inventory=None)
 
         class_uris = set(graph.subjects(RDF.type, OWL.Class)) | set(
             graph.subjects(RDF.type, RDFS.Class)
@@ -172,6 +174,13 @@ class OntologyValidationService:
                 )
             )
 
+        inventory = build_validation_inventory(
+            graph,
+            class_uris=class_uris,
+            object_properties=object_properties,
+            datatype_properties=datatype_properties,
+        )
+
         ai_summary = None
         if include_ai_review:
             ai_summary = self._maybe_ai_review(
@@ -181,7 +190,9 @@ class OntologyValidationService:
                 description=description,
             )
 
-        return self._build_report(findings, stats, ai_summary=ai_summary)
+        return self._build_report(
+            findings, stats, ai_summary=ai_summary, inventory=inventory
+        )
 
     def _build_report(
         self,
@@ -189,6 +200,7 @@ class OntologyValidationService:
         stats: dict[str, int],
         *,
         ai_summary: str | None,
+        inventory: OntologyValidationInventory | None,
     ) -> OntologyValidationReport:
         error_count = sum(1 for finding in findings if finding.level == "error")
         warning_count = sum(1 for finding in findings if finding.level == "warning")
@@ -199,6 +211,7 @@ class OntologyValidationService:
             findings=findings,
             stats=stats,
             ai_summary=ai_summary,
+            inventory=inventory,
             run_at=datetime.now(UTC),
             run_id=uuid4(),
         )

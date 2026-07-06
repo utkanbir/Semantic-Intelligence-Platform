@@ -6,6 +6,7 @@ import {
   updateOntologyStatus,
   type OntologyValidationReport,
 } from "../api/ontologies";
+import { OntologyValidationInventoryView } from "../components/OntologyValidationInventory";
 
 interface OntologyValidationPageProps {
   applicationId: string;
@@ -175,6 +176,8 @@ export function OntologyValidationPage({
               </ul>
             </section>
           )}
+
+          <OntologyValidationInventoryView inventory={state.report.inventory} />
 
           <section className="ontology-validation-page__section" aria-labelledby="validation-ai">
             <h4 id="validation-ai">AI advisory</h4>

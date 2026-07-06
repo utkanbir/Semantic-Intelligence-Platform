@@ -25,6 +25,7 @@ describe("ontologies validation api", () => {
       run_at: "2025-06-01T10:00:00Z",
       run_id: "run-1",
       ai_summary: null,
+      inventory: null,
     };
     vi.mocked(apiFetch).mockResolvedValue(report);
 
