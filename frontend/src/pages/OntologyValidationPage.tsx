@@ -4,6 +4,7 @@ import { ApiError } from "../api";
 import {
   runOntologyValidation,
   updateOntologyStatus,
+  type OntologyDefinitionStatus,
   type OntologyValidationReport,
 } from "../api/ontologies";
 import { OntologyValidationInventoryView } from "../components/OntologyValidationInventory";
@@ -13,11 +14,18 @@ interface OntologyValidationPageProps {
   ontologyId: string;
 }
 
+type GovernancePhase = "draft" | "validated";
+
 type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; report: OntologyValidationReport; ontologyTitle: string }
-  | { kind: "confirmed" };
+  | {
+      kind: "review";
+      report: OntologyValidationReport;
+      ontologyTitle: string;
+      governancePhase: GovernancePhase;
+    }
+  | { kind: "approved"; ontologyTitle: string; approvedAt: string | null };
 
 function groupFindings(report: OntologyValidationReport) {
   return {
@@ -27,6 +35,16 @@ function groupFindings(report: OntologyValidationReport) {
   };
 }
 
+function governancePhaseForStatus(status: OntologyDefinitionStatus): GovernancePhase | "approved" {
+  if (status === "Validated") {
+    return "validated";
+  }
+  if (status === "Approved") {
+    return "approved";
+  }
+  return "draft";
+}
+
 export function OntologyValidationPage({
   applicationId,
   ontologyId,
@@ -34,19 +52,33 @@ export function OntologyValidationPage({
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [approving, setApproving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     runOntologyValidation(ontologyId)
       .then((result) => {
-        if (!cancelled) {
-          setState({
-            kind: "ready",
-            report: result.report,
-            ontologyTitle: result.ontology.title,
-          });
+        if (cancelled) {
+          return;
         }
+
+        const phase = governancePhaseForStatus(result.ontology.status);
+        if (phase === "approved") {
+          setState({
+            kind: "approved",
+            ontologyTitle: result.ontology.title,
+            approvedAt: result.ontology.approved_at,
+          });
+          return;
+        }
+
+        setState({
+          kind: "review",
+          report: result.report,
+          ontologyTitle: result.ontology.title,
+          governancePhase: phase,
+        });
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -66,14 +98,14 @@ export function OntologyValidationPage({
   }, [ontologyId]);
 
   const grouped = useMemo(() => {
-    if (state.kind !== "ready") {
+    if (state.kind !== "review") {
       return null;
     }
     return groupFindings(state.report);
   }, [state]);
 
   async function handleConfirm() {
-    if (state.kind !== "ready" || !state.report.passed) {
+    if (state.kind !== "review" || state.governancePhase !== "draft" || !state.report.passed) {
       return;
     }
 
@@ -81,7 +113,12 @@ export function OntologyValidationPage({
     setConfirming(true);
     try {
       await updateOntologyStatus(ontologyId, "Validated");
-      setState({ kind: "confirmed" });
+      setState({
+        kind: "review",
+        report: state.report,
+        ontologyTitle: state.ontologyTitle,
+        governancePhase: "validated",
+      });
     } catch (error: unknown) {
       const message =
         error instanceof ApiError
@@ -95,7 +132,35 @@ export function OntologyValidationPage({
     }
   }
 
+  async function handleApprove() {
+    if (state.kind !== "review" || state.governancePhase !== "validated" || !state.report.passed) {
+      return;
+    }
+
+    setActionError(null);
+    setApproving(true);
+    try {
+      const updated = await updateOntologyStatus(ontologyId, "Approved");
+      setState({
+        kind: "approved",
+        ontologyTitle: updated.title,
+        approvedAt: updated.approved_at,
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to approve ontology";
+      setActionError(message);
+    } finally {
+      setApproving(false);
+    }
+  }
+
   const ontologyPath = `/applications/${applicationId}/ontology`;
+  const governancePhase = state.kind === "review" ? state.governancePhase : null;
 
   return (
     <section className="ontology-validation-page" aria-labelledby="ontology-validation-heading">
@@ -103,8 +168,9 @@ export function OntologyValidationPage({
         <div>
           <h2 id="ontology-validation-heading">Ontology validation</h2>
           <p className="ontology-validation-page__lead">
-            Review structural checks and advisory feedback before marking this ontology as
-            Validated.
+            {governancePhase === "validated"
+              ? "Structural validation is complete. Review the report and approve this ontology for governance."
+              : "Review structural checks and advisory feedback, then confirm validation and approve for governance."}
           </p>
         </div>
         <Link to={ontologyPath} className="ontologies-page__button ontologies-page__button--secondary">
@@ -124,17 +190,31 @@ export function OntologyValidationPage({
         </div>
       )}
 
-      {state.kind === "confirmed" && (
+      {state.kind === "approved" && (
         <div className="ontology-validation-page__success" role="status">
-          <p>Ontology marked as Validated.</p>
+          <p>Ontology approved.</p>
+          {state.approvedAt && (
+            <p className="ontology-validation-page__muted">
+              Approved at {new Intl.DateTimeFormat(undefined, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }).format(new Date(state.approvedAt))}
+            </p>
+          )}
           <Link to={ontologyPath} className="ontologies-page__inline-link">
             Return to ontology
           </Link>
         </div>
       )}
 
-      {state.kind === "ready" && grouped && (
+      {state.kind === "review" && grouped && (
         <>
+          {state.governancePhase === "validated" && (
+            <div className="ontology-validation-page__success" role="status">
+              <p>Ontology marked as Validated.</p>
+            </div>
+          )}
+
           <div className="ontology-validation-page__summary">
             <h3>{state.ontologyTitle}</h3>
             <p>
@@ -200,14 +280,26 @@ export function OntologyValidationPage({
             <Link to={ontologyPath} className="ontologies-page__button ontologies-page__button--secondary">
               Back to ontology
             </Link>
-            <button
-              type="button"
-              className="ontologies-page__button ontologies-page__button--primary"
-              disabled={!state.report.passed || confirming}
-              onClick={() => void handleConfirm()}
-            >
-              {confirming ? "Confirming…" : "Confirm validation"}
-            </button>
+            {state.governancePhase === "draft" && (
+              <button
+                type="button"
+                className="ontologies-page__button ontologies-page__button--primary"
+                disabled={!state.report.passed || confirming}
+                onClick={() => void handleConfirm()}
+              >
+                {confirming ? "Confirming…" : "Confirm validation"}
+              </button>
+            )}
+            {state.governancePhase === "validated" && (
+              <button
+                type="button"
+                className="ontologies-page__button ontologies-page__button--primary"
+                disabled={!state.report.passed || approving}
+                onClick={() => void handleApprove()}
+              >
+                {approving ? "Approving…" : "Approve ontology"}
+              </button>
+            )}
           </div>
         </>
       )}

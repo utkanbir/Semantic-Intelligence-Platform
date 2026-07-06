@@ -126,6 +126,64 @@ describe("OntologyValidationPage", () => {
     });
 
     expect(screen.getByText("Ontology marked as Validated.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve ontology" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm validation" })).not.toBeInTheDocument();
+  });
+
+  it("approves ontology after validation is confirmed", async () => {
+    vi.mocked(updateOntologyStatus)
+      .mockResolvedValueOnce({
+        ...ontology,
+        status: "Validated",
+        validated_at: "2025-06-02T10:00:00Z",
+      })
+      .mockResolvedValueOnce({
+        ...ontology,
+        status: "Approved",
+        validated_at: "2025-06-02T10:00:00Z",
+        approved_at: "2025-06-02T11:00:00Z",
+      });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Confirm validation" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm validation" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Approve ontology" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve ontology" }));
+
+    await waitFor(() => {
+      expect(updateOntologyStatus).toHaveBeenCalledWith("onto-1", "Approved");
+    });
+
+    expect(screen.getByText("Ontology approved.")).toBeInTheDocument();
+  });
+
+  it("shows approve action when ontology is already validated", async () => {
+    vi.mocked(runOntologyValidation).mockResolvedValue({
+      ontology: {
+        ...ontology,
+        status: "Validated",
+        validated_at: "2025-06-02T10:00:00Z",
+      },
+      report: passingReport,
+      semantic_transaction_id: "txn-validate-1",
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Approve ontology" })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Confirm validation" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Structural validation is complete/)).toBeInTheDocument();
   });
 
   it("disables confirm when validation failed", async () => {
@@ -153,6 +211,38 @@ describe("OntologyValidationPage", () => {
     });
 
     expect(screen.getByRole("button", { name: "Confirm validation" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Approve ontology" })).not.toBeInTheDocument();
+  });
+
+  it("does not show approve when validated ontology failed validation", async () => {
+    vi.mocked(runOntologyValidation).mockResolvedValue({
+      ontology: {
+        ...ontology,
+        status: "Validated",
+        validated_at: "2025-06-02T10:00:00Z",
+      },
+      report: {
+        ...passingReport,
+        passed: false,
+        error_count: 1,
+        findings: [
+          {
+            level: "error",
+            code: "empty_graph",
+            message: "Parsed ontology graph contains no triples",
+          },
+        ],
+      },
+      semantic_transaction_id: "txn-validate-1",
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Structural validation failed/)).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Approve ontology" })).toBeDisabled();
   });
 
   it("shows load error", async () => {
