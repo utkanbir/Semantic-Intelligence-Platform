@@ -165,33 +165,43 @@ def test_patch_status_full_lifecycle(client: TestClient) -> None:
         json={"application_id": application_id, "title": "Lifecycle Ontology"},
     )
     ontology_id = create.json()["id"]
-    for next_status in ("Validated", "Approved", "Published", "Versioned", "Retired"):
+    for next_status in ("Validated", "Approved"):
         response = client.patch(
             f"/api/v1/ontologies/{ontology_id}/status",
             json={"status": next_status},
         )
         assert response.status_code == 200
+    assert response.json()["status"] == "Approved"
 
 
-def test_create_version_from_published(client: TestClient) -> None:
+def test_delete_ontology(client: TestClient) -> None:
+    application_id = _create_application(client)
+    create = client.post(
+        "/api/v1/ontologies",
+        json={"application_id": application_id, "title": "Delete Me"},
+    )
+    ontology_id = create.json()["id"]
+    response = client.delete(f"/api/v1/ontologies/{ontology_id}")
+    assert response.status_code == 204
+    get_response = client.get(f"/api/v1/ontologies/{ontology_id}")
+    assert get_response.status_code == 404
+
+
+def test_create_version_rejected_after_approved(client: TestClient) -> None:
     application_id = _create_application(client)
     create = client.post(
         "/api/v1/ontologies",
         json={"application_id": application_id, "title": "Versioned Ontology"},
     )
     ontology_id = create.json()["id"]
-    for next_status in ("Validated", "Approved", "Published"):
+    for next_status in ("Validated", "Approved"):
         client.patch(
             f"/api/v1/ontologies/{ontology_id}/status",
             json={"status": next_status},
         )
 
     version = client.post(f"/api/v1/ontologies/{ontology_id}/versions", json={})
-    assert version.status_code == 201
-    body = version.json()
-    assert body["version_number"] == 2
-    assert body["status"] == "Draft"
-    assert body["previous_version_id"] == ontology_id
+    assert version.status_code == 422
 
 
 def test_patch_status_invalid_transition_returns_422(client: TestClient) -> None:

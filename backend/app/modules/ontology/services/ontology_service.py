@@ -377,6 +377,11 @@ class OntologyService:
             raise OntologyDefinitionNotFoundError("Ontology definition not found")
         return ontology
 
+    def delete_ontology(self, ontology_id: UUID) -> None:
+        deleted = self._repository.delete(ontology_id)
+        if not deleted:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
     def update_ontology(
         self,
         ontology_id: UUID,
@@ -588,9 +593,9 @@ VALID_STATUS_TRANSITIONS: dict[
         OntologyDefinitionStatus.APPROVED,
         OntologyDefinitionStatus.DRAFT,
     },
-    OntologyDefinitionStatus.APPROVED: {OntologyDefinitionStatus.PUBLISHED},
-    OntologyDefinitionStatus.PUBLISHED: {OntologyDefinitionStatus.VERSIONED},
-    OntologyDefinitionStatus.VERSIONED: {OntologyDefinitionStatus.RETIRED},
+    OntologyDefinitionStatus.APPROVED: set(),
+    OntologyDefinitionStatus.PUBLISHED: set(),
+    OntologyDefinitionStatus.VERSIONED: set(),
     OntologyDefinitionStatus.RETIRED: set(),
 }
 

@@ -171,11 +171,26 @@ export function readStoredValidationReport(
 const ONTOLOGY_NEXT_STATUSES: Record<OntologyDefinitionStatus, OntologyDefinitionStatus[]> = {
   Draft: ["Validated"],
   Validated: ["Approved", "Draft"],
-  Approved: ["Published"],
-  Published: ["Versioned"],
-  Versioned: ["Retired"],
+  Approved: [],
+  Published: [],
+  Versioned: [],
   Retired: [],
 };
+
+export const ONTOLOGY_LIFECYCLE_STEPS: OntologyDefinitionStatus[] = [
+  "Draft",
+  "Validated",
+  "Approved",
+];
+
+export function normalizeOntologyLifecycleStatus(
+  status: OntologyDefinitionStatus,
+): OntologyDefinitionStatus {
+  if (status === "Published" || status === "Versioned" || status === "Retired") {
+    return "Approved";
+  }
+  return status;
+}
 
 export function getNextOntologyStatuses(
   status: OntologyDefinitionStatus,
@@ -206,17 +221,8 @@ export function updateOntologyStatus(
   });
 }
 
-const FORKABLE_ONTOLOGY_STATUSES: OntologyDefinitionStatus[] = ["Published", "Versioned"];
-
-export function canForkOntology(ontology: OntologyDefinitionResponse): boolean {
-  return FORKABLE_ONTOLOGY_STATUSES.includes(ontology.status);
-}
-
-export function forkOntologyVersion(
-  ontologyId: string,
-): Promise<OntologyDefinitionResponse> {
-  return apiFetch<OntologyDefinitionResponse>(`/ontologies/${ontologyId}/versions`, {
-    method: "POST",
-    body: JSON.stringify({}),
+export function deleteOntology(ontologyId: string): Promise<void> {
+  return apiFetch<void>(`/ontologies/${ontologyId}`, {
+    method: "DELETE",
   });
 }

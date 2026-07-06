@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.infrastructure.adapters.fuseki import FusekiImportError
@@ -258,6 +259,16 @@ def update_ontology(
             detail=str(error),
         ) from error
     return to_ontology_definition_response(ontology)
+
+
+@router.delete("/{ontology_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_ontology(ontology_id: UUID, db: DbSession) -> Response:
+    service = _get_service(db)
+    try:
+        service.delete_ontology(ontology_id)
+    except OntologyDefinitionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/{ontology_id}/status", response_model=OntologyDefinitionResponse)

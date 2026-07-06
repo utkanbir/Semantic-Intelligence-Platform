@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listConnectors } from "../api/adapters";
-import { importOntology, validateOntologyContent, type OntologyDefinitionResponse } from "../api/ontologies";
+import { importOntology, runOntologyValidation, validateOntologyContent, type OntologyDefinitionResponse } from "../api/ontologies";
+import { OntologyValidationPage } from "./OntologyValidationPage";
 import { OntologyStudioPage } from "./OntologyStudioPage";
 
 vi.mock("../api/adapters", () => ({
@@ -18,6 +19,8 @@ vi.mock("../api/ontologies", async (importOriginal) => {
     ...actual,
     importOntology: vi.fn(),
     validateOntologyContent: vi.fn(),
+    runOntologyValidation: vi.fn(),
+    updateOntologyStatus: vi.fn(),
   };
 });
 
@@ -75,6 +78,10 @@ function renderPage(initialEntry = "/applications/app-1/ontology/create") {
           path="/applications/:applicationId/ontology/create"
           element={<OntologyStudioPage applicationId="app-1" />}
         />
+        <Route
+          path="/applications/:applicationId/ontology/:ontologyId/validate"
+          element={<OntologyValidationPage applicationId="app-1" ontologyId="onto-1" />}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -107,8 +114,14 @@ describe("OntologyStudioPage", () => {
     vi.mocked(listConnectors).mockReset();
     vi.mocked(importOntology).mockReset();
     vi.mocked(validateOntologyContent).mockReset();
+    vi.mocked(runOntologyValidation).mockReset();
     vi.mocked(listConnectors).mockResolvedValue([connector]);
     vi.mocked(validateOntologyContent).mockResolvedValue(passingValidationReport);
+    vi.mocked(runOntologyValidation).mockResolvedValue({
+      ontology: importedOntology,
+      report: passingValidationReport,
+      semantic_transaction_id: "txn-validate-1",
+    });
   });
 
   it("creates a minimal ontology and submits it through the import API", async () => {
@@ -155,7 +168,7 @@ describe("OntologyStudioPage", () => {
     expect(screen.getByText("Primary Fuseki — Apache Jena Fuseki")).toBeInTheDocument();
     expect(screen.getByText(/@prefix cust:/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Materialize ontology" }));
+    fireEvent.click(screen.getByRole("button", { name: "Materialize & continue to approval" }));
 
     await waitFor(() => {
       expect(importOntology).toHaveBeenCalledWith({
@@ -178,21 +191,11 @@ describe("OntologyStudioPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Ontology materialized successfully")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Ontology validation" })).toBeInTheDocument();
     });
-
-    expect(screen.getByText(/ontology\.imported/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View ontology" })).toHaveAttribute(
-      "href",
-      "/applications/app-1/ontology#ontology-onto-1",
-    );
-    expect(screen.getByRole("link", { name: "View semantic transaction" })).toHaveAttribute(
-      "href",
-      "/applications/app-1/semantic-transactions/txn-1",
-    );
   });
 
-  it("imports pasted ontology content", async () => {
+  it("imports ontology RDF file through the import API", async () => {
     vi.mocked(importOntology).mockResolvedValue({
       ...importedOntology,
       title: "Imported Ontology",
@@ -210,9 +213,15 @@ describe("OntologyStudioPage", () => {
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Imported Ontology" },
     });
-    fireEvent.click(screen.getByRole("tab", { name: "Paste text" }));
-    fireEvent.change(screen.getByLabelText("Ontology content"), {
-      target: { value: "<rdf:RDF></rdf:RDF>" },
+    const file = new File(["<rdf:RDF></rdf:RDF>"], "vendor.rdf", {
+      type: "application/xml",
+    });
+    fireEvent.change(screen.getByLabelText("Ontology file"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -231,9 +240,7 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByText("What will happen")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Vendor")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Materialize ontology" }));
+    fireEvent.click(screen.getByRole("button", { name: "Materialize & continue to approval" }));
 
     await waitFor(() => {
       expect(importOntology).toHaveBeenCalledWith({
@@ -269,9 +276,14 @@ describe("OntologyStudioPage", () => {
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Imported Ontology" },
     });
-    fireEvent.click(screen.getByRole("tab", { name: "Paste text" }));
-    fireEvent.change(screen.getByLabelText("Ontology content"), {
-      target: { value: "<rdf:RDF></rdf:RDF>" },
+    const file = new File(["<rdf:RDF></rdf:RDF>"], "vendor.rdf", {
+      type: "application/xml",
+    });
+    fireEvent.change(screen.getByLabelText("Ontology file"), {
+      target: { files: [file] },
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
     });
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));

@@ -3,31 +3,23 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import { listConnectors, type ConnectorResponse } from "../api/adapters";
 import {
-  canForkOntology,
-  forkOntologyVersion,
+  deleteOntology,
   getNextOntologyStatuses,
   getOntologyStatusActionLabel,
   listOntologies,
+  normalizeOntologyLifecycleStatus,
+  ONTOLOGY_LIFECYCLE_STEPS,
   readStoredValidationReport,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
   type OntologyDefinitionStatus,
 } from "../api/ontologies";
 import { getVendorLabel, readConnectorVendor } from "../connectors/catalog";
-import { formatVersionChain } from "../utils/versionChain";
 
 type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "success"; ontologies: OntologyDefinitionResponse[] };
-
-const LIFECYCLE_STEPS: OntologyDefinitionStatus[] = [
-  "Draft",
-  "Validated",
-  "Approved",
-  "Published",
-  "Versioned",
-];
 
 const ONTOLOGY_MODES = [
   {
@@ -41,7 +33,7 @@ const ONTOLOGY_MODES = [
   {
     id: "import",
     title: "OWL Import",
-    copy: "Import existing OWL/RDF content from a file upload or pasted text.",
+    copy: "Import existing OWL/RDF content from a local file.",
     hrefSuffix: "?mode=import",
     cta: "Import OWL",
     enabled: true,
@@ -97,12 +89,9 @@ function lifecycleStepState(
   step: OntologyDefinitionStatus,
   currentStatus: OntologyDefinitionStatus,
 ): "complete" | "current" | "upcoming" {
-  if (currentStatus === "Retired") {
-    return "complete";
-  }
-
-  const currentIndex = LIFECYCLE_STEPS.indexOf(currentStatus);
-  const stepIndex = LIFECYCLE_STEPS.indexOf(step);
+  const normalizedStatus = normalizeOntologyLifecycleStatus(currentStatus);
+  const currentIndex = ONTOLOGY_LIFECYCLE_STEPS.indexOf(normalizedStatus);
+  const stepIndex = ONTOLOGY_LIFECYCLE_STEPS.indexOf(step);
 
   if (stepIndex < currentIndex) {
     return "complete";
@@ -228,11 +217,18 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
     }
   }
 
-  async function handleForkVersion(ontologyId: string) {
+  async function handleDelete(ontology: OntologyDefinitionResponse) {
+    const confirmed = window.confirm(
+      `Delete ontology "${ontology.title}"? This cannot be undone.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
     setActionError(null);
-    setPendingOntologyId(ontologyId);
+    setPendingOntologyId(ontology.id);
     try {
-      await forkOntologyVersion(ontologyId);
+      await deleteOntology(ontology.id);
       await loadOntologies();
     } catch (error: unknown) {
       const message =
@@ -240,7 +236,7 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to create ontology version";
+            : "Failed to delete ontology";
       setActionError(message);
     } finally {
       setPendingOntologyId(null);
@@ -249,15 +245,6 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
 
   const ontologies = state.kind === "success" ? state.ontologies : [];
   const primaryOntology = useMemo(() => pickPrimaryOntology(ontologies), [ontologies]);
-  const historyOntologies = useMemo(() => {
-    if (!primaryOntology) {
-      return [];
-    }
-
-    return ontologies
-      .filter((ontology) => ontology.id !== primaryOntology.id)
-      .sort((left, right) => right.version_number - left.version_number);
-  }, [ontologies, primaryOntology]);
 
   const primaryConnector = useMemo(() => {
     if (!primaryOntology?.connector_id) {
@@ -412,12 +399,15 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                   {primaryOntology.title}
                 </h3>
                 <p className="ontologies-page__primary-subtitle">
-                  Version {formatVersionChain(primaryOntology, ontologies)} · Created{" "}
-                  {formatDate(primaryOntology.created_at)}
+                  Created {formatDate(primaryOntology.created_at)}
                 </p>
               </div>
-              <span className={statusClassName(primaryOntology.status)}>
-                {primaryOntology.status}
+              <span
+                className={statusClassName(
+                  normalizeOntologyLifecycleStatus(primaryOntology.status),
+                )}
+              >
+                {normalizeOntologyLifecycleStatus(primaryOntology.status)}
               </span>
             </div>
 
@@ -425,7 +415,7 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
               className="ontologies-page__lifecycle"
               aria-label="Ontology lifecycle"
             >
-              {LIFECYCLE_STEPS.map((step) => {
+              {ONTOLOGY_LIFECYCLE_STEPS.map((step) => {
                 const stepState = lifecycleStepState(step, primaryOntology.status);
 
                 return (
@@ -497,20 +487,10 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
             </p>
 
             <div className="ontologies-page__primary-actions">
-              {canForkOntology(primaryOntology) && (
-                <button
-                  type="button"
-                  className="ontologies-page__button ontologies-page__button--secondary"
-                  disabled={pendingOntologyId === primaryOntology.id}
-                  onClick={() => void handleForkVersion(primaryOntology.id)}
-                >
-                  New version
-                </button>
-              )}
               {primaryOntology.status === "Draft" && primaryOntology.artifact_uri && (
                 <Link
                   to={`/applications/${applicationId}/ontology/${primaryOntology.id}/validate`}
-                  className="ontologies-page__button ontologies-page__button--secondary"
+                  className="ontologies-page__button ontologies-page__button--primary"
                 >
                   Run validation
                 </Link>
@@ -530,6 +510,11 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                       primaryOntology.status === "Draft" &&
                       nextStatus === "Validated" &&
                       Boolean(primaryOntology.artifact_uri)
+                    ) &&
+                    !(
+                      primaryOntology.status === "Validated" &&
+                      nextStatus === "Approved" &&
+                      Boolean(primaryOntology.artifact_uri)
                     ),
                 )
                 .map((nextStatus) => (
@@ -545,40 +530,16 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                   {getOntologyStatusActionLabel(nextStatus)}
                 </button>
               ))}
+              <button
+                type="button"
+                className="ontologies-page__button ontologies-page__button--secondary"
+                disabled={pendingOntologyId === primaryOntology.id}
+                onClick={() => void handleDelete(primaryOntology)}
+              >
+                Delete
+              </button>
             </div>
           </article>
-
-          {historyOntologies.length > 0 && (
-            <div className="ontologies-page__history">
-              <h3 className="ontologies-page__history-title">Version history</h3>
-              <div className="ontologies-page__table-wrap">
-                <table className="ontologies-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Title</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Version</th>
-                      <th scope="col">Created at</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyOntologies.map((ontology) => (
-                      <tr key={ontology.id} id={`ontology-${ontology.id}`}>
-                        <td>{ontology.title}</td>
-                        <td>
-                          <span className={statusClassName(ontology.status)}>
-                            {ontology.status}
-                          </span>
-                        </td>
-                        <td>{formatVersionChain(ontology, ontologies)}</td>
-                        <td>{formatDate(ontology.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </>
       )}
     </section>

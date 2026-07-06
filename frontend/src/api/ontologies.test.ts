@@ -149,10 +149,14 @@ describe("ontologies API", () => {
   it("getNextOntologyStatuses matches backend transitions", () => {
     expect(getNextOntologyStatuses("Draft")).toEqual(["Validated"]);
     expect(getNextOntologyStatuses("Validated")).toEqual(["Approved", "Draft"]);
-    expect(getNextOntologyStatuses("Approved")).toEqual(["Published"]);
-    expect(getNextOntologyStatuses("Published")).toEqual(["Versioned"]);
-    expect(getNextOntologyStatuses("Versioned")).toEqual(["Retired"]);
-    expect(getNextOntologyStatuses("Retired")).toEqual([]);
+    expect(getNextOntologyStatuses("Approved")).toEqual([]);
+    expect(getNextOntologyStatuses("Published")).toEqual([]);
+  });
+
+  it("normalizeOntologyLifecycleStatus maps legacy states to Approved", async () => {
+    const { normalizeOntologyLifecycleStatus } = await import("./ontologies");
+    expect(normalizeOntologyLifecycleStatus("Published")).toBe("Approved");
+    expect(normalizeOntologyLifecycleStatus("Draft")).toBe("Draft");
   });
 
   it("getOntologyStatusActionLabel returns action labels", () => {
