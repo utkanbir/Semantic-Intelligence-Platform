@@ -92,3 +92,23 @@ def test_fuseki_import_data_raises_on_http_error() -> None:
                 content="@prefix ex: <http://example.org/> .",
                 content_type="text/turtle",
             )
+
+
+def test_fuseki_export_data_reads_dataset_content() -> None:
+    configuration = {
+        "provision": {"endpoint": "http://fuseki.example:3030"},
+    }
+    adapter = FusekiKnowledgeGraphAdapter(configuration)
+    turtle = "@prefix ex: <http://example.org/> .\nex:Vendor a ex:Class .\n"
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_response = mock_urlopen.return_value.__enter__.return_value
+        mock_response.status = 200
+        mock_response.read.return_value = turtle.encode("utf-8")
+        exported = adapter.export_data(dataset="sip/test-app")
+
+    assert exported == turtle
+    request = mock_urlopen.call_args.args[0]
+    assert request.full_url == "http://fuseki.example:3030/sip-test-app/data"
+    assert request.method == "GET"
+    assert request.get_header("Accept") == "text/turtle"

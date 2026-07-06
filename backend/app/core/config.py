@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+psycopg://sip_user:replace-me@localhost:5432/sip_db"
     )
+    llm_enabled: bool = True
+    llm_provider: str = "stub"
 
 
 @lru_cache

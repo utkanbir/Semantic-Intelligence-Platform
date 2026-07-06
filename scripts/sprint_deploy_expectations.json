@@ -41,12 +41,12 @@
         {
           "name": "sip-backend",
           "container": "backend",
-          "image": "sip-backend:s44"
+          "image": "sip-backend:s45"
         },
         {
           "name": "sip-console",
           "container": "console",
-          "image": "sip-console:s43"
+          "image": "sip-console:s45"
         }
       ]
     }

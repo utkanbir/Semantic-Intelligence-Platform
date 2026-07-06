@@ -90,6 +90,36 @@ def _create_active_fuseki_connector(client: TestClient) -> str:
     return connector_id
 
 
+def test_validate_ontology_content_endpoint(client: TestClient) -> None:
+    turtle = """
+@prefix ex: <http://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<http://example.org/> a owl:Ontology .
+ex:Vendor a owl:Class ;
+    rdfs:label "Vendor" .
+""".strip()
+    response = client.post(
+        "/api/v1/ontologies/validate",
+        json={"source_format": "ttl", "source_content": turtle, "title": "Vendor"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["passed"] is True
+    assert body["error_count"] == 0
+
+
+def test_validate_ontology_content_rejects_invalid_payload(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/ontologies/validate",
+        json={"source_format": "ttl", "source_content": "not valid turtle {"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["passed"] is False
+    assert body["error_count"] >= 1
+
+
 def test_create_ontology(client: TestClient) -> None:
     application_id = _create_application(client)
     response = client.post(
@@ -185,7 +215,14 @@ def test_import_ontology_persists_artifact_to_fuseki(
     connector_id = _create_active_fuseki_connector(client)
     workspace = client.get(f"/api/v1/applications/{application_id}").json()["workspace"]
     fuseki_dataset = workspace["fuseki_dataset"]
-    turtle = "@prefix ex: <http://example.org/> .\nex:Vendor a ex:Class ."
+    turtle = """
+@prefix ex: <http://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<http://example.org/> a owl:Ontology .
+ex:Vendor a owl:Class ;
+    rdfs:label "Vendor" .
+""".strip()
 
     with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
         mock_urlopen.return_value.__enter__.return_value.status = 204
@@ -230,6 +267,150 @@ def test_import_ontology_persists_artifact_to_fuseki(
         assert fuseki_dataset_service_path(fuseki_dataset) in (persist_step.message or "")
 
 
+def test_import_ontology_rejects_invalid_rdf(client: TestClient) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+
+    response = client.post(
+        "/api/v1/ontologies/import",
+        json={
+            "application_id": application_id,
+            "title": "Invalid Ontology",
+            "connector_id": connector_id,
+            "source_format": "ttl",
+            "source_content": "not valid turtle {",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_imported_ontology_can_be_marked_validated_after_passing_report(
+    client: TestClient,
+) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    turtle = """
+@prefix ex: <http://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<http://example.org/> a owl:Ontology .
+ex:Vendor a owl:Class ;
+    rdfs:label "Vendor" .
+""".strip()
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 204
+        imported = client.post(
+            "/api/v1/ontologies/import",
+            json={
+                "application_id": application_id,
+                "title": "Imported Vendor Ontology",
+                "connector_id": connector_id,
+                "source_format": "ttl",
+                "source_content": turtle,
+            },
+        )
+
+    ontology_id = imported.json()["id"]
+    response = client.patch(
+        f"/api/v1/ontologies/{ontology_id}/status",
+        json={"status": "Validated"},
+    )
+    assert response.status_code == 200
+
+
+def test_imported_ontology_validated_blocked_when_report_has_errors(
+    client: TestClient,
+) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    turtle = """
+@prefix ex: <http://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<http://example.org/> a owl:Ontology .
+ex:Vendor a owl:Class ;
+    rdfs:label "Vendor" .
+""".strip()
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 204
+        imported = client.post(
+            "/api/v1/ontologies/import",
+            json={
+                "application_id": application_id,
+                "title": "Imported Vendor Ontology",
+                "connector_id": connector_id,
+                "source_format": "ttl",
+                "source_content": turtle,
+            },
+        )
+
+    ontology_id = imported.json()["id"]
+    ontology = client.get(f"/api/v1/ontologies/{ontology_id}").json()
+    definition = ontology["ontology_definition"]
+    definition["metadata"]["validation"]["passed"] = False
+    definition["metadata"]["validation"]["error_count"] = 1
+    client.patch(
+        f"/api/v1/ontologies/{ontology_id}",
+        json={"ontology_definition": definition},
+    )
+
+    response = client.patch(
+        f"/api/v1/ontologies/{ontology_id}/status",
+        json={"status": "Validated"},
+    )
+    assert response.status_code == 422
+
+
+def test_run_ontology_validation_persists_report(client: TestClient, db_engine: Engine) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    turtle = """
+@prefix ex: <http://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<http://example.org/> a owl:Ontology .
+ex:Vendor a owl:Class ;
+    rdfs:label "Vendor" .
+""".strip()
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 204
+        imported = client.post(
+            "/api/v1/ontologies/import",
+            json={
+                "application_id": application_id,
+                "title": "Imported Vendor Ontology",
+                "connector_id": connector_id,
+                "source_format": "ttl",
+                "source_content": turtle,
+            },
+        )
+
+    ontology_id = imported.json()["id"]
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_response = mock_urlopen.return_value.__enter__.return_value
+        mock_response.status = 200
+        mock_response.read.return_value = turtle.encode("utf-8")
+        response = client.post(f"/api/v1/ontologies/{ontology_id}/validate")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["report"]["passed"] is True
+    assert body["semantic_transaction_id"] is not None
+
+    with Session(db_engine) as session:
+        transaction = session.scalar(
+            select(SemanticTransaction).where(
+                SemanticTransaction.id == UUID(body["semantic_transaction_id"]),
+            )
+        )
+        assert transaction is not None
+        assert transaction.transaction_type == "ontology.validation_run"
+
+
 def test_import_ontology_rejects_inactive_connector(client: TestClient) -> None:
     application_id = _create_application(client)
     connector_id = client.post(
@@ -269,6 +450,15 @@ def test_import_ontology_returns_502_when_fuseki_write_fails(
 
     from urllib.error import HTTPError
 
+    turtle = """
+@prefix ex: <http://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<http://example.org/> a owl:Ontology .
+ex:Vendor a owl:Class ;
+    rdfs:label "Vendor" .
+""".strip()
+
     with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
         mock_urlopen.side_effect = HTTPError(
             url="http://fuseki/data",
@@ -284,7 +474,7 @@ def test_import_ontology_returns_502_when_fuseki_write_fails(
                 "title": "Failed Import",
                 "connector_id": connector_id,
                 "source_format": "ttl",
-                "source_content": "@prefix ex: <http://example.org/> .",
+                "source_content": turtle,
             },
         )
 

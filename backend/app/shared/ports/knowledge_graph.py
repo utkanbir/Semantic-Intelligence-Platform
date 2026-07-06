@@ -15,3 +15,8 @@ class KnowledgeGraphPort(Protocol):
         self, *, dataset: str, content: str, content_type: str
     ) -> dict[str, str]:
         """Import RDF content into a named dataset."""
+
+    def export_data(
+        self, *, dataset: str, accept_format: str = "text/turtle"
+    ) -> str:
+        """Export RDF content from a named dataset."""

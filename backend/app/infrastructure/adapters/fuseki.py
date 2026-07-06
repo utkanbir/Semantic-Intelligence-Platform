@@ -179,3 +179,22 @@ class FusekiKnowledgeGraphAdapter:
             "dataset_segment": dataset_segment,
             "endpoint": self._endpoint,
         }
+
+    def export_data(self, *, dataset: str, accept_format: str = "text/turtle") -> str:
+        dataset_segment = fuseki_dataset_service_path(dataset)
+        url = f"{self._endpoint}/{dataset_segment}/data"
+        headers = {"Accept": accept_format, **_fuseki_auth_headers(self._configuration)}
+        request = Request(url, headers=headers, method="GET")
+        try:
+            with urlopen(request, timeout=30) as response:
+                status = getattr(response, "status", 200)
+                body = response.read()
+        except HTTPError as error:
+            raise FusekiImportError(_format_fuseki_http_error(error, "Fuseki export failed")) from error
+        except URLError as error:
+            raise FusekiImportError(f"Fuseki export request failed: {error.reason}") from error
+
+        if status not in {200, 204}:
+            raise FusekiImportError(f"Fuseki export failed with HTTP {status}")
+
+        return body.decode("utf-8")

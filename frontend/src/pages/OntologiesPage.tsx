@@ -8,6 +8,7 @@ import {
   getNextOntologyStatuses,
   getOntologyStatusActionLabel,
   listOntologies,
+  readStoredValidationReport,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
   type OntologyDefinitionStatus,
@@ -133,6 +134,14 @@ function truncateUri(uri: string, maxLength = 48): string {
   }
 
   return `${uri.slice(0, maxLength)}…`;
+}
+
+function formatValidationSummary(ontology: OntologyDefinitionResponse): string | null {
+  const report = readStoredValidationReport(ontology);
+  if (!report) {
+    return null;
+  }
+  return `${report.error_count} errors, ${report.warning_count} warnings`;
 }
 
 interface OntologiesPageProps {
@@ -467,6 +476,12 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
             <p className="ontologies-page__primary-footnote">
               Materialized via connector · registered in platform · recorded as semantic
               transaction
+              {formatValidationSummary(primaryOntology) && (
+                <>
+                  {" "}
+                  · Last validation: {formatValidationSummary(primaryOntology)}
+                </>
+              )}
               {primaryOntology.semantic_transaction_id && (
                 <>
                   {" "}
@@ -492,7 +507,24 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                   New version
                 </button>
               )}
-              {getNextOntologyStatuses(primaryOntology.status).map((nextStatus) => (
+              {primaryOntology.status === "Draft" && primaryOntology.artifact_uri && (
+                <Link
+                  to={`/applications/${applicationId}/ontology/${primaryOntology.id}/validate`}
+                  className="ontologies-page__button ontologies-page__button--secondary"
+                >
+                  Run validation
+                </Link>
+              )}
+              {getNextOntologyStatuses(primaryOntology.status)
+                .filter(
+                  (nextStatus) =>
+                    !(
+                      primaryOntology.status === "Draft" &&
+                      nextStatus === "Validated" &&
+                      Boolean(primaryOntology.artifact_uri)
+                    ),
+                )
+                .map((nextStatus) => (
                 <button
                   key={nextStatus}
                   type="button"

@@ -19,6 +19,7 @@ import { DiscoveryPage } from "./DiscoveryPage";
 import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
 import { OntologiesPage } from "./OntologiesPage";
 import { OntologyStudioPage } from "./OntologyStudioPage";
+import { OntologyValidationPage } from "./OntologyValidationPage";
 import { ProductsPage } from "./ProductsPage";
 
 type PageState =
@@ -155,6 +156,22 @@ function SemanticTransactionDetailRoute({ applicationId }: { applicationId: stri
   );
 }
 
+function OntologyValidationRoute({ applicationId }: { applicationId: string }) {
+  const { ontologyId } = useParams<{ ontologyId: string }>();
+
+  if (!ontologyId) {
+    return (
+      <div className="agent-runs-page__error" role="alert">
+        Ontology ID is required
+      </div>
+    );
+  }
+
+  return (
+    <OntologyValidationPage applicationId={applicationId} ontologyId={ontologyId} />
+  );
+}
+
 export function ApplicationDetailPage() {
   const { applicationId } = useParams<{ applicationId: string }>();
   const [state, setState] = useState<PageState>({ kind: "loading" });
@@ -228,6 +245,10 @@ export function ApplicationDetailPage() {
         <Route
           path="ontology/create"
           element={<OntologyStudioPage applicationId={application.id} />}
+        />
+        <Route
+          path="ontology/:ontologyId/validate"
+          element={<OntologyValidationRoute applicationId={application.id} />}
         />
         <Route
           path="ontology-studio"

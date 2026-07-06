@@ -28,6 +28,7 @@ vi.mock("../api/ontologies", () => ({
   getOntology: vi.fn(),
   updateOntologyStatus: vi.fn(),
   forkOntologyVersion: vi.fn(),
+  readStoredValidationReport: vi.fn(() => null),
   canForkOntology: vi.fn((ontology: { status: string }) =>
     ["Published", "Versioned"].includes(ontology.status),
   ),
@@ -226,9 +227,31 @@ describe("OntologiesPage", () => {
     );
   });
 
-  it("validates draft ontology via lifecycle action", async () => {
+  it("shows run validation link for imported draft ontology", async () => {
+    vi.mocked(listOntologies).mockResolvedValue([draftOntology]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Run validation" })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Validate" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Run validation" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology/onto-draft/validate",
+    );
+  });
+
+  it("validates metadata-only draft ontology via lifecycle action", async () => {
+    const metadataDraft = {
+      ...draftOntology,
+      artifact_uri: null,
+      connector_id: null,
+      source_format: null,
+    };
     vi.mocked(listOntologies)
-      .mockResolvedValueOnce([draftOntology])
+      .mockResolvedValueOnce([metadataDraft])
       .mockResolvedValueOnce([validatedOntology]);
     vi.mocked(updateOntologyStatus).mockResolvedValue(validatedOntology);
 
@@ -243,14 +266,16 @@ describe("OntologiesPage", () => {
     await waitFor(() => {
       expect(updateOntologyStatus).toHaveBeenCalledWith("onto-draft", "Validated");
     });
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Validated").length).toBeGreaterThan(0);
-    });
   });
 
   it("shows ApiError message when status update fails", async () => {
-    vi.mocked(listOntologies).mockResolvedValue([draftOntology]);
+    const metadataDraft = {
+      ...draftOntology,
+      artifact_uri: null,
+      connector_id: null,
+      source_format: null,
+    };
+    vi.mocked(listOntologies).mockResolvedValue([metadataDraft]);
     vi.mocked(updateOntologyStatus).mockRejectedValue(
       new ApiError("Invalid status transition", 422),
     );

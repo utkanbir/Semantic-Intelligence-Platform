@@ -42,6 +42,10 @@ class KnowledgeGraphStub:
             "content_length": str(len(content)),
         }
 
+    def export_data(self, *, dataset: str, accept_format: str = "text/turtle") -> str:
+        del accept_format
+        return "@prefix ex: <http://example.org/> .\nex:Vendor a ex:Class .\n"
+
 
 class FileSystemStub:
     def ping(self) -> dict[str, str]:

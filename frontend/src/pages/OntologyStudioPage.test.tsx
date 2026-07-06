@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listConnectors } from "../api/adapters";
-import { importOntology, type OntologyDefinitionResponse } from "../api/ontologies";
+import { importOntology, validateOntologyContent, type OntologyDefinitionResponse } from "../api/ontologies";
 import { OntologyStudioPage } from "./OntologyStudioPage";
 
 vi.mock("../api/adapters", () => ({
@@ -17,6 +17,7 @@ vi.mock("../api/ontologies", async (importOriginal) => {
   return {
     ...actual,
     importOntology: vi.fn(),
+    validateOntologyContent: vi.fn(),
   };
 });
 
@@ -79,11 +80,24 @@ function renderPage(initialEntry = "/applications/app-1/ontology/create") {
   );
 }
 
+const passingValidationReport = {
+  passed: true,
+  error_count: 0,
+  warning_count: 0,
+  findings: [],
+  stats: { triple_count: 1 },
+  run_at: "2025-06-01T10:00:00Z",
+  run_id: "run-1",
+  ai_summary: "Advisory summary",
+};
+
 describe("OntologyStudioPage", () => {
   beforeEach(() => {
     vi.mocked(listConnectors).mockReset();
     vi.mocked(importOntology).mockReset();
+    vi.mocked(validateOntologyContent).mockReset();
     vi.mocked(listConnectors).mockResolvedValue([connector]);
+    vi.mocked(validateOntologyContent).mockResolvedValue(passingValidationReport);
   });
 
   it("creates a minimal ontology and submits it through the import API", async () => {
@@ -201,6 +215,11 @@ describe("OntologyStudioPage", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("What will happen")).toBeInTheDocument();
+    });
+
     fireEvent.click(screen.getByRole("button", { name: "Materialize ontology" }));
 
     await waitFor(() => {
@@ -212,6 +231,45 @@ describe("OntologyStudioPage", () => {
         source_content: "<rdf:RDF></rdf:RDF>",
       });
     });
+  });
+
+  it("blocks materialize when backend validation reports errors", async () => {
+    vi.mocked(validateOntologyContent).mockResolvedValue({
+      ...passingValidationReport,
+      passed: false,
+      error_count: 1,
+      findings: [
+        {
+          level: "error",
+          code: "empty_graph",
+          message: "Parsed ontology graph contains no triples",
+        },
+      ],
+    });
+
+    renderPage("/applications/app-1/ontology/create?mode=import");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Imported Ontology" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Paste text" }));
+    fireEvent.change(screen.getByLabelText("Ontology content"), {
+      target: { value: "<rdf:RDF></rdf:RDF>" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Resolve validation errors before continuing to review and materialize",
+      );
+    });
+
+    expect(importOntology).not.toHaveBeenCalled();
   });
 
   it("supports importing ontology content from a file upload", async () => {

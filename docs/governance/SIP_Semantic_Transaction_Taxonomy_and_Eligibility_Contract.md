@@ -92,6 +92,7 @@ Platform and application **Semantic Transactions** surfaces expose ontology line
 | `ontology.status_changed` | `OntologyDefinition` | Lifecycle of semantic asset |
 | `ontology.version_forked` | `OntologyDefinition` | Lineage branch of semantic asset |
 | `ontology.published` | `OntologyDefinition` | Semantic asset publication |
+| `ontology.validation_run` | `OntologyDefinition` | Structural validation journey |
 
 ### 6.2 Operational audit (`operational_audit`)
 

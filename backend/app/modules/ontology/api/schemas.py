@@ -10,6 +10,24 @@ from pydantic import BaseModel, Field
 
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.domain.models import OntologyDefinition
+from app.modules.ontology.domain.validation import OntologyValidationReport
+
+
+class ValidationFindingResponse(BaseModel):
+    level: str
+    code: str
+    message: str
+
+
+class OntologyValidationReportResponse(BaseModel):
+    passed: bool
+    error_count: int
+    warning_count: int
+    findings: list[ValidationFindingResponse]
+    stats: dict[str, int]
+    run_at: datetime
+    run_id: UUID
+    ai_summary: str | None = None
 
 
 class OntologyDefinitionResponse(BaseModel):
@@ -53,6 +71,14 @@ class OntologyDefinitionImportRequest(BaseModel):
     description: str | None = None
 
 
+class OntologyContentValidateRequest(BaseModel):
+    source_format: str = Field(min_length=1, max_length=50)
+    source_content: str = Field(min_length=1)
+    title: str | None = Field(default=None, max_length=255)
+    description: str | None = None
+    application_id: UUID | None = None
+
+
 class OntologyDefinitionUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
@@ -65,6 +91,34 @@ class OntologyDefinitionStatusUpdateRequest(BaseModel):
 
 class OntologyDefinitionVersionCreateRequest(BaseModel):
     ontology_definition: dict[str, Any] | None = None
+
+
+class OntologyValidationRunResponse(BaseModel):
+    ontology: OntologyDefinitionResponse
+    report: OntologyValidationReportResponse
+    semantic_transaction_id: UUID | None = None
+
+
+def to_ontology_validation_report_response(
+    report: OntologyValidationReport,
+) -> OntologyValidationReportResponse:
+    return OntologyValidationReportResponse(
+        passed=report.passed,
+        error_count=report.error_count,
+        warning_count=report.warning_count,
+        findings=[
+            ValidationFindingResponse(
+                level=finding.level,
+                code=finding.code,
+                message=finding.message,
+            )
+            for finding in report.findings
+        ],
+        stats=report.stats,
+        run_at=report.run_at,
+        run_id=report.run_id,
+        ai_summary=report.ai_summary,
+    )
 
 
 def to_ontology_definition_response(
