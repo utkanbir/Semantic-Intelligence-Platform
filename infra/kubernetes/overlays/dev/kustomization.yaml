@@ -16,7 +16,7 @@ labels:
 images:
   - name: sip-backend:dev
     newName: sip-backend
-    newTag: s46
+    newTag: s47
   - name: sip-console:dev
     newName: sip-console
-    newTag: s48
+    newTag: s49
