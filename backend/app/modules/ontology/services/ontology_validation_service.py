@@ -39,6 +39,8 @@ _RDFLIB_FORMATS = {
     "application/ld+json": "json-ld",
 }
 
+_PARSE_FALLBACK_ORDER = ("turtle", "xml", "json-ld", "nt")
+
 
 class OntologyValidationService:
     """Runs deterministic RDF/OWL checks and optional LLM advisory review."""
@@ -92,7 +94,7 @@ class OntologyValidationService:
         graph = Graph()
         rdflib_format = _RDFLIB_FORMATS.get(declared_content_type, "turtle")
         try:
-            graph.parse(data=content, format=rdflib_format)
+            graph = self._parse_graph(content, rdflib_format)
         except Exception as error:  # noqa: BLE001 - surface parser errors to users
             findings.append(
                 ValidationFinding(
@@ -193,6 +195,24 @@ class OntologyValidationService:
         return self._build_report(
             findings, stats, ai_summary=ai_summary, inventory=inventory
         )
+
+    def _parse_graph(self, content: str, primary_format: str) -> Graph:
+        last_error: Exception | None = None
+        seen: set[str] = set()
+        for fmt in (primary_format, *_PARSE_FALLBACK_ORDER):
+            if fmt in seen:
+                continue
+            seen.add(fmt)
+            graph = Graph()
+            try:
+                graph.parse(data=content, format=fmt)
+            except Exception as error:  # noqa: BLE001
+                last_error = error
+                continue
+            return graph
+        if last_error is None:
+            raise ValueError("RDF parse failed")
+        raise last_error
 
     def _build_report(
         self,

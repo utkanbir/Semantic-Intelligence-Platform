@@ -214,6 +214,7 @@ class OntologyService:
             "import": {
                 "source_format": source_format,
                 "content_length": len(source_content),
+                "source_content": source_content,
                 "fuseki_dataset": workspace.fuseki_dataset,
                 "fuseki_location": import_result.get("location"),
             },
@@ -324,6 +325,14 @@ class OntologyService:
         return result, report, semantic_transaction_id
 
     def _resolve_validation_content(self, ontology: OntologyDefinition) -> str:
+        metadata = ontology.ontology_definition.get("metadata", {})
+        if isinstance(metadata, dict):
+            import_meta = metadata.get("import")
+            if isinstance(import_meta, dict):
+                stored_content = import_meta.get("source_content")
+                if isinstance(stored_content, str) and stored_content.strip():
+                    return stored_content
+
         if ontology.artifact_uri and ontology.connector_id:
             application = self._application_repository.get(ontology.application_id)
             if application is None or application.workspace is None:
@@ -332,9 +341,13 @@ class OntologyService:
                 )
             connector = self._require_ontology_connector(ontology.connector_id)
             knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
-            return knowledge_graph.export_data(dataset=application.workspace.fuseki_dataset)
+            source_format = ontology.source_format or "ttl"
+            accept_format = resolve_rdf_content_type(source_format)
+            return knowledge_graph.export_data(
+                dataset=application.workspace.fuseki_dataset,
+                accept_format=accept_format,
+            )
 
-        metadata = ontology.ontology_definition.get("metadata", {})
         if isinstance(metadata, dict):
             import_meta = metadata.get("import")
             if isinstance(import_meta, dict):
