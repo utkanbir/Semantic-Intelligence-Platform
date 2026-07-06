@@ -515,6 +515,14 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
                   Run validation
                 </Link>
               )}
+              {primaryOntology.status === "Validated" && primaryOntology.artifact_uri && (
+                <Link
+                  to={`/applications/${applicationId}/ontology/${primaryOntology.id}/validate`}
+                  className="ontologies-page__button ontologies-page__button--primary"
+                >
+                  Review &amp; approve
+                </Link>
+              )}
               {getNextOntologyStatuses(primaryOntology.status)
                 .filter(
                   (nextStatus) =>

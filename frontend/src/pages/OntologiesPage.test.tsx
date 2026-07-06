@@ -243,6 +243,21 @@ describe("OntologiesPage", () => {
     );
   });
 
+  it("shows review and approve link for validated ontology", async () => {
+    vi.mocked(listOntologies).mockResolvedValue([validatedOntology]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Review & approve" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: "Review & approve" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology/onto-draft/validate",
+    );
+  });
+
   it("validates metadata-only draft ontology via lifecycle action", async () => {
     const metadataDraft = {
       ...draftOntology,
