@@ -97,6 +97,7 @@ export interface OntologyDefinitionCreateRequest {
   title: string;
   created_by?: string;
   description?: string;
+  connector_id?: string;
   ontology_definition?: Record<string, unknown>;
 }
 
@@ -105,6 +106,22 @@ export function createOntology(
 ): Promise<OntologyDefinitionResponse> {
   return apiFetch<OntologyDefinitionResponse>("/ontologies", {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface OntologyDefinitionUpdateRequest {
+  title?: string;
+  description?: string | null;
+  ontology_definition?: Record<string, unknown>;
+}
+
+export function updateOntology(
+  ontologyId: string,
+  payload: OntologyDefinitionUpdateRequest,
+): Promise<OntologyDefinitionResponse> {
+  return apiFetch<OntologyDefinitionResponse>(`/ontologies/${ontologyId}`, {
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }

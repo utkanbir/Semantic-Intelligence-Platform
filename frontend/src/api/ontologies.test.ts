@@ -188,6 +188,31 @@ describe("ontologies API", () => {
     expect(getOntologyStatusActionLabel("Retired")).toBe("Retire");
   });
 
+  it("updateOntology calls PATCH with payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockOntology), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const payload = {
+      title: "Updated Ontology",
+      ontology_definition: { classes: [{ name: "Vendor" }] },
+    };
+
+    const { updateOntology } = await import("./ontologies");
+    await expect(updateOntology("onto-1", payload)).resolves.toEqual(mockOntology);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/onto-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
   it("updateOntologyStatus calls PATCH with status body", async () => {
     const updated = { ...mockOntology, status: "Versioned" as const };
     fetchMock.mockResolvedValue(
