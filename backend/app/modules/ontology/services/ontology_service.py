@@ -394,6 +394,7 @@ class OntologyService:
             source_format=source_format,
             title=current.title,
             description=current.description,
+            ontology_definition=current.ontology_definition,
         )
 
         updated_definition = attach_validation_report(current.ontology_definition, report)
