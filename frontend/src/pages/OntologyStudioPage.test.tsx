@@ -118,7 +118,7 @@ const passingValidationReport = {
   },
 };
 
-async function goToReviewStep(options?: { createdBy?: string }) {
+async function goToReviewStep(options?: { createdBy?: string; approveImport?: boolean }) {
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
   await waitFor(() => {
@@ -126,6 +126,16 @@ async function goToReviewStep(options?: { createdBy?: string }) {
   });
 
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+  if (options?.approveImport) {
+    // Validation runs, but advancing to the Connector step requires the user to
+    // explicitly approve the parsed content first.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/I approve this parsed content/)).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByLabelText(/I approve this parsed content/));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  }
 
   await waitFor(() => {
     expect(screen.getByRole("heading", { name: /Step \d+ · Connector/ })).toBeInTheDocument();
@@ -337,7 +347,7 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
     });
 
-    await goToReviewStep();
+    await goToReviewStep({ approveImport: true });
 
     fireEvent.click(screen.getByRole("button", { name: "Create draft & continue" }));
 
@@ -419,10 +429,165 @@ describe("OntologyStudioPage", () => {
     expect(screen.getByText(/format: ttl/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Step \d+ · Validate/ })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    // Parsed inventory is presented before the user approves the content.
+    await waitFor(() => {
+      expect(screen.getByText(/Classes \(1\)/)).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByLabelText(/I approve this parsed content/));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Source format")).toHaveValue("ttl");
+    });
+  });
+
+  it("supports importing ontology content by pasting OWL/RDF text", async () => {
+    vi.mocked(importOntology).mockResolvedValue({
+      ...draftOntology,
+      title: "Pasted Ontology",
+    });
+
+    renderPage("/applications/app-1/ontology/create?mode=import");
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Create ontology · OWL Import" }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Pasted Ontology" },
+    });
+
+    // Switch from the file tab to the paste tab.
+    fireEvent.click(screen.getByRole("tab", { name: "Paste text" }));
+
+    const pastedContent = "@prefix ex: <https://example.com/> .\nex:Vendor a owl:Class .";
+    fireEvent.change(screen.getByLabelText("Ontology content"), {
+      target: { value: pastedContent },
+    });
+
+    await goToReviewStep({ approveImport: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create draft & continue" }));
+
+    await waitFor(() => {
+      expect(importOntology).toHaveBeenCalledWith({
+        application_id: "app-1",
+        title: "Pasted Ontology",
+        connector_id: "connector-1",
+        source_format: "ttl",
+        source_content: pastedContent,
+      });
+    });
+  });
+
+  it("requires explicit approval of parsed content before advancing to Connector", async () => {
+    renderPage("/applications/app-1/ontology/create?mode=import");
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Create ontology · OWL Import" }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Imported Ontology" },
+    });
+    const file = new File(["@prefix ex: <https://example.com/> ."], "vendor.ttl", {
+      type: "text/turtle",
+    });
+    fireEvent.change(screen.getByLabelText("Ontology file"), {
+      target: { files: [file] },
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Step \d+ · Validate/ })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    // Validation runs and the parsed inventory is shown, but advancing is blocked
+    // until the user explicitly approves the parsed content.
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Approve the parsed content to continue",
+      );
+    });
+    expect(
+      screen.queryByRole("heading", { name: /Step \d+ · Connector/ }),
+    ).not.toBeInTheDocument();
+    expect(importOntology).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByLabelText(/I approve this parsed content/));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Step \d+ · Connector/ })).toBeInTheDocument();
+    });
+  });
+
+  it("shows warnings separately and lets the user proceed past them", async () => {
+    vi.mocked(validateOntologyContent).mockResolvedValue({
+      ...passingValidationReport,
+      warning_count: 1,
+      findings: [
+        {
+          level: "warning",
+          code: "missing_label",
+          message: "Class Vendor has no rdfs:label",
+        },
+      ],
+    });
+
+    renderPage("/applications/app-1/ontology/create?mode=import");
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Create ontology · OWL Import" }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Imported Ontology" },
+    });
+    const file = new File(["@prefix ex: <https://example.com/> ."], "vendor.ttl", {
+      type: "text/turtle",
+    });
+    fireEvent.change(screen.getByLabelText("Ontology file"), {
+      target: { files: [file] },
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Step \d+ · Validate/ })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    // Warnings render in a dedicated, non-blocking section.
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Warnings" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("Class Vendor has no rdfs:label")).toBeInTheDocument();
+    expect(screen.getByText(/Warnings are advisory/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Blocking errors" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/I approve this parsed content/));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Step \d+ · Connector/ })).toBeInTheDocument();
     });
   });
 
