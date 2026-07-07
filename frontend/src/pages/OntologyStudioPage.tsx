@@ -2,15 +2,29 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from "
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import {
+  createOntology,
   importOntology,
   materializeOntology,
   runOntologyValidation,
+  updateOntology,
   updateOntologyStatus,
   validateOntologyContent,
   type OntologyValidationReport,
 } from "../api/ontologies";
+import { ManualOntologyDraftEditor } from "../components/ManualOntologyDraftEditor";
 import { OntologyValidationInventoryView } from "../components/OntologyValidationInventory";
 import { listConnectors, type ConnectorResponse } from "../api/adapters";
+import {
+  buildManualDraftValidationChecks,
+  buildOntologyDefinition,
+  buildOntologyDefinitionWithImport,
+  buildTurtleFromDraft,
+  createRowId,
+  localNameFromLabel,
+  type OntologyClassRow,
+  type OntologyDataPropertyRow,
+  type OntologyObjectPropertyRow,
+} from "../lib/ontologyDraft";
 
 interface OntologyStudioPageProps {
   applicationId: string;
@@ -98,33 +112,6 @@ function inferSourceFormat(fileName: string): string {
     default:
       return "ttl";
   }
-}
-
-function escapeTurtleLiteral(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, "\\n");
-}
-
-function buildMinimalOntologyDocument(values: {
-  title: string;
-  namespaceIri: string;
-  prefix: string;
-  description: string;
-}): string {
-  const metadataLines = [`  rdfs:label "${escapeTurtleLiteral(values.title)}"`];
-  if (values.description) {
-    metadataLines.push(`  rdfs:comment "${escapeTurtleLiteral(values.description)}"`);
-  }
-
-  return [
-    "@prefix owl: <http://www.w3.org/2002/07/owl#> .",
-    "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .",
-    `@prefix ${values.prefix}: <${values.namespaceIri}> .`,
-    "",
-    `<${values.namespaceIri}> a owl:Ontology ;`,
-    ...metadataLines.map((line, index) =>
-      index === metadataLines.length - 1 ? `${line} .` : `${line} ;`,
-    ),
-  ].join("\n");
 }
 
 function previewSourceContent(content: string): string {
@@ -278,6 +265,16 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [validationLoading, setValidationLoading] = useState(false);
   const [backendValidationReport, setBackendValidationReport] =
     useState<OntologyValidationReport | null>(null);
+  const [manualClasses, setManualClasses] = useState<OntologyClassRow[]>([
+    { id: createRowId(), label: "", description: "" },
+  ]);
+  const [manualObjectProperties, setManualObjectProperties] = useState<
+    OntologyObjectPropertyRow[]
+  >([]);
+  const [manualDataProperties, setManualDataProperties] = useState<OntologyDataPropertyRow[]>(
+    [],
+  );
+  const [draftSaving, setDraftSaving] = useState(false);
 
   const visibleSteps = skipModeStep ? FOCUSED_WIZARD_STEPS : FULL_WIZARD_STEPS;
   const currentPhase = phaseForStep(step, skipModeStep);
@@ -325,18 +322,40 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   }, []);
 
   const normalizedPrefix = normalizePrefix(prefix);
+  const manualDraftInput = useMemo(
+    () => ({
+      title: title.trim(),
+      namespaceIri: namespaceIri.trim(),
+      prefix: normalizedPrefix,
+      description: description.trim(),
+      classes: manualClasses,
+      objectProperties: manualObjectProperties,
+      dataProperties: manualDataProperties,
+    }),
+    [
+      description,
+      manualClasses,
+      manualDataProperties,
+      manualObjectProperties,
+      namespaceIri,
+      normalizedPrefix,
+      title,
+    ],
+  );
+  const manualClassNameOptions = useMemo(
+    () =>
+      manualClasses
+        .map((row, index) => localNameFromLabel(row.label, `Class${index + 1}`))
+        .filter(Boolean),
+    [manualClasses],
+  );
   const generatedSourceContent = useMemo(() => {
     if (mode !== "create") {
       return "";
     }
 
-    return buildMinimalOntologyDocument({
-      title: title.trim(),
-      namespaceIri: namespaceIri.trim(),
-      prefix: normalizedPrefix,
-      description: description.trim(),
-    });
-  }, [description, mode, namespaceIri, normalizedPrefix, title]);
+    return buildTurtleFromDraft(manualDraftInput);
+  }, [manualDraftInput, mode]);
 
   const contentForSubmission = mode === "create" ? generatedSourceContent : sourceContent.trim();
   const effectiveSourceFormat = mode === "create" ? "ttl" : sourceFormat.trim() || "ttl";
@@ -346,26 +365,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       return [];
     }
 
-    return [
-      { id: "title", label: "Title provided", passed: Boolean(title.trim()) },
-      {
-        id: "namespace",
-        label: "Namespace / base IRI provided",
-        passed: Boolean(namespaceIri.trim()),
-      },
-      { id: "prefix", label: "Prefix provided", passed: Boolean(normalizedPrefix) },
-      {
-        id: "prefix-pattern",
-        label: "Prefix uses valid characters",
-        passed: !normalizedPrefix || PREFIX_PATTERN.test(normalizedPrefix),
-      },
-      {
-        id: "document",
-        label: "Generated ontology document is non-empty",
-        passed: Boolean(generatedSourceContent.trim()),
-      },
-    ];
-  }, [generatedSourceContent, mode, namespaceIri, normalizedPrefix, title]);
+    return buildManualDraftValidationChecks(manualDraftInput);
+  }, [manualDraftInput, mode]);
 
   const importValidationChecks = useMemo((): ValidationCheck[] => {
     if (mode !== "import") {
@@ -515,7 +516,108 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
   }
 
+  async function saveManualDraft(options?: {
+    connectorId?: string;
+    includeImportMetadata?: boolean;
+    manageLoading?: boolean;
+  }): Promise<boolean> {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setStepError("Title is required");
+      return false;
+    }
+
+    const descriptionValue = description.trim();
+    const createdByValue = createdBy.trim();
+    const ontologyDefinition = (
+      options?.includeImportMetadata
+        ? buildOntologyDefinitionWithImport(manualDraftInput, {
+            sourceContent: generatedSourceContent,
+            ontologyId: draftOntologyId,
+            validationReport: backendValidationReport
+              ? (backendValidationReport as unknown as Record<string, unknown>)
+              : undefined,
+          })
+        : buildOntologyDefinition(manualDraftInput)
+    ) as unknown as Record<string, unknown>;
+
+    if (options?.manageLoading !== false) {
+      setDraftSaving(true);
+    }
+    setStepError(null);
+
+    try {
+      if (draftOntologyId) {
+        await updateOntology(draftOntologyId, {
+          title: trimmedTitle,
+          ...(descriptionValue ? { description: descriptionValue } : { description: null }),
+          ontology_definition: ontologyDefinition,
+        });
+      } else {
+        const created = await createOntology({
+          application_id: applicationId,
+          title: trimmedTitle,
+          ...(descriptionValue ? { description: descriptionValue } : {}),
+          ...(createdByValue ? { created_by: createdByValue } : {}),
+          ...(options?.connectorId ? { connector_id: options.connectorId } : {}),
+          ontology_definition: ontologyDefinition,
+        });
+        setDraftOntologyId(created.id);
+      }
+      return true;
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to save ontology draft";
+      setStepError(message);
+      return false;
+    } finally {
+      if (options?.manageLoading !== false) {
+        setDraftSaving(false);
+      }
+    }
+  }
+
   async function handleNext() {
+    if (currentPhase === "edit" && mode === "create") {
+      const editMessage = validatePhase("edit");
+      if (editMessage) {
+        setStepError(editMessage);
+        return;
+      }
+
+      if (draftOntologyId) {
+        const saved = await saveManualDraft();
+        if (!saved) {
+          return;
+        }
+      }
+
+      setStepError(null);
+      setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+      return;
+    }
+
+    if (currentPhase === "connector" && mode === "create") {
+      const connectorMessage = validatePhase("connector");
+      if (connectorMessage) {
+        setStepError(connectorMessage);
+        return;
+      }
+
+      const saved = await saveManualDraft({ connectorId });
+      if (!saved) {
+        return;
+      }
+
+      setStepError(null);
+      setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+      return;
+    }
+
     if (currentPhase === "validate") {
       setStepError(null);
       const report =
@@ -567,6 +669,20 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     setSubmitting(true);
 
     try {
+      if (mode === "create") {
+        const saved = await saveManualDraft({
+          connectorId,
+          includeImportMetadata: true,
+          manageLoading: false,
+        });
+        if (!saved) {
+          return false;
+        }
+
+        setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+        return true;
+      }
+
       const createdByValue = createdBy.trim();
       const descriptionValue = description.trim();
       const ontology = await importOntology({
@@ -983,6 +1099,27 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   </pre>
                 </div>
               </div>
+              <ManualOntologyDraftEditor
+                classes={manualClasses}
+                objectProperties={manualObjectProperties}
+                dataProperties={manualDataProperties}
+                classNameOptions={manualClassNameOptions}
+                onClassesChange={(rows) => {
+                  setManualClasses(rows);
+                  setStepError(null);
+                  setBackendValidationReport(null);
+                }}
+                onObjectPropertiesChange={(rows) => {
+                  setManualObjectProperties(rows);
+                  setStepError(null);
+                  setBackendValidationReport(null);
+                }}
+                onDataPropertiesChange={(rows) => {
+                  setManualDataProperties(rows);
+                  setStepError(null);
+                  setBackendValidationReport(null);
+                }}
+              />
               {editStepValid && (
                 <p className="platform-page__field-hint" role="status">
                   Basic validation passed — ready to run structural validation.
@@ -1280,8 +1417,12 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               </button>
             )}
             {!isLastStep && !isReviewStep && (
-              <button type="button" onClick={() => void handleNext()} disabled={validationLoading}>
-                {validationLoading ? "Validating…" : "Next"}
+              <button
+                type="button"
+                onClick={() => void handleNext()}
+                disabled={validationLoading || draftSaving}
+              >
+                {validationLoading ? "Validating…" : draftSaving ? "Saving…" : "Next"}
               </button>
             )}
             {isReviewStep && (

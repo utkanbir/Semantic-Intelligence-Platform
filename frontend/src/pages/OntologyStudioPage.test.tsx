@@ -3,9 +3,11 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listConnectors } from "../api/adapters";
 import {
+  createOntology,
   importOntology,
   materializeOntology,
   runOntologyValidation,
+  updateOntology,
   updateOntologyStatus,
   validateOntologyContent,
   type OntologyDefinitionResponse,
@@ -23,8 +25,10 @@ vi.mock("../api/ontologies", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/ontologies")>();
   return {
     ...actual,
+    createOntology: vi.fn(),
     importOntology: vi.fn(),
     materializeOntology: vi.fn(),
+    updateOntology: vi.fn(),
     validateOntologyContent: vi.fn(),
     runOntologyValidation: vi.fn(),
     updateOntologyStatus: vi.fn(),
@@ -143,13 +147,17 @@ async function goToReviewStep(options?: { createdBy?: string }) {
 describe("OntologyStudioPage", () => {
   beforeEach(() => {
     vi.mocked(listConnectors).mockReset();
+    vi.mocked(createOntology).mockReset();
     vi.mocked(importOntology).mockReset();
     vi.mocked(materializeOntology).mockReset();
+    vi.mocked(updateOntology).mockReset();
     vi.mocked(validateOntologyContent).mockReset();
     vi.mocked(runOntologyValidation).mockReset();
     vi.mocked(updateOntologyStatus).mockReset();
     vi.mocked(listConnectors).mockResolvedValue([connector]);
     vi.mocked(validateOntologyContent).mockResolvedValue(passingValidationReport);
+    vi.mocked(createOntology).mockResolvedValue(draftOntology);
+    vi.mocked(updateOntology).mockResolvedValue(draftOntology);
     vi.mocked(importOntology).mockResolvedValue(draftOntology);
     vi.mocked(runOntologyValidation).mockResolvedValue({
       ontology: draftOntology,
@@ -165,7 +173,7 @@ describe("OntologyStudioPage", () => {
     vi.mocked(materializeOntology).mockResolvedValue(materializedOntology);
   });
 
-  it("creates a minimal ontology draft and materializes after approval", async () => {
+  it("creates a structured manual ontology draft and materializes after approval", async () => {
     renderPage("/applications/app-1/ontology/create?mode=manual");
 
     await waitFor(() => {
@@ -187,7 +195,46 @@ describe("OntologyStudioPage", () => {
       target: { value: "Business vocabulary" },
     });
 
+    // Define a class through the manual CRUD table.
+    fireEvent.change(screen.getByLabelText("Class label"), {
+      target: { value: "Vendor" },
+    });
+    fireEvent.change(screen.getByLabelText("Class description"), {
+      target: { value: "A supplier of goods" },
+    });
+
+    // Add a data property for the class.
+    fireEvent.click(screen.getByRole("button", { name: "Add data property" }));
+    fireEvent.change(screen.getByLabelText("Data property label"), {
+      target: { value: "vendor name" },
+    });
+
+    // Live Turtle preview reflects the structured draft.
+    expect(screen.getByText(/cust:Vendor a owl:Class/)).toBeInTheDocument();
+    expect(screen.getByText(/cust:VendorName a owl:DatatypeProperty/)).toBeInTheDocument();
+
     await goToReviewStep({ createdBy: "alice@example.com" });
+
+    // The draft is created via createOntology at the connector step.
+    await waitFor(() => {
+      expect(createOntology).toHaveBeenCalledWith(
+        expect.objectContaining({
+          application_id: "app-1",
+          title: "Customer Ontology",
+          connector_id: "connector-1",
+          created_by: "alice@example.com",
+          description: "Business vocabulary",
+          ontology_definition: expect.objectContaining({
+            classes: expect.arrayContaining([
+              expect.objectContaining({ name: "Vendor", label: "Vendor" }),
+            ]),
+            properties: expect.arrayContaining([
+              expect.objectContaining({ name: "VendorName", datatype: "xsd:string" }),
+            ]),
+          }),
+        }),
+      );
+    });
 
     expect(screen.getByText("Manual")).toBeInTheDocument();
     expect(screen.getByText("Primary Graph Store")).toBeInTheDocument();
@@ -195,24 +242,19 @@ describe("OntologyStudioPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Create draft & continue" }));
 
+    // The structured draft is synced to ontology_definition via PATCH.
     await waitFor(() => {
-      expect(importOntology).toHaveBeenCalledWith({
-        application_id: "app-1",
-        title: "Customer Ontology",
-        connector_id: "connector-1",
-        source_format: "ttl",
-        source_content: [
-          "@prefix owl: <http://www.w3.org/2002/07/owl#> .",
-          "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .",
-          "@prefix cust: <https://example.com/customer#> .",
-          "",
-          "<https://example.com/customer#> a owl:Ontology ;",
-          '  rdfs:label "Customer Ontology" ;',
-          '  rdfs:comment "Business vocabulary" .',
-        ].join("\n"),
-        description: "Business vocabulary",
-        created_by: "alice@example.com",
-      });
+      expect(updateOntology).toHaveBeenCalledWith(
+        "onto-1",
+        expect.objectContaining({
+          title: "Customer Ontology",
+          ontology_definition: expect.objectContaining({
+            metadata: expect.objectContaining({
+              import: expect.objectContaining({ source_format: "ttl" }),
+            }),
+          }),
+        }),
+      );
     });
 
     await waitFor(() => {
@@ -232,6 +274,39 @@ describe("OntologyStudioPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Ontology materialized successfully")).toBeInTheDocument();
+    });
+  });
+
+  it("surfaces manual validation hints for duplicate class names", async () => {
+    renderPage("/applications/app-1/ontology/create?mode=manual");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 1 · Edit draft" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Customer Ontology" },
+    });
+    fireEvent.change(screen.getByLabelText("Namespace / base IRI"), {
+      target: { value: "https://example.com/customer#" },
+    });
+    fireEvent.change(screen.getByLabelText("Prefix"), {
+      target: { value: "cust" },
+    });
+
+    fireEvent.change(screen.getByLabelText("Class label"), {
+      target: { value: "Vendor" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add class" }));
+
+    const classLabels = screen.getAllByLabelText("Class label");
+    fireEvent.change(classLabels[1], { target: { value: "Vendor" } });
+
+    const uniquenessCheck = screen.getByText("Class labels map to unique names");
+    await waitFor(() => {
+      expect(uniquenessCheck.closest("li")).not.toHaveClass(
+        "ontology-wizard__validation-item--passed",
+      );
     });
   });
 

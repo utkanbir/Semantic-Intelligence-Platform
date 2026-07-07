@@ -2891,6 +2891,38 @@ body {
   gap: 1rem;
 }
 
+.ontology-wizard__manual-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.ontology-wizard__manual-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.ontology-wizard__manual-table-header h4 {
+  margin: 0;
+}
+
+.ontology-wizard__manual-table input,
+.ontology-wizard__manual-table select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ontology-wizard__manual-empty {
+  text-align: center;
+  color: #6b6b80;
+  font-size: 0.8125rem;
+  padding: 0.75rem;
+}
+
 .ontology-wizard__validation-checklist {
   margin: 0;
   padding: 0;
