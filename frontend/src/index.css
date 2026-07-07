@@ -2940,6 +2940,31 @@ body {
   font-weight: 600;
 }
 
+.ontology-wizard__validation-item--warning {
+  color: #7a5b00;
+}
+
+.ontology-wizard__validation-checklist--warnings {
+  margin-top: 0.25rem;
+}
+
+.ontology-wizard__validation-block + .ontology-wizard__validation-block {
+  margin-top: 1rem;
+}
+
+.ontology-wizard__validation-block h5 {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+}
+
+.ontology-wizard__approval {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
 .ontology-wizard__file-info {
   margin: 0;
   font-size: 0.8125rem;
