@@ -6,6 +6,7 @@ import {
   getOntologyStatusActionLabel,
   importOntology,
   listOntologies,
+  materializeOntology,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
 } from "./ontologies";
@@ -141,6 +142,25 @@ describe("ontologies API", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("materializeOntology calls POST for ontology materialization", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockOntology), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(materializeOntology("onto-1")).resolves.toEqual(mockOntology);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/onto-1/materialize",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({}),
         headers: expect.any(Headers),
       }),
     );

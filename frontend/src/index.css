@@ -2477,6 +2477,21 @@ body {
   line-height: 1.5;
 }
 
+.ontology-wizard__mode-card--disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  background: #f6f7f9;
+}
+
+.ontology-wizard__mode-badge {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4a6fa5;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .ontology-wizard__step-body {
   display: flex;
   flex-direction: column;
