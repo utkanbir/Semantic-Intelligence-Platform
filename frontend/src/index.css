@@ -2923,6 +2923,61 @@ body {
   padding: 0.75rem;
 }
 
+.ontology-wizard__candidate-review {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ontology-wizard__evidence-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ontology-wizard__evidence-item {
+  font-size: 0.75rem;
+  color: #4a4a5c;
+  line-height: 1.35;
+}
+
+.ontology-wizard__evidence-snippet {
+  font-style: italic;
+}
+
+.ontology-wizard__evidence-source {
+  color: #6b6b80;
+}
+
+.ontology-wizard__evidence-empty {
+  font-size: 0.75rem;
+  color: #9a9aad;
+}
+
+.ontology-wizard__source-entries {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ontology-wizard__source-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e0e3ea;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.8125rem;
+}
+
 .ontology-wizard__validation-checklist {
   margin: 0;
   padding: 0;
