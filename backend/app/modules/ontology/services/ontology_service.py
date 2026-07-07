@@ -11,6 +11,7 @@ from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
+from app.modules.ontology.domain.extraction import ExtractionResult, ExtractionSource
 from app.modules.ontology.domain.models import OntologyDefinition
 from app.modules.ontology.domain.semantic_review import (
     SemanticReviewResult,
@@ -27,6 +28,9 @@ from app.modules.ontology.ports.interfaces import (
     OntologyTransactionRecorder,
 )
 from app.modules.ontology.repositories.interfaces import OntologyDefinitionRepository
+from app.modules.ontology.services.ontology_generation_service import (
+    OntologyGenerationService,
+)
 from app.modules.ontology.services.ontology_semantic_review_service import (
     OntologySemanticReviewService,
 )
@@ -110,6 +114,10 @@ class SemanticReviewFindingNotFoundError(Exception):
     """Raised when a suggestion decision references an unknown finding id."""
 
 
+class NoExtractionSourcesError(Exception):
+    """Raised when generate-from-sources is requested without usable sources."""
+
+
 class _NoOpTransactionRecorder:
     def record_orchestrated(
         self,
@@ -139,6 +147,7 @@ class OntologyService:
         knowledge_graph_port_resolver: KnowledgeGraphPortResolver | None = None,
         validation_service: OntologyValidationService | None = None,
         semantic_review_service: OntologySemanticReviewService | None = None,
+        generation_service: OntologyGenerationService | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
@@ -151,6 +160,7 @@ class OntologyService:
         self._semantic_review_service = (
             semantic_review_service or OntologySemanticReviewService()
         )
+        self._generation_service = generation_service or OntologyGenerationService()
 
     def create_ontology(
         self,
@@ -263,6 +273,87 @@ class OntologyService:
             ],
         )
         return created, semantic_transaction_id
+
+    def generate_from_sources(
+        self,
+        *,
+        application_id: UUID,
+        title: str,
+        sources: list[ExtractionSource],
+        created_by: str | None = None,
+        description: str | None = None,
+    ) -> tuple[OntologyDefinition, ExtractionResult, UUID | None]:
+        """Extract candidate concepts from sources into a draft-only ontology.
+
+        Produces a Draft ``OntologyDefinition`` (no graph-store write). Candidates
+        never auto-materialize; user approval happens later (Frontend + S34-08).
+        """
+        if self._application_repository.get(application_id) is None:
+            raise ApplicationNotFoundError("Application not found")
+
+        usable_sources = [
+            source for source in sources if source.content and source.content.strip()
+        ]
+        if not usable_sources:
+            raise NoExtractionSourcesError(
+                "At least one source with content is required for generation"
+            )
+
+        extraction = self._generation_service.extract(
+            usable_sources,
+            title=title,
+            description=description,
+        )
+
+        now = datetime.now(UTC)
+        definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
+        definition["classes"] = [item.to_dict() for item in extraction.classes]
+        definition["properties"] = [item.to_dict() for item in extraction.properties]
+        definition["relationships"] = [
+            item.to_dict() for item in extraction.relationships
+        ]
+        definition["metadata"] = {
+            "mode": "generate",
+            "generate": {
+                "sources": [source.to_dict() for source in usable_sources],
+                "extraction": extraction.to_dict(),
+            },
+        }
+
+        ontology = OntologyDefinition(
+            id=uuid4(),
+            application_id=application_id,
+            version_number=1,
+            status=OntologyDefinitionStatus.DRAFT,
+            title=title,
+            description=description,
+            created_by=created_by or "",
+            created_at=now,
+            updated_at=now,
+            ontology_definition=definition,
+        )
+        created = self._repository.create(ontology)
+
+        if extraction.available:
+            extraction_message = (
+                f"Extracted {extraction.class_count} classes, "
+                f"{extraction.property_count} properties, "
+                f"{extraction.relationship_count} relationships "
+                f"from {len(usable_sources)} sources"
+            )
+        else:
+            extraction_message = "Skipped: LLM extraction unavailable"
+
+        semantic_transaction_id = self._record_transaction(
+            transaction_type="ontology.generated",
+            ontology=created,
+            steps=[
+                ("ModeSelected", "Generate from Sources mode selected"),
+                ("CandidatesExtracted", extraction_message),
+                ("DraftCreated", "Draft ontology created (draft-only, not materialized)"),
+            ],
+        )
+        return created, extraction, semantic_transaction_id
 
     def materialize_ontology(
         self, ontology_id: UUID

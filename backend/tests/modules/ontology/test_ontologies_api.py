@@ -800,3 +800,110 @@ def test_suggestion_decision_requires_prior_review(client: TestClient) -> None:
         json={"decision": "accepted"},
     )
     assert response.status_code == 422
+
+
+def _generate_payload(application_id: str) -> dict:
+    return {
+        "application_id": application_id,
+        "title": "Generated Billing Ontology",
+        "description": "Billing domain from sources",
+        "sources": [
+            {
+                "kind": "paste",
+                "content": "Invoices are issued by vendors and carry a total amount.",
+                "name": "notes.txt",
+            },
+            {
+                "kind": "knowledge_source",
+                "content": "Each vendor supplies goods to the company.",
+                "reference_id": "ks-42",
+            },
+        ],
+    }
+
+
+def test_generate_from_sources_creates_draft_with_candidates(
+    client: TestClient, db_engine: Engine
+) -> None:
+    application_id = _create_application(client)
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        response = client.post(
+            "/api/v1/ontologies/generate",
+            json=_generate_payload(application_id),
+        )
+        mock_urlopen.assert_not_called()
+
+    assert response.status_code == 201
+    body = response.json()
+    ontology = body["ontology"]
+    assert ontology["status"] == "Draft"
+    assert ontology["artifact_uri"] is None
+    assert ontology["ontology_definition"]["metadata"]["mode"] == "generate"
+    assert len(ontology["ontology_definition"]["classes"]) >= 1
+
+    extraction = body["extraction"]
+    assert extraction["available"] is True
+    assert len(extraction["classes"]) >= 1
+    # Source evidence snippets attach to candidates where available.
+    assert extraction["classes"][0]["evidence"][0]["snippet"]
+    assert len(extraction["sources"]) == 2
+    assert body["semantic_transaction_id"] is not None
+
+    with Session(db_engine) as session:
+        transaction = session.scalar(
+            select(SemanticTransaction).where(
+                SemanticTransaction.id == UUID(body["semantic_transaction_id"]),
+            )
+        )
+        assert transaction is not None
+        assert transaction.transaction_type == "ontology.generated"
+        step_types = session.scalars(
+            select(TraceStep.step_type).where(
+                TraceStep.semantic_transaction_id == transaction.id,
+            )
+        ).all()
+        assert "ModeSelected" in step_types
+        assert "CandidatesExtracted" in step_types
+        assert "DraftCreated" in step_types
+
+
+def test_generate_from_sources_unknown_application_returns_404(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/ontologies/generate",
+        json=_generate_payload(str(uuid4())),
+    )
+    assert response.status_code == 404
+
+
+def test_generate_from_sources_requires_sources(client: TestClient) -> None:
+    application_id = _create_application(client)
+    response = client.post(
+        "/api/v1/ontologies/generate",
+        json={
+            "application_id": application_id,
+            "title": "No Sources Ontology",
+            "sources": [],
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_generate_from_sources_degrades_when_llm_unavailable(client: TestClient) -> None:
+    application_id = _create_application(client)
+    with patch(
+        "app.modules.ontology.api.routes.resolve_llm_port",
+        return_value=None,
+    ):
+        response = client.post(
+            "/api/v1/ontologies/generate",
+            json=_generate_payload(application_id),
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["ontology"]["status"] == "Draft"
+    assert body["extraction"]["available"] is False
+    assert body["extraction"]["classes"] == []
+    assert body["extraction"]["properties"] == []
+    assert body["extraction"]["relationships"] == []
