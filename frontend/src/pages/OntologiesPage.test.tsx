@@ -117,7 +117,7 @@ describe("OntologiesPage", () => {
     vi.mocked(listConnectors).mockResolvedValue([connector]);
   });
 
-  it("renders loading then primary ontology card", async () => {
+  it("renders loading then ontology list table", async () => {
     vi.mocked(listOntologies).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -130,14 +130,14 @@ describe("OntologiesPage", () => {
     expect(screen.getByText("Loading ontologies…")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Customer Ontology", level: 3 })).toBeInTheDocument();
+      expect(screen.getByText("Customer Ontology")).toBeInTheDocument();
     });
 
     expect(listOntologies).toHaveBeenCalledWith("app-1");
     expect(screen.getAllByText("Approved").length).toBeGreaterThan(0);
     expect(screen.queryByText(/Version 2/)).not.toBeInTheDocument();
     expect(screen.getByText("Primary Fuseki — Apache Jena Fuseki")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View semantic transaction" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "View transaction" })).toHaveAttribute(
       "href",
       "/applications/app-1/semantic-transactions/txn-1",
     );

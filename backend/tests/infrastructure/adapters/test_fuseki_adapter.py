@@ -36,7 +36,7 @@ def test_fuseki_ping_checks_server_endpoint() -> None:
     assert request.method == "GET"
 
 
-def test_fuseki_import_data_posts_rdf_to_dataset_endpoint() -> None:
+def test_fuseki_import_data_posts_rdf_to_named_graph() -> None:
     configuration = {
         "schema_version": "2",
         "vendor": "apache_fuseki",
@@ -56,15 +56,21 @@ def test_fuseki_import_data_posts_rdf_to_dataset_endpoint() -> None:
             dataset="sip/test-app",
             content=turtle,
             content_type="text/turtle",
+            graph="urn:sip:ontology:test-id",
         )
 
     assert result["status"] == "imported"
-    assert result["location"] == "http://fuseki.example:3030/sip-test-app/data"
+    assert result["graph"] == "urn:sip:ontology:test-id"
+    assert result["location"] == (
+        "http://fuseki.example:3030/sip-test-app/data?graph=urn%3Asip%3Aontology%3Atest-id"
+    )
     assert result["dataset"] == "sip/test-app"
     assert result["dataset_segment"] == "sip-test-app"
 
     request = mock_urlopen.call_args.args[0]
-    assert request.full_url == "http://fuseki.example:3030/sip-test-app/data"
+    assert request.full_url == (
+        "http://fuseki.example:3030/sip-test-app/data?graph=urn%3Asip%3Aontology%3Atest-id"
+    )
     assert request.method == "POST"
     assert request.get_header("Content-type") == "text/turtle"
     assert request.get_header("Authorization", "").startswith("Basic ")

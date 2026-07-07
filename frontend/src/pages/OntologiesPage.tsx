@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api";
 import { listConnectors, type ConnectorResponse } from "../api/adapters";
 import {
@@ -8,8 +8,6 @@ import {
   getOntologyStatusActionLabel,
   listOntologies,
   normalizeOntologyLifecycleStatus,
-  ONTOLOGY_LIFECYCLE_STEPS,
-  readStoredValidationReport,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
   type OntologyDefinitionStatus,
@@ -85,23 +83,13 @@ function pickPrimaryOntology(
   );
 }
 
-function lifecycleStepState(
-  step: OntologyDefinitionStatus,
-  currentStatus: OntologyDefinitionStatus,
-): "complete" | "current" | "upcoming" {
-  const normalizedStatus = normalizeOntologyLifecycleStatus(currentStatus);
-  const currentIndex = ONTOLOGY_LIFECYCLE_STEPS.indexOf(normalizedStatus);
-  const stepIndex = ONTOLOGY_LIFECYCLE_STEPS.indexOf(step);
-
-  if (stepIndex < currentIndex) {
-    return "complete";
-  }
-
-  if (stepIndex === currentIndex) {
-    return "current";
-  }
-
-  return "upcoming";
+function sortOntologiesNewestFirst(
+  ontologies: OntologyDefinitionResponse[],
+): OntologyDefinitionResponse[] {
+  return [...ontologies].sort(
+    (left, right) =>
+      new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+  );
 }
 
 function formatConnectorSummary(connector: ConnectorResponse | undefined): string {
@@ -117,27 +105,12 @@ function formatConnectorSummary(connector: ConnectorResponse | undefined): strin
   return vendorLabel ? `${connector.title} — ${vendorLabel}` : connector.title;
 }
 
-function truncateUri(uri: string, maxLength = 48): string {
-  if (uri.length <= maxLength) {
-    return uri;
-  }
-
-  return `${uri.slice(0, maxLength)}…`;
-}
-
-function formatValidationSummary(ontology: OntologyDefinitionResponse): string | null {
-  const report = readStoredValidationReport(ontology);
-  if (!report) {
-    return null;
-  }
-  return `${report.error_count} errors, ${report.warning_count} warnings`;
-}
-
 interface OntologiesPageProps {
   applicationId: string;
 }
 
 export function OntologiesPage({ applicationId }: OntologiesPageProps) {
+  const navigate = useNavigate();
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [connectors, setConnectors] = useState<ConnectorResponse[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -230,6 +203,7 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
     try {
       await deleteOntology(ontology.id);
       await loadOntologies();
+      navigate(`/applications/${applicationId}/ontology`);
     } catch (error: unknown) {
       const message =
         error instanceof ApiError
@@ -244,15 +218,11 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
   }
 
   const ontologies = state.kind === "success" ? state.ontologies : [];
+  const sortedOntologies = useMemo(
+    () => sortOntologiesNewestFirst(ontologies),
+    [ontologies],
+  );
   const primaryOntology = useMemo(() => pickPrimaryOntology(ontologies), [ontologies]);
-
-  const primaryConnector = useMemo(() => {
-    if (!primaryOntology?.connector_id) {
-      return undefined;
-    }
-
-    return connectors.find((connector) => connector.id === primaryOntology.connector_id);
-  }, [connectors, primaryOntology]);
 
   const activeConnectors = useMemo(
     () => connectors.filter((connector) => connector.status === "Active"),
@@ -383,164 +353,103 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
         </div>
       )}
 
-      {hasOntologies && primaryOntology && (
-        <>
-          <article
-            className="ontologies-page__primary-card"
-            id={`ontology-${primaryOntology.id}`}
-            aria-labelledby={`ontology-title-${primaryOntology.id}`}
-          >
-            <div className="ontologies-page__primary-header">
-              <div>
-                <h3
-                  className="ontologies-page__primary-title"
-                  id={`ontology-title-${primaryOntology.id}`}
-                >
-                  {primaryOntology.title}
-                </h3>
-                <p className="ontologies-page__primary-subtitle">
-                  Created {formatDate(primaryOntology.created_at)}
-                </p>
-              </div>
-              <span
-                className={statusClassName(
-                  normalizeOntologyLifecycleStatus(primaryOntology.status),
-                )}
-              >
-                {normalizeOntologyLifecycleStatus(primaryOntology.status)}
-              </span>
-            </div>
-
-            <ol
-              className="ontologies-page__lifecycle"
-              aria-label="Ontology lifecycle"
-            >
-              {ONTOLOGY_LIFECYCLE_STEPS.map((step) => {
-                const stepState = lifecycleStepState(step, primaryOntology.status);
+      {hasOntologies && (
+        <div className="ontologies-page__table-wrap">
+          <table className="ontologies-table" aria-label="Ontology definitions">
+            <thead>
+              <tr>
+                <th scope="col">Title</th>
+                <th scope="col">Status</th>
+                <th scope="col">Created</th>
+                <th scope="col">Connector</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedOntologies.map((ontology) => {
+                const connector = ontology.connector_id
+                  ? connectors.find((item) => item.id === ontology.connector_id)
+                  : undefined;
+                const normalizedStatus = normalizeOntologyLifecycleStatus(ontology.status);
 
                 return (
-                  <li
-                    key={step}
-                    className={`ontologies-page__lifecycle-step ontologies-page__lifecycle-step--${stepState}`}
-                  >
-                    <span className="ontologies-page__lifecycle-marker" aria-hidden="true" />
-                    <span className="ontologies-page__lifecycle-label">{step}</span>
-                  </li>
+                  <tr key={ontology.id} id={`ontology-${ontology.id}`}>
+                    <td>
+                      <strong>{ontology.title}</strong>
+                      {ontology.description && (
+                        <p className="ontologies-page__table-description">
+                          {ontology.description}
+                        </p>
+                      )}
+                    </td>
+                    <td>
+                      <span className={statusClassName(normalizedStatus)}>
+                        {normalizedStatus}
+                      </span>
+                    </td>
+                    <td>{formatDate(ontology.created_at)}</td>
+                    <td>{formatConnectorSummary(connector)}</td>
+                    <td>
+                      <div className="ontologies-table__actions">
+                        {ontology.status === "Draft" && ontology.artifact_uri && (
+                          <Link
+                            to={`/applications/${applicationId}/ontology/${ontology.id}/validate`}
+                            className="ontologies-table__action"
+                          >
+                            Run validation
+                          </Link>
+                        )}
+                        {ontology.status === "Validated" && ontology.artifact_uri && (
+                          <Link
+                            to={`/applications/${applicationId}/ontology/${ontology.id}/validate`}
+                            className="ontologies-table__action"
+                          >
+                            Review &amp; approve
+                          </Link>
+                        )}
+                        {getNextOntologyStatuses(ontology.status)
+                          .filter(
+                            (nextStatus) =>
+                              !(
+                                ontology.status === "Draft" &&
+                                nextStatus === "Validated" &&
+                                Boolean(ontology.artifact_uri)
+                              ) &&
+                              !(
+                                ontology.status === "Validated" &&
+                                nextStatus === "Approved" &&
+                                Boolean(ontology.artifact_uri)
+                              ),
+                          )
+                          .map((nextStatus) => (
+                            <button
+                              key={nextStatus}
+                              type="button"
+                              className="ontologies-table__action"
+                              disabled={pendingOntologyId === ontology.id}
+                              onClick={() =>
+                                void handleStatusTransition(ontology.id, nextStatus)
+                              }
+                            >
+                              {getOntologyStatusActionLabel(nextStatus)}
+                            </button>
+                          ))}
+                        <button
+                          type="button"
+                          className="ontologies-table__action"
+                          disabled={pendingOntologyId === ontology.id}
+                          onClick={() => void handleDelete(ontology)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </ol>
-
-            <dl className="ontologies-page__primary-meta">
-              <div>
-                <dt>Connector</dt>
-                <dd>
-                  {primaryOntology.connector_id
-                    ? formatConnectorSummary(primaryConnector)
-                    : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt>Artifact URI</dt>
-                <dd>
-                  {primaryOntology.artifact_uri ? (
-                    <code title={primaryOntology.artifact_uri}>
-                      {truncateUri(primaryOntology.artifact_uri)}
-                    </code>
-                  ) : (
-                    "—"
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Source format</dt>
-                <dd>{primaryOntology.source_format ?? "—"}</dd>
-              </div>
-              {primaryOntology.description && (
-                <div>
-                  <dt>Description</dt>
-                  <dd>{primaryOntology.description}</dd>
-                </div>
-              )}
-            </dl>
-
-            <p className="ontologies-page__primary-footnote">
-              Materialized via connector · registered in platform · recorded as semantic
-              transaction
-              {formatValidationSummary(primaryOntology) && (
-                <>
-                  {" "}
-                  · Last validation: {formatValidationSummary(primaryOntology)}
-                </>
-              )}
-              {primaryOntology.semantic_transaction_id && (
-                <>
-                  {" "}
-                  ·{" "}
-                  <Link
-                    to={`/applications/${applicationId}/semantic-transactions/${primaryOntology.semantic_transaction_id}`}
-                    className="ontologies-page__inline-link"
-                  >
-                    View semantic transaction
-                  </Link>
-                </>
-              )}
-            </p>
-
-            <div className="ontologies-page__primary-actions">
-              {primaryOntology.status === "Draft" && primaryOntology.artifact_uri && (
-                <Link
-                  to={`/applications/${applicationId}/ontology/${primaryOntology.id}/validate`}
-                  className="ontologies-page__button ontologies-page__button--primary"
-                >
-                  Run validation
-                </Link>
-              )}
-              {primaryOntology.status === "Validated" && primaryOntology.artifact_uri && (
-                <Link
-                  to={`/applications/${applicationId}/ontology/${primaryOntology.id}/validate`}
-                  className="ontologies-page__button ontologies-page__button--primary"
-                >
-                  Review &amp; approve
-                </Link>
-              )}
-              {getNextOntologyStatuses(primaryOntology.status)
-                .filter(
-                  (nextStatus) =>
-                    !(
-                      primaryOntology.status === "Draft" &&
-                      nextStatus === "Validated" &&
-                      Boolean(primaryOntology.artifact_uri)
-                    ) &&
-                    !(
-                      primaryOntology.status === "Validated" &&
-                      nextStatus === "Approved" &&
-                      Boolean(primaryOntology.artifact_uri)
-                    ),
-                )
-                .map((nextStatus) => (
-                <button
-                  key={nextStatus}
-                  type="button"
-                  className="ontologies-page__button ontologies-page__button--secondary"
-                  disabled={pendingOntologyId === primaryOntology.id}
-                  onClick={() =>
-                    void handleStatusTransition(primaryOntology.id, nextStatus)
-                  }
-                >
-                  {getOntologyStatusActionLabel(nextStatus)}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="ontologies-page__button ontologies-page__button--secondary"
-                disabled={pendingOntologyId === primaryOntology.id}
-                onClick={() => void handleDelete(primaryOntology)}
-              >
-                Delete
-              </button>
-            </div>
-          </article>
-        </>
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

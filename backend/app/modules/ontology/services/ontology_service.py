@@ -37,6 +37,11 @@ DEFAULT_ONTOLOGY_DEFINITION: dict[str, Any] = {
 }
 
 
+def ontology_fuseki_graph_uri(ontology_id: UUID) -> str:
+    """Stable named graph IRI for an ontology artifact in Fuseki."""
+    return f"urn:sip:ontology:{ontology_id}"
+
+
 class ApplicationNotFoundError(Exception):
     """Raised when the parent application does not exist."""
 
@@ -186,6 +191,7 @@ class OntologyService:
 
         now = datetime.now(UTC)
         ontology_id = uuid4()
+        fuseki_graph_uri = ontology_fuseki_graph_uri(ontology_id)
         artifact_uri = (
             f"fuseki://{workspace.fuseki_dataset}/ontologies/{ontology_id}/"
             f"artifact.{source_format.lstrip('.')}"
@@ -206,6 +212,7 @@ class OntologyService:
             dataset=workspace.fuseki_dataset,
             content=source_content,
             content_type=content_type,
+            graph=fuseki_graph_uri,
         )
 
         definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
@@ -216,6 +223,7 @@ class OntologyService:
                 "content_length": len(source_content),
                 "source_content": source_content,
                 "fuseki_dataset": workspace.fuseki_dataset,
+                "fuseki_graph_uri": fuseki_graph_uri,
                 "fuseki_location": import_result.get("location"),
             },
             "validation": validation_report.to_dict(),
@@ -343,9 +351,11 @@ class OntologyService:
             knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
             source_format = ontology.source_format or "ttl"
             accept_format = resolve_rdf_content_type(source_format)
+            graph_uri = self._read_fuseki_graph_uri(ontology)
             return knowledge_graph.export_data(
                 dataset=application.workspace.fuseki_dataset,
                 accept_format=accept_format,
+                graph=graph_uri,
             )
 
         if isinstance(metadata, dict):
@@ -391,9 +401,67 @@ class OntologyService:
         return ontology
 
     def delete_ontology(self, ontology_id: UUID) -> None:
+        current = self._repository.get(ontology_id)
+        if current is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        self._remove_fuseki_artifact(current)
+
         deleted = self._repository.delete(ontology_id)
         if not deleted:
             raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+    def _read_fuseki_graph_uri(self, ontology: OntologyDefinition) -> str | None:
+        metadata = ontology.ontology_definition.get("metadata", {})
+        if isinstance(metadata, dict):
+            import_meta = metadata.get("import")
+            if isinstance(import_meta, dict):
+                graph_uri = import_meta.get("fuseki_graph_uri")
+                if isinstance(graph_uri, str) and graph_uri.strip():
+                    return graph_uri
+        return None
+
+    def _read_stored_source_content(self, ontology: OntologyDefinition) -> str | None:
+        metadata = ontology.ontology_definition.get("metadata", {})
+        if isinstance(metadata, dict):
+            import_meta = metadata.get("import")
+            if isinstance(import_meta, dict):
+                source_content = import_meta.get("source_content")
+                if isinstance(source_content, str) and source_content.strip():
+                    return source_content
+        return None
+
+    def _remove_fuseki_artifact(self, ontology: OntologyDefinition) -> None:
+        if ontology.artifact_uri is None or ontology.connector_id is None:
+            return
+
+        application = self._application_repository.get(ontology.application_id)
+        if application is None or application.workspace is None:
+            return
+
+        try:
+            connector = self._require_ontology_connector(ontology.connector_id)
+            knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
+        except (ConnectorNotFoundError, InvalidOntologyConnectorError):
+            return
+
+        dataset = application.workspace.fuseki_dataset
+        graph_uri = self._read_fuseki_graph_uri(ontology)
+        if graph_uri:
+            knowledge_graph.delete_graph(dataset=dataset, graph=graph_uri)
+            return
+
+        source_content = self._read_stored_source_content(ontology)
+        if source_content is None:
+            return
+
+        source_format = ontology.source_format or "ttl"
+        content_type = resolve_rdf_content_type(source_format, source_content)
+        knowledge_graph.delete_default_graph_content(
+            dataset=dataset,
+            content=source_content,
+            content_type=content_type,
+        )
 
     def update_ontology(
         self,

@@ -187,6 +187,43 @@ def test_delete_ontology(client: TestClient) -> None:
     assert get_response.status_code == 404
 
 
+def test_delete_imported_ontology_removes_fuseki_graph(client: TestClient) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    turtle = """
+@prefix ex: <http://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+<http://example.org/> a owl:Ontology .
+ex:Vendor a owl:Class .
+""".strip()
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 204
+        create = client.post(
+            "/api/v1/ontologies/import",
+            json={
+                "application_id": application_id,
+                "title": "Delete Graph Ontology",
+                "connector_id": connector_id,
+                "source_format": "ttl",
+                "source_content": turtle,
+            },
+        )
+
+    ontology_id = create.json()["id"]
+    mock_urlopen.reset_mock()
+    mock_urlopen.return_value.__enter__.return_value.status = 204
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen", mock_urlopen):
+        response = client.delete(f"/api/v1/ontologies/{ontology_id}")
+
+    assert response.status_code == 204
+    update_request = mock_urlopen.call_args.args[0]
+    assert update_request.full_url.endswith("/update")
+    assert update_request.method == "POST"
+    assert f"urn:sip:ontology:{ontology_id}" in update_request.data.decode("utf-8")
+
+
 def test_create_version_rejected_after_approved(client: TestClient) -> None:
     application_id = _create_application(client)
     create = client.post(
@@ -255,7 +292,8 @@ ex:Vendor a owl:Class ;
     assert body["semantic_transaction_id"] is not None
 
     request = mock_urlopen.call_args.args[0]
-    assert request.full_url.endswith(f"/{fuseki_dataset_service_path(fuseki_dataset)}/data")
+    assert "graph=urn%3Asip%3Aontology%3A" in request.full_url
+    assert "/data" in request.full_url
     assert request.get_header("Content-type") == "text/turtle"
 
     with Session(db_engine) as session:

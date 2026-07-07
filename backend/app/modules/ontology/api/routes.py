@@ -96,20 +96,54 @@ class _BoundaryKnowledgeGraphPort:
         return self._port.ping()
 
     def import_data(
-        self, *, dataset: str, content: str, content_type: str
+        self,
+        *,
+        dataset: str,
+        content: str,
+        content_type: str,
+        graph: str | None = None,
     ) -> dict[str, str]:
         try:
             return self._port.import_data(
                 dataset=dataset,
                 content=content,
                 content_type=content_type,
+                graph=graph,
             )
         except FusekiImportError as error:
             raise OntologyArtifactPersistError(str(error)) from error
 
-    def export_data(self, *, dataset: str, accept_format: str = "text/turtle") -> str:
+    def export_data(
+        self,
+        *,
+        dataset: str,
+        accept_format: str = "text/turtle",
+        graph: str | None = None,
+    ) -> str:
         try:
-            return self._port.export_data(dataset=dataset, accept_format=accept_format)
+            return self._port.export_data(
+                dataset=dataset,
+                accept_format=accept_format,
+                graph=graph,
+            )
+        except FusekiImportError as error:
+            raise OntologyArtifactPersistError(str(error)) from error
+
+    def delete_graph(self, *, dataset: str, graph: str) -> None:
+        try:
+            self._port.delete_graph(dataset=dataset, graph=graph)
+        except FusekiImportError as error:
+            raise OntologyArtifactPersistError(str(error)) from error
+
+    def delete_default_graph_content(
+        self, *, dataset: str, content: str, content_type: str
+    ) -> None:
+        try:
+            self._port.delete_default_graph_content(
+                dataset=dataset,
+                content=content,
+                content_type=content_type,
+            )
         except FusekiImportError as error:
             raise OntologyArtifactPersistError(str(error)) from error
 
