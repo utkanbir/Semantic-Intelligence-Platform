@@ -12,6 +12,8 @@ class StubLLMAdapter:
         return {"status": "ok", "provider": "stub"}
 
     def review_text(self, *, system_prompt: str, user_prompt: str) -> str:
+        if "ontology extraction" in system_prompt.lower():
+            return self._structured_extraction(user_prompt)
         if "JSON object" in system_prompt:
             return self._structured_review(user_prompt)
         if "error" in user_prompt.lower():
@@ -66,3 +68,56 @@ class StubLLMAdapter:
                 "findings": findings,
             }
         )
+
+    def _structured_extraction(self, user_prompt: str) -> str:
+        snippet = self._first_snippet(user_prompt)
+        return json.dumps(
+            {
+                "summary": (
+                    "Candidate ontology extracted from sources; concepts are "
+                    "advisory suggestions for review and do not materialize."
+                ),
+                "classes": [
+                    {
+                        "name": "Invoice",
+                        "label": "Invoice",
+                        "description": "A billing document issued to a customer.",
+                        "evidence": [{"snippet": snippet, "source_ref": "source-1"}],
+                    },
+                    {
+                        "name": "Vendor",
+                        "label": "Vendor",
+                        "description": "A supplier of goods or services.",
+                        "evidence": [],
+                    },
+                ],
+                "properties": [
+                    {
+                        "name": "invoiceAmount",
+                        "label": "Invoice Amount",
+                        "domain": "Invoice",
+                        "datatype": "decimal",
+                        "description": "Total monetary amount of the invoice.",
+                        "evidence": [{"snippet": snippet, "source_ref": "source-1"}],
+                    }
+                ],
+                "relationships": [
+                    {
+                        "name": "issuedBy",
+                        "label": "Issued By",
+                        "domain": "Invoice",
+                        "range": "Vendor",
+                        "description": "Links an invoice to the vendor that issued it.",
+                        "evidence": [],
+                    }
+                ],
+            }
+        )
+
+    @staticmethod
+    def _first_snippet(user_prompt: str, *, limit: int = 160) -> str:
+        for line in user_prompt.splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("---") and ":" not in stripped[:20]:
+                return stripped[:limit]
+        return "Source content provided for extraction."

@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
+from app.modules.ontology.domain.extraction import ExtractionResult, ExtractionSource
 from app.modules.ontology.domain.models import OntologyDefinition
 from app.modules.ontology.domain.semantic_review import SemanticReviewResult
 from app.modules.ontology.domain.validation import OntologyValidationReport
@@ -149,6 +150,154 @@ class OntologySuggestionDecisionResponse(BaseModel):
     ontology: OntologyDefinitionResponse
     semantic_review: OntologySemanticReviewResponse
     semantic_transaction_id: UUID | None = None
+
+
+class OntologyGenerationSourceRequest(BaseModel):
+    kind: Literal["file", "paste", "knowledge_source"]
+    content: str = Field(min_length=1)
+    name: str | None = Field(default=None, max_length=255)
+    reference_id: str | None = Field(default=None, max_length=255)
+
+
+class OntologyGenerateRequest(BaseModel):
+    application_id: UUID
+    title: str = Field(min_length=1, max_length=255)
+    sources: list[OntologyGenerationSourceRequest] = Field(min_length=1)
+    created_by: str | None = Field(default=None, max_length=255)
+    description: str | None = None
+
+
+class CandidateEvidenceResponse(BaseModel):
+    snippet: str
+    source_ref: str | None = None
+
+
+class ClassCandidateResponse(BaseModel):
+    name: str
+    label: str | None = None
+    description: str | None = None
+    evidence: list[CandidateEvidenceResponse]
+
+
+class PropertyCandidateResponse(BaseModel):
+    name: str
+    label: str | None = None
+    domain: str | None = None
+    datatype: str | None = None
+    description: str | None = None
+    evidence: list[CandidateEvidenceResponse]
+
+
+class RelationshipCandidateResponse(BaseModel):
+    name: str
+    label: str | None = None
+    domain: str | None = None
+    range: str | None = None
+    description: str | None = None
+    evidence: list[CandidateEvidenceResponse]
+
+
+class ExtractionSourceResponse(BaseModel):
+    kind: str
+    name: str | None = None
+    reference_id: str | None = None
+    content_length: int
+
+
+class OntologyExtractionResponse(BaseModel):
+    available: bool
+    extracted_at: datetime
+    extraction_id: UUID
+    model: str | None = None
+    summary: str | None = None
+    classes: list[ClassCandidateResponse]
+    properties: list[PropertyCandidateResponse]
+    relationships: list[RelationshipCandidateResponse]
+    sources: list[ExtractionSourceResponse]
+
+
+class OntologyGenerateResponse(BaseModel):
+    ontology: OntologyDefinitionResponse
+    extraction: OntologyExtractionResponse
+    semantic_transaction_id: UUID | None = None
+
+
+def to_extraction_source_domain(
+    source: OntologyGenerationSourceRequest,
+) -> ExtractionSource:
+    return ExtractionSource(
+        kind=source.kind,
+        content=source.content,
+        name=source.name,
+        reference_id=source.reference_id,
+    )
+
+
+def to_ontology_extraction_response(
+    extraction: ExtractionResult,
+) -> OntologyExtractionResponse:
+    return OntologyExtractionResponse(
+        available=extraction.available,
+        extracted_at=extraction.extracted_at,
+        extraction_id=extraction.extraction_id,
+        model=extraction.model,
+        summary=extraction.summary,
+        classes=[
+            ClassCandidateResponse(
+                name=item.name,
+                label=item.label,
+                description=item.description,
+                evidence=[
+                    CandidateEvidenceResponse(
+                        snippet=evidence.snippet, source_ref=evidence.source_ref
+                    )
+                    for evidence in item.evidence
+                ],
+            )
+            for item in extraction.classes
+        ],
+        properties=[
+            PropertyCandidateResponse(
+                name=item.name,
+                label=item.label,
+                domain=item.domain,
+                datatype=item.datatype,
+                description=item.description,
+                evidence=[
+                    CandidateEvidenceResponse(
+                        snippet=evidence.snippet, source_ref=evidence.source_ref
+                    )
+                    for evidence in item.evidence
+                ],
+            )
+            for item in extraction.properties
+        ],
+        relationships=[
+            RelationshipCandidateResponse(
+                name=item.name,
+                label=item.label,
+                domain=item.domain,
+                range=item.range,
+                description=item.description,
+                evidence=[
+                    CandidateEvidenceResponse(
+                        snippet=evidence.snippet, source_ref=evidence.source_ref
+                    )
+                    for evidence in item.evidence
+                ],
+            )
+            for item in extraction.relationships
+        ],
+        sources=[
+            ExtractionSourceResponse(
+                kind=source.kind,
+                name=source.name,
+                reference_id=source.reference_id,
+                content_length=len(source.content),
+            )
+            for source in extraction.sources
+        ],
+    )
 
 
 def to_ontology_validation_report_response(

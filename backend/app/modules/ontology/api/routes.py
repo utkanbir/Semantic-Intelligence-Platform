@@ -34,17 +34,24 @@ from app.modules.ontology.api.schemas import (
     OntologyDefinitionStatusUpdateRequest,
     OntologyDefinitionUpdateRequest,
     OntologyDefinitionVersionCreateRequest,
+    OntologyGenerateRequest,
+    OntologyGenerateResponse,
     OntologySuggestionDecisionResponse,
     OntologyValidationReportResponse,
     OntologyValidationRunResponse,
     SuggestionDecisionRequest,
+    to_extraction_source_domain,
     to_ontology_definition_response,
+    to_ontology_extraction_response,
     to_ontology_validation_report_response,
     to_semantic_review_response,
 )
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.repositories.sqlalchemy_repository import (
     SqlAlchemyOntologyDefinitionRepository,
+)
+from app.modules.ontology.services.ontology_generation_service import (
+    OntologyGenerationService,
 )
 from app.modules.ontology.services.ontology_semantic_review_service import (
     OntologySemanticReviewService,
@@ -58,6 +65,7 @@ from app.modules.ontology.services.ontology_service import (
     InvalidOntologyConnectorError,
     InvalidOntologyDefinitionStatusTransitionError,
     InvalidOntologyDefinitionVersionForkError,
+    NoExtractionSourcesError,
     OntologyAlreadyMaterializedError,
     OntologyArtifactPersistError,
     OntologyDefinitionNotFoundError,
@@ -176,6 +184,7 @@ def _get_service(db: Session) -> OntologyService:
         _SqlAlchemyKnowledgeGraphPortResolver(),
         OntologyValidationService(resolve_llm_port()),
         OntologySemanticReviewService(resolve_llm_port()),
+        OntologyGenerationService(resolve_llm_port()),
     )
 
 
@@ -254,6 +263,39 @@ def import_ontology(
         ) from error
     return to_ontology_definition_response(
         ontology, semantic_transaction_id=semantic_transaction_id
+    )
+
+
+@router.post(
+    "/generate",
+    response_model=OntologyGenerateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_ontology_from_sources(
+    payload: OntologyGenerateRequest, db: DbSession
+) -> OntologyGenerateResponse:
+    service = _get_service(db)
+    try:
+        ontology, extraction, semantic_transaction_id = service.generate_from_sources(
+            application_id=payload.application_id,
+            title=payload.title,
+            sources=[to_extraction_source_domain(source) for source in payload.sources],
+            created_by=payload.created_by,
+            description=payload.description,
+        )
+    except ApplicationNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except NoExtractionSourcesError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return OntologyGenerateResponse(
+        ontology=to_ontology_definition_response(
+            ontology, semantic_transaction_id=semantic_transaction_id
+        ),
+        extraction=to_ontology_extraction_response(extraction),
+        semantic_transaction_id=semantic_transaction_id,
     )
 
 
