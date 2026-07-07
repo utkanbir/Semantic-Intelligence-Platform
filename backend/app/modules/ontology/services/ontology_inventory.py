@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Literal as PropertyKind, cast
+from typing import Literal as PropertyKind
+from typing import cast
 
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDFS
