@@ -111,3 +111,11 @@ class SqlAlchemyOntologyDefinitionRepository(OntologyDefinitionRepository):
         self._session.commit()
         self._session.refresh(ontology_orm)
         return _to_domain(ontology_orm)
+
+    def delete(self, ontology_id: UUID) -> bool:
+        ontology_orm = self._session.get(OntologyDefinitionORM, ontology_id)
+        if ontology_orm is None:
+            return False
+        self._session.delete(ontology_orm)
+        self._session.commit()
+        return True

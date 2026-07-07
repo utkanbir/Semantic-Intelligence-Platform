@@ -25,6 +25,10 @@ def infer_rdf_content_type_from_content(content: str) -> str | None:
         return "application/ld+json"
     if stripped.startswith("@prefix") or stripped.startswith("PREFIX "):
         return "text/turtle"
+    if stripped.startswith("@base") or stripped.startswith("BASE "):
+        return "text/turtle"
+    if stripped.startswith("<") or stripped.startswith("_:"):
+        return "text/turtle"
     return None
 
 
@@ -35,6 +39,18 @@ def resolve_rdf_content_type(source_format: str, content: str | None = None) -> 
 
     if inferred is not None and mapped is not None and inferred != mapped:
         return inferred
+    if mapped == "application/rdf+xml" and content:
+        stripped = content.lstrip()
+        if not (
+            stripped.startswith("<?xml")
+            or stripped.startswith("<rdf:RDF")
+            or stripped.startswith("<")
+            and stripped[1:5].lower() in {"owl:", "rdf:"}
+        ):
+            if inferred is not None:
+                return inferred
+            if stripped.startswith("@") or stripped.startswith("_:"):
+                return "text/turtle"
     if mapped is not None:
         return mapped
     if inferred is not None:

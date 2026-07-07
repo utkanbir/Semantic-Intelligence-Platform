@@ -353,7 +353,6 @@ describe("ApplicationDetailPage", () => {
 
     expect(listConnectors).toHaveBeenCalledWith({
       connectorType: "ontology_knowledge_graph",
-      status: "Active",
     });
     expect(screen.getByRole("link", { name: "Ontology" })).toHaveAttribute(
       "href",

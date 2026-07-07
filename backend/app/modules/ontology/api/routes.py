@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.infrastructure.adapters.fuseki import FusekiImportError
@@ -13,6 +14,7 @@ from app.infrastructure.adapters.knowledge_graph_resolver import (
     UnsupportedKnowledgeGraphVendorError,
     resolve_knowledge_graph_port,
 )
+from app.infrastructure.adapters.llm_resolver import resolve_llm_port
 from app.infrastructure.database import get_db
 from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.sqlalchemy_repository import (
@@ -25,13 +27,17 @@ from app.modules.audit_trace.repositories.sqlalchemy_repository import (
     SqlAlchemyAuditTraceRepository,
 )
 from app.modules.ontology.api.schemas import (
+    OntologyContentValidateRequest,
     OntologyDefinitionCreateRequest,
     OntologyDefinitionImportRequest,
     OntologyDefinitionResponse,
     OntologyDefinitionStatusUpdateRequest,
     OntologyDefinitionUpdateRequest,
     OntologyDefinitionVersionCreateRequest,
+    OntologyValidationReportResponse,
+    OntologyValidationRunResponse,
     to_ontology_definition_response,
+    to_ontology_validation_report_response,
 )
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.repositories.sqlalchemy_repository import (
@@ -46,10 +52,15 @@ from app.modules.ontology.services.ontology_service import (
     InvalidOntologyConnectorError,
     InvalidOntologyDefinitionStatusTransitionError,
     InvalidOntologyDefinitionVersionForkError,
+    OntologyAlreadyMaterializedError,
     OntologyArtifactPersistError,
     OntologyDefinitionNotFoundError,
+    OntologyMaterializationNotAllowedError,
     OntologyService,
+    OntologyValidationFailedError,
+    OntologyValidationRequiredError,
 )
+from app.modules.ontology.services.ontology_validation_service import OntologyValidationService
 from app.shared.ports.knowledge_graph import KnowledgeGraphPort
 
 router = APIRouter()
@@ -87,10 +98,50 @@ class _BoundaryKnowledgeGraphPort:
         return self._port.ping()
 
     def import_data(
-        self, *, dataset: str, content: str, content_type: str
+        self,
+        *,
+        dataset: str,
+        content: str,
+        content_type: str,
+        graph: str | None = None,
     ) -> dict[str, str]:
         try:
             return self._port.import_data(
+                dataset=dataset,
+                content=content,
+                content_type=content_type,
+                graph=graph,
+            )
+        except FusekiImportError as error:
+            raise OntologyArtifactPersistError(str(error)) from error
+
+    def export_data(
+        self,
+        *,
+        dataset: str,
+        accept_format: str = "text/turtle",
+        graph: str | None = None,
+    ) -> str:
+        try:
+            return self._port.export_data(
+                dataset=dataset,
+                accept_format=accept_format,
+                graph=graph,
+            )
+        except FusekiImportError as error:
+            raise OntologyArtifactPersistError(str(error)) from error
+
+    def delete_graph(self, *, dataset: str, graph: str) -> None:
+        try:
+            self._port.delete_graph(dataset=dataset, graph=graph)
+        except FusekiImportError as error:
+            raise OntologyArtifactPersistError(str(error)) from error
+
+    def delete_default_graph_content(
+        self, *, dataset: str, content: str, content_type: str
+    ) -> None:
+        try:
+            self._port.delete_default_graph_content(
                 dataset=dataset,
                 content=content,
                 content_type=content_type,
@@ -115,7 +166,22 @@ def _get_service(db: Session) -> OntologyService:
         SqlAlchemyTechnologyAdapterRepository(db),
         SqlAlchemyOntologyTransactionRecorder(db),
         _SqlAlchemyKnowledgeGraphPortResolver(),
+        OntologyValidationService(resolve_llm_port()),
     )
+
+
+@router.post("/validate", response_model=OntologyValidationReportResponse)
+def validate_ontology_content(
+    payload: OntologyContentValidateRequest, db: DbSession
+) -> OntologyValidationReportResponse:
+    service = _get_service(db)
+    report = service.validate_content(
+        source_format=payload.source_format,
+        source_content=payload.source_content,
+        title=payload.title,
+        description=payload.description,
+    )
+    return to_ontology_validation_report_response(report)
 
 
 @router.post("", response_model=OntologyDefinitionResponse, status_code=status.HTTP_201_CREATED)
@@ -163,6 +229,11 @@ def import_ontology(
     except ConnectorNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except InvalidOntologyConnectorError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyValidationFailedError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
@@ -226,6 +297,16 @@ def update_ontology(
     return to_ontology_definition_response(ontology)
 
 
+@router.delete("/{ontology_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_ontology(ontology_id: UUID, db: DbSession) -> Response:
+    service = _get_service(db)
+    try:
+        service.delete_ontology(ontology_id)
+    except OntologyDefinitionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.patch("/{ontology_id}/status", response_model=OntologyDefinitionResponse)
 def update_ontology_status(
     ontology_id: UUID, payload: OntologyDefinitionStatusUpdateRequest, db: DbSession
@@ -240,7 +321,103 @@ def update_ontology_status(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
         ) from error
+    except OntologyValidationRequiredError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     return to_ontology_definition_response(ontology)
+
+
+@router.post(
+    "/{ontology_id}/validate",
+    response_model=OntologyValidationRunResponse,
+)
+def run_ontology_validation(
+    ontology_id: UUID, db: DbSession
+) -> OntologyValidationRunResponse:
+    service = _get_service(db)
+    try:
+        ontology, report, semantic_transaction_id = service.run_validation(ontology_id)
+    except OntologyDefinitionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ApplicationWorkspaceNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ConnectorNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidOntologyConnectorError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except InvalidOntologyDefinitionStatusTransitionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyValidationRequiredError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyArtifactPersistError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
+    return OntologyValidationRunResponse(
+        ontology=to_ontology_definition_response(ontology),
+        report=to_ontology_validation_report_response(report),
+        semantic_transaction_id=semantic_transaction_id,
+    )
+
+
+@router.post(
+    "/{ontology_id}/materialize",
+    response_model=OntologyDefinitionResponse,
+)
+def materialize_ontology(
+    ontology_id: UUID, db: DbSession
+) -> OntologyDefinitionResponse:
+    service = _get_service(db)
+    try:
+        ontology, semantic_transaction_id = service.materialize_ontology(ontology_id)
+    except OntologyDefinitionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ApplicationNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ApplicationWorkspaceNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ConnectorNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidOntologyConnectorError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyMaterializationNotAllowedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyAlreadyMaterializedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyValidationRequiredError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyArtifactPersistError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
+    return to_ontology_definition_response(
+        ontology, semantic_transaction_id=semantic_transaction_id
+    )
 
 
 @router.post(

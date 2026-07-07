@@ -1,32 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api";
 import { listConnectors, type ConnectorResponse } from "../api/adapters";
 import {
-  canForkOntology,
-  forkOntologyVersion,
+  deleteOntology,
   getNextOntologyStatuses,
   getOntologyStatusActionLabel,
   listOntologies,
+  normalizeOntologyLifecycleStatus,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
   type OntologyDefinitionStatus,
 } from "../api/ontologies";
 import { getVendorLabel, readConnectorVendor } from "../connectors/catalog";
-import { formatVersionChain } from "../utils/versionChain";
 
 type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "success"; ontologies: OntologyDefinitionResponse[] };
-
-const LIFECYCLE_STEPS: OntologyDefinitionStatus[] = [
-  "Draft",
-  "Validated",
-  "Approved",
-  "Published",
-  "Versioned",
-];
 
 const ONTOLOGY_MODES = [
   {
@@ -40,7 +31,7 @@ const ONTOLOGY_MODES = [
   {
     id: "import",
     title: "OWL Import",
-    copy: "Import existing OWL/RDF content from a file upload or pasted text.",
+    copy: "Import existing OWL/RDF content from a local file.",
     hrefSuffix: "?mode=import",
     cta: "Import OWL",
     enabled: true,
@@ -92,26 +83,13 @@ function pickPrimaryOntology(
   );
 }
 
-function lifecycleStepState(
-  step: OntologyDefinitionStatus,
-  currentStatus: OntologyDefinitionStatus,
-): "complete" | "current" | "upcoming" {
-  if (currentStatus === "Retired") {
-    return "complete";
-  }
-
-  const currentIndex = LIFECYCLE_STEPS.indexOf(currentStatus);
-  const stepIndex = LIFECYCLE_STEPS.indexOf(step);
-
-  if (stepIndex < currentIndex) {
-    return "complete";
-  }
-
-  if (stepIndex === currentIndex) {
-    return "current";
-  }
-
-  return "upcoming";
+function sortOntologiesNewestFirst(
+  ontologies: OntologyDefinitionResponse[],
+): OntologyDefinitionResponse[] {
+  return [...ontologies].sort(
+    (left, right) =>
+      new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+  );
 }
 
 function formatConnectorSummary(connector: ConnectorResponse | undefined): string {
@@ -127,19 +105,12 @@ function formatConnectorSummary(connector: ConnectorResponse | undefined): strin
   return vendorLabel ? `${connector.title} — ${vendorLabel}` : connector.title;
 }
 
-function truncateUri(uri: string, maxLength = 48): string {
-  if (uri.length <= maxLength) {
-    return uri;
-  }
-
-  return `${uri.slice(0, maxLength)}…`;
-}
-
 interface OntologiesPageProps {
   applicationId: string;
 }
 
 export function OntologiesPage({ applicationId }: OntologiesPageProps) {
+  const navigate = useNavigate();
   const [state, setState] = useState<PageState>({ kind: "loading" });
   const [connectors, setConnectors] = useState<ConnectorResponse[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -219,19 +190,27 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
     }
   }
 
-  async function handleForkVersion(ontologyId: string) {
+  async function handleDelete(ontology: OntologyDefinitionResponse) {
+    const confirmed = window.confirm(
+      `Delete ontology "${ontology.title}"? This cannot be undone.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
     setActionError(null);
-    setPendingOntologyId(ontologyId);
+    setPendingOntologyId(ontology.id);
     try {
-      await forkOntologyVersion(ontologyId);
+      await deleteOntology(ontology.id);
       await loadOntologies();
+      navigate(`/applications/${applicationId}/ontology`);
     } catch (error: unknown) {
       const message =
         error instanceof ApiError
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to create ontology version";
+            : "Failed to delete ontology";
       setActionError(message);
     } finally {
       setPendingOntologyId(null);
@@ -239,24 +218,11 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
   }
 
   const ontologies = state.kind === "success" ? state.ontologies : [];
+  const sortedOntologies = useMemo(
+    () => sortOntologiesNewestFirst(ontologies),
+    [ontologies],
+  );
   const primaryOntology = useMemo(() => pickPrimaryOntology(ontologies), [ontologies]);
-  const historyOntologies = useMemo(() => {
-    if (!primaryOntology) {
-      return [];
-    }
-
-    return ontologies
-      .filter((ontology) => ontology.id !== primaryOntology.id)
-      .sort((left, right) => right.version_number - left.version_number);
-  }, [ontologies, primaryOntology]);
-
-  const primaryConnector = useMemo(() => {
-    if (!primaryOntology?.connector_id) {
-      return undefined;
-    }
-
-    return connectors.find((connector) => connector.id === primaryOntology.connector_id);
-  }, [connectors, primaryOntology]);
 
   const activeConnectors = useMemo(
     () => connectors.filter((connector) => connector.status === "Active"),
@@ -387,159 +353,103 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
         </div>
       )}
 
-      {hasOntologies && primaryOntology && (
-        <>
-          <article
-            className="ontologies-page__primary-card"
-            id={`ontology-${primaryOntology.id}`}
-            aria-labelledby={`ontology-title-${primaryOntology.id}`}
-          >
-            <div className="ontologies-page__primary-header">
-              <div>
-                <h3
-                  className="ontologies-page__primary-title"
-                  id={`ontology-title-${primaryOntology.id}`}
-                >
-                  {primaryOntology.title}
-                </h3>
-                <p className="ontologies-page__primary-subtitle">
-                  Version {formatVersionChain(primaryOntology, ontologies)} · Created{" "}
-                  {formatDate(primaryOntology.created_at)}
-                </p>
-              </div>
-              <span className={statusClassName(primaryOntology.status)}>
-                {primaryOntology.status}
-              </span>
-            </div>
-
-            <ol
-              className="ontologies-page__lifecycle"
-              aria-label="Ontology lifecycle"
-            >
-              {LIFECYCLE_STEPS.map((step) => {
-                const stepState = lifecycleStepState(step, primaryOntology.status);
+      {hasOntologies && (
+        <div className="ontologies-page__table-wrap">
+          <table className="ontologies-table" aria-label="Ontology definitions">
+            <thead>
+              <tr>
+                <th scope="col">Title</th>
+                <th scope="col">Status</th>
+                <th scope="col">Created</th>
+                <th scope="col">Connector</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedOntologies.map((ontology) => {
+                const connector = ontology.connector_id
+                  ? connectors.find((item) => item.id === ontology.connector_id)
+                  : undefined;
+                const normalizedStatus = normalizeOntologyLifecycleStatus(ontology.status);
 
                 return (
-                  <li
-                    key={step}
-                    className={`ontologies-page__lifecycle-step ontologies-page__lifecycle-step--${stepState}`}
-                  >
-                    <span className="ontologies-page__lifecycle-marker" aria-hidden="true" />
-                    <span className="ontologies-page__lifecycle-label">{step}</span>
-                  </li>
+                  <tr key={ontology.id} id={`ontology-${ontology.id}`}>
+                    <td>
+                      <strong>{ontology.title}</strong>
+                      {ontology.description && (
+                        <p className="ontologies-page__table-description">
+                          {ontology.description}
+                        </p>
+                      )}
+                    </td>
+                    <td>
+                      <span className={statusClassName(normalizedStatus)}>
+                        {normalizedStatus}
+                      </span>
+                    </td>
+                    <td>{formatDate(ontology.created_at)}</td>
+                    <td>{formatConnectorSummary(connector)}</td>
+                    <td>
+                      <div className="ontologies-table__actions">
+                        {ontology.status === "Draft" && ontology.artifact_uri && (
+                          <Link
+                            to={`/applications/${applicationId}/ontology/${ontology.id}/validate`}
+                            className="ontologies-table__action"
+                          >
+                            Run validation
+                          </Link>
+                        )}
+                        {ontology.status === "Validated" && ontology.artifact_uri && (
+                          <Link
+                            to={`/applications/${applicationId}/ontology/${ontology.id}/validate`}
+                            className="ontologies-table__action"
+                          >
+                            Review &amp; approve
+                          </Link>
+                        )}
+                        {getNextOntologyStatuses(ontology.status)
+                          .filter(
+                            (nextStatus) =>
+                              !(
+                                ontology.status === "Draft" &&
+                                nextStatus === "Validated" &&
+                                Boolean(ontology.artifact_uri)
+                              ) &&
+                              !(
+                                ontology.status === "Validated" &&
+                                nextStatus === "Approved" &&
+                                Boolean(ontology.artifact_uri)
+                              ),
+                          )
+                          .map((nextStatus) => (
+                            <button
+                              key={nextStatus}
+                              type="button"
+                              className="ontologies-table__action"
+                              disabled={pendingOntologyId === ontology.id}
+                              onClick={() =>
+                                void handleStatusTransition(ontology.id, nextStatus)
+                              }
+                            >
+                              {getOntologyStatusActionLabel(nextStatus)}
+                            </button>
+                          ))}
+                        <button
+                          type="button"
+                          className="ontologies-table__action"
+                          disabled={pendingOntologyId === ontology.id}
+                          onClick={() => void handleDelete(ontology)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </ol>
-
-            <dl className="ontologies-page__primary-meta">
-              <div>
-                <dt>Connector</dt>
-                <dd>
-                  {primaryOntology.connector_id
-                    ? formatConnectorSummary(primaryConnector)
-                    : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt>Artifact URI</dt>
-                <dd>
-                  {primaryOntology.artifact_uri ? (
-                    <code title={primaryOntology.artifact_uri}>
-                      {truncateUri(primaryOntology.artifact_uri)}
-                    </code>
-                  ) : (
-                    "—"
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Source format</dt>
-                <dd>{primaryOntology.source_format ?? "—"}</dd>
-              </div>
-              {primaryOntology.description && (
-                <div>
-                  <dt>Description</dt>
-                  <dd>{primaryOntology.description}</dd>
-                </div>
-              )}
-            </dl>
-
-            <p className="ontologies-page__primary-footnote">
-              Materialized via connector · registered in platform · recorded as semantic
-              transaction
-              {primaryOntology.semantic_transaction_id && (
-                <>
-                  {" "}
-                  ·{" "}
-                  <Link
-                    to={`/applications/${applicationId}/semantic-transactions/${primaryOntology.semantic_transaction_id}`}
-                    className="ontologies-page__inline-link"
-                  >
-                    View semantic transaction
-                  </Link>
-                </>
-              )}
-            </p>
-
-            <div className="ontologies-page__primary-actions">
-              {canForkOntology(primaryOntology) && (
-                <button
-                  type="button"
-                  className="ontologies-page__button ontologies-page__button--secondary"
-                  disabled={pendingOntologyId === primaryOntology.id}
-                  onClick={() => void handleForkVersion(primaryOntology.id)}
-                >
-                  New version
-                </button>
-              )}
-              {getNextOntologyStatuses(primaryOntology.status).map((nextStatus) => (
-                <button
-                  key={nextStatus}
-                  type="button"
-                  className="ontologies-page__button ontologies-page__button--secondary"
-                  disabled={pendingOntologyId === primaryOntology.id}
-                  onClick={() =>
-                    void handleStatusTransition(primaryOntology.id, nextStatus)
-                  }
-                >
-                  {getOntologyStatusActionLabel(nextStatus)}
-                </button>
-              ))}
-            </div>
-          </article>
-
-          {historyOntologies.length > 0 && (
-            <div className="ontologies-page__history">
-              <h3 className="ontologies-page__history-title">Version history</h3>
-              <div className="ontologies-page__table-wrap">
-                <table className="ontologies-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Title</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Version</th>
-                      <th scope="col">Created at</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyOntologies.map((ontology) => (
-                      <tr key={ontology.id} id={`ontology-${ontology.id}`}>
-                        <td>{ontology.title}</td>
-                        <td>
-                          <span className={statusClassName(ontology.status)}>
-                            {ontology.status}
-                          </span>
-                        </td>
-                        <td>{formatVersionChain(ontology, ontologies)}</td>
-                        <td>{formatDate(ontology.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

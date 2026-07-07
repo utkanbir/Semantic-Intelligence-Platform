@@ -90,7 +90,7 @@ ApplicationWorkspace (DM-002)
 }
 ```
 
-Create may persist `{}` or the stub above. Rich OWL validation is deferred.
+Create may persist `{}` or the stub above. Structural RDF/OWL validation is enforced at import and before `Validated` for materialized ontologies; optional AI advisory review may augment reports.
 
 ---
 
@@ -121,6 +121,24 @@ Authoritative labels from SIP Asset Catalog v1:
 - Invalid transitions return **422**.
 - `validated_at`, `approved_at`, `published_at` set on first entry to respective states.
 - Entering `Versioned` locks `ontology_definition` (§6).
+- Transition to `Validated` requires a stored validation report with `error_count = 0` when `artifact_uri` is set (imported/materialized ontologies).
+- Validation report snapshot is stored at `ontology_definition.metadata.validation`.
+
+### 5.1.1 Validation runs (Sprint 33)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `POST` | `/api/v1/ontologies/validate` | Pre-flight structural validation on submitted RDF content |
+| `POST` | `/api/v1/ontologies/{id}/validate` | Re-run validation for Draft ontology; persist report; emit `ontology.validation_run` |
+
+### 8.5 Draft import and materialize (Sprint 34 addendum — S34-01)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `POST` | `/api/v1/ontologies/import` | Create **Draft** only: validate RDF, persist `source_content` in `ontology_definition.metadata.import`, set `connector_id`, **`artifact_uri` null**, **no graph store write** |
+| `POST` | `/api/v1/ontologies/{id}/materialize` | Requires `Approved` status and passing validation report (`error_count=0`); writes RDF to named graph `urn:sip:ontology:{id}` via `KnowledgeGraphPort`; sets `artifact_uri`; emits `ontology.materialized` |
+
+Blocking rule: materialize fails when validation report has errors or status is not `Approved`.
 
 ### 5.2 Version fork (S7-05)
 

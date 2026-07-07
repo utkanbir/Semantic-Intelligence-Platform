@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listConnectors } from "../api/adapters";
 import { ApiError } from "../api";
 import {
-  forkOntologyVersion,
+  deleteOntology,
   listOntologies,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
@@ -23,37 +23,17 @@ vi.mock("../connectors/catalog", () => ({
   readConnectorVendor: vi.fn(() => "apache_fuseki"),
 }));
 
-vi.mock("../api/ontologies", () => ({
-  listOntologies: vi.fn(),
-  getOntology: vi.fn(),
-  updateOntologyStatus: vi.fn(),
-  forkOntologyVersion: vi.fn(),
-  canForkOntology: vi.fn((ontology: { status: string }) =>
-    ["Published", "Versioned"].includes(ontology.status),
-  ),
-  getNextOntologyStatuses: vi.fn((status: string) => {
-    const map: Record<string, string[]> = {
-      Draft: ["Validated"],
-      Validated: ["Approved", "Draft"],
-      Approved: ["Published"],
-      Published: ["Versioned"],
-      Versioned: ["Retired"],
-      Retired: [],
-    };
-    return map[status] ?? [];
-  }),
-  getOntologyStatusActionLabel: vi.fn((status: string) => {
-    const labels: Record<string, string> = {
-      Validated: "Validate",
-      Approved: "Approve",
-      Draft: "Revert to Draft",
-      Published: "Publish",
-      Versioned: "Version",
-      Retired: "Retire",
-    };
-    return labels[status] ?? status;
-  }),
-}));
+vi.mock("../api/ontologies", async () => {
+  const actual = await vi.importActual<typeof import("../api/ontologies")>("../api/ontologies");
+  return {
+    ...actual,
+    listOntologies: vi.fn(),
+    getOntology: vi.fn(),
+    updateOntologyStatus: vi.fn(),
+    deleteOntology: vi.fn(),
+    readStoredValidationReport: vi.fn(() => null),
+  };
+});
 
 const connector = {
   id: "connector-1",
@@ -79,7 +59,7 @@ const mockOntology: OntologyDefinitionResponse = {
   application_id: "app-1",
   version_number: 2,
   previous_version_id: null,
-  status: "Published",
+  status: "Approved",
   title: "Customer Ontology",
   description: null,
   created_by: "alice@example.com",
@@ -133,11 +113,11 @@ describe("OntologiesPage", () => {
     vi.mocked(listOntologies).mockReset();
     vi.mocked(listConnectors).mockReset();
     vi.mocked(updateOntologyStatus).mockReset();
-    vi.mocked(forkOntologyVersion).mockReset();
+    vi.mocked(deleteOntology).mockReset();
     vi.mocked(listConnectors).mockResolvedValue([connector]);
   });
 
-  it("renders loading then primary ontology card", async () => {
+  it("renders loading then ontology list table", async () => {
     vi.mocked(listOntologies).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -150,14 +130,14 @@ describe("OntologiesPage", () => {
     expect(screen.getByText("Loading ontologies…")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Customer Ontology", level: 3 })).toBeInTheDocument();
+      expect(screen.getByText("Customer Ontology")).toBeInTheDocument();
     });
 
     expect(listOntologies).toHaveBeenCalledWith("app-1");
-    expect(screen.getAllByText("Published").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Version 2/)).toBeInTheDocument();
+    expect(screen.getAllByText("Approved").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Version 2/)).not.toBeInTheDocument();
     expect(screen.getByText("Primary Fuseki — Apache Jena Fuseki")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View semantic transaction" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "View transaction" })).toHaveAttribute(
       "href",
       "/applications/app-1/semantic-transactions/txn-1",
     );
@@ -226,9 +206,46 @@ describe("OntologiesPage", () => {
     );
   });
 
-  it("validates draft ontology via lifecycle action", async () => {
+  it("shows run validation link for imported draft ontology", async () => {
+    vi.mocked(listOntologies).mockResolvedValue([draftOntology]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Run validation" })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Validate" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Run validation" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology/onto-draft/validate",
+    );
+  });
+
+  it("shows review and approve link for validated ontology", async () => {
+    vi.mocked(listOntologies).mockResolvedValue([validatedOntology]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Review & approve" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: "Review & approve" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology/onto-draft/validate",
+    );
+  });
+
+  it("validates metadata-only draft ontology via lifecycle action", async () => {
+    const metadataDraft = {
+      ...draftOntology,
+      artifact_uri: null,
+      connector_id: null,
+      source_format: null,
+    };
     vi.mocked(listOntologies)
-      .mockResolvedValueOnce([draftOntology])
+      .mockResolvedValueOnce([metadataDraft])
       .mockResolvedValueOnce([validatedOntology]);
     vi.mocked(updateOntologyStatus).mockResolvedValue(validatedOntology);
 
@@ -243,14 +260,16 @@ describe("OntologiesPage", () => {
     await waitFor(() => {
       expect(updateOntologyStatus).toHaveBeenCalledWith("onto-draft", "Validated");
     });
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Validated").length).toBeGreaterThan(0);
-    });
   });
 
   it("shows ApiError message when status update fails", async () => {
-    vi.mocked(listOntologies).mockResolvedValue([draftOntology]);
+    const metadataDraft = {
+      ...draftOntology,
+      artifact_uri: null,
+      connector_id: null,
+      source_format: null,
+    };
+    vi.mocked(listOntologies).mockResolvedValue([metadataDraft]);
     vi.mocked(updateOntologyStatus).mockRejectedValue(
       new ApiError("Invalid status transition", 422),
     );
@@ -268,40 +287,23 @@ describe("OntologiesPage", () => {
     });
   });
 
-  it("forks a published ontology version", async () => {
+  it("deletes an ontology after confirmation", async () => {
     vi.mocked(listOntologies)
       .mockResolvedValueOnce([mockOntology])
-      .mockResolvedValueOnce([
-        mockOntology,
-        {
-          ...mockOntology,
-          id: "onto-2",
-          title: "Customer Ontology v2",
-          status: "Draft",
-          version_number: 3,
-        },
-      ]);
-    vi.mocked(forkOntologyVersion).mockResolvedValue({
-      ...mockOntology,
-      id: "onto-2",
-      status: "Draft",
-      version_number: 3,
-    });
+      .mockResolvedValueOnce([]);
+    vi.mocked(deleteOntology).mockResolvedValue(undefined);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New version" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "New version" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
-      expect(forkOntologyVersion).toHaveBeenCalledWith("onto-1");
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Customer Ontology v2", level: 3 })).toBeInTheDocument();
+      expect(deleteOntology).toHaveBeenCalledWith("onto-1");
     });
   });
 

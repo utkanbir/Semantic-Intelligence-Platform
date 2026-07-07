@@ -10,3 +10,6 @@ class LLMPort(Protocol):
 
     def ping(self) -> dict[str, str]:
         """Return health check result."""
+
+    def review_text(self, *, system_prompt: str, user_prompt: str) -> str:
+        """Return advisory text for a structured review prompt."""

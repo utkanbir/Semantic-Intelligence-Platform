@@ -22,3 +22,13 @@ def test_resolve_rdf_content_type_sniffs_rdf_xml_from_content() -> None:
 def test_resolve_rdf_content_type_sniffs_turtle_from_content() -> None:
     turtle = "@prefix ex: <http://example.org/> .\nex:A ex:B ."
     assert resolve_rdf_content_type("owl", turtle) == "text/turtle"
+
+
+def test_resolve_rdf_content_type_sniffs_turtle_base_directive() -> None:
+    turtle = "@base <http://example.org/> .\n<Thing> a <http://www.w3.org/2002/07/owl#Class> ."
+    assert resolve_rdf_content_type("owl", turtle) == "text/turtle"
+
+
+def test_resolve_rdf_content_type_sniffs_turtle_triple_line() -> None:
+    turtle = "<http://example.org/Vendor> a <http://www.w3.org/2002/07/owl#Class> ."
+    assert resolve_rdf_content_type("owl", turtle) == "text/turtle"

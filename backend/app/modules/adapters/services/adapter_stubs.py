@@ -32,8 +32,14 @@ class KnowledgeGraphStub:
         return {"status": "ok", "connector_type": "ontology_knowledge_graph"}
 
     def import_data(
-        self, *, dataset: str, content: str, content_type: str
+        self,
+        *,
+        dataset: str,
+        content: str,
+        content_type: str,
+        graph: str | None = None,
     ) -> dict[str, str]:
+        del graph
         return {
             "status": "imported",
             "location": f"stub://{dataset}/data",
@@ -41,6 +47,24 @@ class KnowledgeGraphStub:
             "content_type": content_type,
             "content_length": str(len(content)),
         }
+
+    def export_data(
+        self,
+        *,
+        dataset: str,
+        accept_format: str = "text/turtle",
+        graph: str | None = None,
+    ) -> str:
+        del dataset, graph, accept_format
+        return "@prefix ex: <http://example.org/> .\nex:Vendor a ex:Class .\n"
+
+    def delete_graph(self, *, dataset: str, graph: str) -> None:
+        del dataset, graph
+
+    def delete_default_graph_content(
+        self, *, dataset: str, content: str, content_type: str
+    ) -> None:
+        del dataset, content, content_type
 
 
 class FileSystemStub:

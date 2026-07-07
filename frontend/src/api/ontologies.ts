@@ -1,5 +1,52 @@
 import { apiFetch } from "./client";
 
+export type ValidationLevel = "error" | "warning" | "info";
+
+export interface ValidationFinding {
+  level: ValidationLevel;
+  code: string;
+  message: string;
+}
+
+export interface OntologyClassSummary {
+  uri: string;
+  label: string | null;
+  local_name: string;
+}
+
+export interface OntologyRelationSummary {
+  uri: string;
+  label: string | null;
+  local_name: string;
+  property_type: "object" | "datatype";
+  domain: string | null;
+  range: string | null;
+}
+
+export interface OntologyValidationInventory {
+  classes: OntologyClassSummary[];
+  relations: OntologyRelationSummary[];
+  truncated: boolean;
+}
+
+export interface OntologyValidationReport {
+  passed: boolean;
+  error_count: number;
+  warning_count: number;
+  findings: ValidationFinding[];
+  stats: Record<string, number>;
+  run_at: string;
+  run_id: string;
+  ai_summary: string | null;
+  inventory: OntologyValidationInventory | null;
+}
+
+export interface OntologyValidationRunResponse {
+  ontology: OntologyDefinitionResponse;
+  report: OntologyValidationReport;
+  semantic_transaction_id: string | null;
+}
+
 export type OntologyDefinitionStatus =
   | "Draft"
   | "Validated"
@@ -81,14 +128,69 @@ export function importOntology(
   });
 }
 
+export interface OntologyContentValidateRequest {
+  source_format: string;
+  source_content: string;
+  title?: string;
+  description?: string;
+  application_id?: string;
+}
+
+export function validateOntologyContent(
+  payload: OntologyContentValidateRequest,
+): Promise<OntologyValidationReport> {
+  return apiFetch<OntologyValidationReport>("/ontologies/validate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function runOntologyValidation(
+  ontologyId: string,
+): Promise<OntologyValidationRunResponse> {
+  return apiFetch<OntologyValidationRunResponse>(`/ontologies/${ontologyId}/validate`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function readStoredValidationReport(
+  ontology: OntologyDefinitionResponse,
+): OntologyValidationReport | null {
+  const metadata = ontology.ontology_definition.metadata;
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+  const validation = (metadata as Record<string, unknown>).validation;
+  if (!validation || typeof validation !== "object") {
+    return null;
+  }
+  return validation as OntologyValidationReport;
+}
+
 const ONTOLOGY_NEXT_STATUSES: Record<OntologyDefinitionStatus, OntologyDefinitionStatus[]> = {
   Draft: ["Validated"],
   Validated: ["Approved", "Draft"],
-  Approved: ["Published"],
-  Published: ["Versioned"],
-  Versioned: ["Retired"],
+  Approved: [],
+  Published: [],
+  Versioned: [],
   Retired: [],
 };
+
+export const ONTOLOGY_LIFECYCLE_STEPS: OntologyDefinitionStatus[] = [
+  "Draft",
+  "Validated",
+  "Approved",
+];
+
+export function normalizeOntologyLifecycleStatus(
+  status: OntologyDefinitionStatus,
+): OntologyDefinitionStatus {
+  if (status === "Published" || status === "Versioned" || status === "Retired") {
+    return "Approved";
+  }
+  return status;
+}
 
 export function getNextOntologyStatuses(
   status: OntologyDefinitionStatus,
@@ -119,17 +221,8 @@ export function updateOntologyStatus(
   });
 }
 
-const FORKABLE_ONTOLOGY_STATUSES: OntologyDefinitionStatus[] = ["Published", "Versioned"];
-
-export function canForkOntology(ontology: OntologyDefinitionResponse): boolean {
-  return FORKABLE_ONTOLOGY_STATUSES.includes(ontology.status);
-}
-
-export function forkOntologyVersion(
-  ontologyId: string,
-): Promise<OntologyDefinitionResponse> {
-  return apiFetch<OntologyDefinitionResponse>(`/ontologies/${ontologyId}/versions`, {
-    method: "POST",
-    body: JSON.stringify({}),
+export function deleteOntology(ontologyId: string): Promise<void> {
+  return apiFetch<void>(`/ontologies/${ontologyId}`, {
+    method: "DELETE",
   });
 }

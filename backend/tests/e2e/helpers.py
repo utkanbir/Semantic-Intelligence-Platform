@@ -161,16 +161,20 @@ def create_ontology(
     return response.json()
 
 
-def advance_ontology_to_published(client: TestClient, ontology_id: str) -> dict[str, Any]:
-    for next_status in ("Validated", "Approved", "Published"):
+def advance_ontology_to_approved(client: TestClient, ontology_id: str) -> dict[str, Any]:
+    for next_status in ("Validated", "Approved"):
         response = client.patch(
             f"/api/v1/ontologies/{ontology_id}/status",
             json={"status": next_status},
         )
         assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "Published"
+    assert body["status"] == "Approved"
     return body
+
+
+def advance_ontology_to_published(client: TestClient, ontology_id: str) -> dict[str, Any]:
+    return advance_ontology_to_approved(client, ontology_id)
 
 
 def create_knowledge_graph(

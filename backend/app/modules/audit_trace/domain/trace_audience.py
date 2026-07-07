@@ -21,6 +21,7 @@ SEMANTIC_LINEAGE_TRANSACTION_TYPES: frozenset[str] = frozenset(
         "ontology.status_changed",
         "ontology.version_forked",
         "ontology.published",
+        "ontology.validation_run",
     }
 )
 

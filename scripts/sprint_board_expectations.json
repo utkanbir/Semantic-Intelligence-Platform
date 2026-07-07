@@ -133,6 +133,10 @@
     "32": {
       "label": "Semantic Transaction Realignment",
       "issues": [292, 293, 294, 295]
+    },
+    "34": {
+      "label": "Ontology Creation Flow v2",
+      "issues": [305, 306, 307, 308, 309, 310, 311, 312]
     }
   }
 }
