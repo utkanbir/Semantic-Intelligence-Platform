@@ -12,6 +12,11 @@ from app.modules.adapters.repositories.interfaces import TechnologyAdapterReposi
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.domain.models import OntologyDefinition
+from app.modules.ontology.domain.semantic_review import (
+    SemanticReviewResult,
+    attach_semantic_review,
+    read_stored_semantic_review,
+)
 from app.modules.ontology.domain.validation import (
     OntologyValidationReport,
     attach_validation_report,
@@ -22,6 +27,9 @@ from app.modules.ontology.ports.interfaces import (
     OntologyTransactionRecorder,
 )
 from app.modules.ontology.repositories.interfaces import OntologyDefinitionRepository
+from app.modules.ontology.services.ontology_semantic_review_service import (
+    OntologySemanticReviewService,
+)
 from app.modules.ontology.services.ontology_validation_service import OntologyValidationService
 from app.modules.ontology.services.rdf_formats import resolve_rdf_content_type
 from app.shared.ports.knowledge_graph import KnowledgeGraphPort
@@ -94,6 +102,14 @@ class ApplicationWorkspaceNotFoundError(Exception):
     """Raised when the application workspace is unavailable for import."""
 
 
+class SemanticReviewNotAvailableError(Exception):
+    """Raised when a suggestion decision is requested but no review exists."""
+
+
+class SemanticReviewFindingNotFoundError(Exception):
+    """Raised when a suggestion decision references an unknown finding id."""
+
+
 class _NoOpTransactionRecorder:
     def record_orchestrated(
         self,
@@ -122,6 +138,7 @@ class OntologyService:
         transaction_recorder: OntologyTransactionRecorder | None = None,
         knowledge_graph_port_resolver: KnowledgeGraphPortResolver | None = None,
         validation_service: OntologyValidationService | None = None,
+        semantic_review_service: OntologySemanticReviewService | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
@@ -131,6 +148,9 @@ class OntologyService:
             knowledge_graph_port_resolver or _NoOpKnowledgeGraphPortResolver()
         )
         self._validation_service = validation_service or OntologyValidationService()
+        self._semantic_review_service = (
+            semantic_review_service or OntologySemanticReviewService()
+        )
 
     def create_ontology(
         self,
@@ -378,7 +398,12 @@ class OntologyService:
 
     def run_validation(
         self, ontology_id: UUID
-    ) -> tuple[OntologyDefinition, OntologyValidationReport, UUID | None]:
+    ) -> tuple[
+        OntologyDefinition,
+        OntologyValidationReport,
+        SemanticReviewResult,
+        UUID | None,
+    ]:
         current = self._repository.get(ontology_id)
         if current is None:
             raise OntologyDefinitionNotFoundError("Ontology definition not found")
@@ -397,7 +422,14 @@ class OntologyService:
             ontology_definition=current.ontology_definition,
         )
 
+        review = self._semantic_review_service.review(
+            report,
+            title=current.title,
+            description=current.description,
+        )
+
         updated_definition = attach_validation_report(current.ontology_definition, report)
+        updated_definition = attach_semantic_review(updated_definition, review)
         updated = OntologyDefinition(
             id=current.id,
             application_id=current.application_id,
@@ -422,22 +454,95 @@ class OntologyService:
         if result is None:
             raise OntologyDefinitionNotFoundError("Ontology definition not found")
 
+        if review.available:
+            review_message = (
+                f"{review.suggestion_count} suggestions, "
+                f"{review.warning_count} warnings, "
+                f"{review.improvement_count} improvement ideas"
+            )
+        else:
+            review_message = "Skipped: LLM semantic review unavailable"
+
         semantic_transaction_id = self._record_transaction(
             transaction_type="ontology.validation_run",
             ontology=result,
             steps=[
                 (
-                    "validate_structure",
-                    f"Structural validation {'passed' if report.passed else 'failed'}",
+                    "DeterministicValidationExecuted",
+                    f"Deterministic validation {'passed' if report.passed else 'failed'} "
+                    f"({report.error_count} errors, {report.warning_count} warnings)",
                 ),
-                (
-                    "summarize_findings",
-                    f"{report.error_count} errors, {report.warning_count} warnings",
-                ),
+                ("LLMSemanticReviewExecuted", review_message),
                 ("finalize", "Ontology validation run completed"),
             ],
         )
-        return result, report, semantic_transaction_id
+        return result, report, review, semantic_transaction_id
+
+    def record_suggestion_decision(
+        self,
+        ontology_id: UUID,
+        *,
+        finding_id: str,
+        decision: str,
+    ) -> tuple[OntologyDefinition, SemanticReviewResult, UUID | None]:
+        current = self._repository.get(ontology_id)
+        if current is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        review = read_stored_semantic_review(current.ontology_definition)
+        if review is None or not review.findings:
+            raise SemanticReviewNotAvailableError(
+                "No semantic review findings recorded; run validation first"
+            )
+
+        finding = review.find(finding_id)
+        if finding is None:
+            raise SemanticReviewFindingNotFoundError(
+                f"Semantic review finding '{finding_id}' not found"
+            )
+
+        finding.decision = cast(Any, decision)
+
+        # Advisory only: decisions never mutate the ontology definition content.
+        updated_definition = attach_semantic_review(current.ontology_definition, review)
+        updated = OntologyDefinition(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=current.status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            validated_at=current.validated_at,
+            approved_at=current.approved_at,
+            published_at=current.published_at,
+            version_created_at=current.version_created_at,
+            ontology_definition=updated_definition,
+            connector_id=current.connector_id,
+            artifact_uri=current.artifact_uri,
+            source_format=current.source_format,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        step_type = (
+            "SuggestionAccepted" if decision == "accepted" else "SuggestionIgnored"
+        )
+        semantic_transaction_id = self._record_transaction(
+            transaction_type="ontology.suggestion_reviewed",
+            ontology=result,
+            steps=[
+                (
+                    step_type,
+                    f"Finding '{finding.id}' ({finding.kind}) {decision}: {finding.title}",
+                ),
+            ],
+        )
+        return result, review, semantic_transaction_id
 
     def _resolve_validation_content(self, ontology: OntologyDefinition) -> str:
         metadata = ontology.ontology_definition.get("metadata", {})

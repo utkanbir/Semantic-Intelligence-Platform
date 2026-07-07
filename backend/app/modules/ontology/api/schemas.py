@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.domain.models import OntologyDefinition
+from app.modules.ontology.domain.semantic_review import SemanticReviewResult
 from app.modules.ontology.domain.validation import OntologyValidationReport
 
 
@@ -115,9 +116,38 @@ class OntologyDefinitionVersionCreateRequest(BaseModel):
     ontology_definition: dict[str, Any] | None = None
 
 
+class SemanticReviewFindingResponse(BaseModel):
+    id: str
+    kind: str
+    title: str
+    detail: str
+    target: str | None = None
+    decision: str | None = None
+
+
+class OntologySemanticReviewResponse(BaseModel):
+    available: bool
+    reviewed_at: datetime
+    review_id: UUID
+    model: str | None = None
+    summary: str | None = None
+    findings: list[SemanticReviewFindingResponse]
+
+
 class OntologyValidationRunResponse(BaseModel):
     ontology: OntologyDefinitionResponse
     report: OntologyValidationReportResponse
+    semantic_review: OntologySemanticReviewResponse
+    semantic_transaction_id: UUID | None = None
+
+
+class SuggestionDecisionRequest(BaseModel):
+    decision: Literal["accepted", "ignored"]
+
+
+class OntologySuggestionDecisionResponse(BaseModel):
+    ontology: OntologyDefinitionResponse
+    semantic_review: OntologySemanticReviewResponse
     semantic_transaction_id: UUID | None = None
 
 
@@ -166,6 +196,29 @@ def to_ontology_validation_report_response(
         run_id=report.run_id,
         ai_summary=report.ai_summary,
         inventory=inventory,
+    )
+
+
+def to_semantic_review_response(
+    review: SemanticReviewResult,
+) -> OntologySemanticReviewResponse:
+    return OntologySemanticReviewResponse(
+        available=review.available,
+        reviewed_at=review.reviewed_at,
+        review_id=review.review_id,
+        model=review.model,
+        summary=review.summary,
+        findings=[
+            SemanticReviewFindingResponse(
+                id=finding.id,
+                kind=finding.kind,
+                title=finding.title,
+                detail=finding.detail,
+                target=finding.target,
+                decision=finding.decision,
+            )
+            for finding in review.findings
+        ],
     )
 
 
