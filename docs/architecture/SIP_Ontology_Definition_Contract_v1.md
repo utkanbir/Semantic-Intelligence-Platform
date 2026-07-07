@@ -131,7 +131,14 @@ Authoritative labels from SIP Asset Catalog v1:
 | `POST` | `/api/v1/ontologies/validate` | Pre-flight structural validation on submitted RDF content |
 | `POST` | `/api/v1/ontologies/{id}/validate` | Re-run validation for Draft ontology; persist report; emit `ontology.validation_run` |
 
-Blocking rule: import and `Validated` transition fail when structural validation reports one or more errors.
+### 8.5 Draft import and materialize (Sprint 34 addendum — S34-01)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `POST` | `/api/v1/ontologies/import` | Create **Draft** only: validate RDF, persist `source_content` in `ontology_definition.metadata.import`, set `connector_id`, **`artifact_uri` null**, **no graph store write** |
+| `POST` | `/api/v1/ontologies/{id}/materialize` | Requires `Approved` status and passing validation report (`error_count=0`); writes RDF to named graph `urn:sip:ontology:{id}` via `KnowledgeGraphPort`; sets `artifact_uri`; emits `ontology.materialized` |
+
+Blocking rule: materialize fails when validation report has errors or status is not `Approved`.
 
 ### 5.2 Version fork (S7-05)
 

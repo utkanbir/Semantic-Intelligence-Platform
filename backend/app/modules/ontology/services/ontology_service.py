@@ -82,6 +82,14 @@ class OntologyValidationRequiredError(Exception):
     """Raised when lifecycle transition requires a passing validation report."""
 
 
+class OntologyMaterializationNotAllowedError(Exception):
+    """Raised when ontology materialization preconditions are not met."""
+
+
+class OntologyAlreadyMaterializedError(Exception):
+    """Raised when materialize is requested for an ontology with an artifact."""
+
+
 class ApplicationWorkspaceNotFoundError(Exception):
     """Raised when the application workspace is unavailable for import."""
 
@@ -183,20 +191,10 @@ class OntologyService:
         if application is None:
             raise ApplicationNotFoundError("Application not found")
         connector = self._require_ontology_connector(connector_id)
-        workspace = application.workspace
-        if workspace is None or not workspace.fuseki_dataset:
-            raise ApplicationWorkspaceNotFoundError(
-                "Application workspace fuseki_dataset unavailable"
-            )
 
         now = datetime.now(UTC)
         ontology_id = uuid4()
         fuseki_graph_uri = ontology_fuseki_graph_uri(ontology_id)
-        artifact_uri = (
-            f"fuseki://{workspace.fuseki_dataset}/ontologies/{ontology_id}/"
-            f"artifact.{source_format.lstrip('.')}"
-        )
-        content_type = resolve_rdf_content_type(source_format, source_content)
 
         validation_report = self._validation_service.validate_content(
             source_content=source_content,
@@ -207,14 +205,6 @@ class OntologyService:
         if not validation_report.passed:
             raise OntologyValidationFailedError(_format_validation_failure(validation_report))
 
-        knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
-        import_result = knowledge_graph.import_data(
-            dataset=workspace.fuseki_dataset,
-            content=source_content,
-            content_type=content_type,
-            graph=fuseki_graph_uri,
-        )
-
         definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
         definition["metadata"] = {
             **definition.get("metadata", {}),
@@ -222,9 +212,7 @@ class OntologyService:
                 "source_format": source_format,
                 "content_length": len(source_content),
                 "source_content": source_content,
-                "fuseki_dataset": workspace.fuseki_dataset,
                 "fuseki_graph_uri": fuseki_graph_uri,
-                "fuseki_location": import_result.get("location"),
             },
             "validation": validation_report.to_dict(),
         }
@@ -240,23 +228,138 @@ class OntologyService:
             updated_at=now,
             ontology_definition=definition,
             connector_id=connector_id,
-            artifact_uri=artifact_uri,
+            artifact_uri=None,
             source_format=source_format,
         )
         created = self._repository.create(ontology)
-        persist_location = import_result.get("location", artifact_uri)
         semantic_transaction_id = self._record_transaction(
             transaction_type="ontology.imported",
             ontology=created,
             steps=[
                 ("validate_request", "Validated ontology import request"),
                 ("resolve_connector", f"Resolved connector {connector.adapter_key}"),
-                ("persist_artifact", f"Artifact persisted at {persist_location}"),
                 ("persist_metadata", "Persisted ontology metadata"),
                 ("finalize", "Ontology import completed"),
             ],
         )
         return created, semantic_transaction_id
+
+    def materialize_ontology(
+        self, ontology_id: UUID
+    ) -> tuple[OntologyDefinition, UUID | None]:
+        current = self._repository.get(ontology_id)
+        if current is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+        if current.status != OntologyDefinitionStatus.APPROVED:
+            raise OntologyMaterializationNotAllowedError(
+                "Materialize requires Approved status"
+            )
+        if current.artifact_uri is not None:
+            raise OntologyAlreadyMaterializedError("Ontology artifact already materialized")
+        if current.connector_id is None:
+            raise InvalidOntologyConnectorError("Connector is required for materialize")
+
+        report = read_stored_validation_report(current.ontology_definition)
+        if report is None:
+            raise OntologyValidationRequiredError(
+                "Run validation and resolve all errors before materialize"
+            )
+        if not report.passed:
+            raise OntologyValidationRequiredError(
+                "Validation report contains errors; resolve them before materialize"
+            )
+
+        source_content = self._read_stored_source_content(current)
+        if source_content is None:
+            raise OntologyValidationRequiredError(
+                "No import source content available for materialize"
+            )
+
+        application = self._application_repository.get(current.application_id)
+        if application is None:
+            raise ApplicationNotFoundError("Application not found")
+        workspace = application.workspace
+        if workspace is None or not workspace.fuseki_dataset:
+            raise ApplicationWorkspaceNotFoundError(
+                "Application workspace fuseki_dataset unavailable"
+            )
+
+        connector = self._require_ontology_connector(current.connector_id)
+        source_format = current.source_format or "ttl"
+        fuseki_graph_uri = self._read_fuseki_graph_uri(current) or ontology_fuseki_graph_uri(
+            current.id
+        )
+        content_type = resolve_rdf_content_type(source_format, source_content)
+        knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
+        import_result = knowledge_graph.import_data(
+            dataset=workspace.fuseki_dataset,
+            content=source_content,
+            content_type=content_type,
+            graph=fuseki_graph_uri,
+        )
+
+        artifact_uri = (
+            f"fuseki://{workspace.fuseki_dataset}/ontologies/{current.id}/"
+            f"artifact.{source_format.lstrip('.')}"
+        )
+        definition = dict(current.ontology_definition)
+        metadata = dict(definition.get("metadata", {}))
+        import_meta = dict(metadata.get("import", {}))
+        import_meta["fuseki_dataset"] = workspace.fuseki_dataset
+        import_meta["fuseki_graph_uri"] = fuseki_graph_uri
+        import_meta["fuseki_location"] = import_result.get("location")
+        metadata["import"] = import_meta
+        definition["metadata"] = metadata
+
+        updated = OntologyDefinition(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=current.status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            validated_at=current.validated_at,
+            approved_at=current.approved_at,
+            published_at=current.published_at,
+            version_created_at=current.version_created_at,
+            ontology_definition=definition,
+            connector_id=current.connector_id,
+            artifact_uri=artifact_uri,
+            source_format=current.source_format,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        persist_location = import_result.get("location", artifact_uri)
+        steps: list[tuple[str, str | None]] = [
+            ("ConnectorSelected", f"Selected connector {connector.adapter_key}"),
+        ]
+        if current.approved_at is not None:
+            steps.append(
+                (
+                    "OntologyApproved",
+                    f"Ontology approved at {current.approved_at.isoformat()}",
+                )
+            )
+        else:
+            steps.append(("OntologyApproved", "Ontology approved for materialization"))
+        steps.extend(
+            [
+                ("OntologyMaterialized", f"Materialized to graph {fuseki_graph_uri}"),
+                ("persist_artifact", f"Artifact persisted at {persist_location}"),
+            ]
+        )
+        semantic_transaction_id = self._record_transaction(
+            transaction_type="ontology.materialized",
+            ontology=result,
+            steps=steps,
+        )
+        return result, semantic_transaction_id
 
     def validate_content(
         self,
@@ -370,7 +473,8 @@ class OntologyService:
         )
 
     def _require_passing_validation_report(self, ontology: OntologyDefinition) -> None:
-        if ontology.artifact_uri is None:
+        has_import_content = self._read_stored_source_content(ontology) is not None
+        if ontology.artifact_uri is None and not has_import_content:
             return
 
         report = read_stored_validation_report(ontology.ontology_definition)

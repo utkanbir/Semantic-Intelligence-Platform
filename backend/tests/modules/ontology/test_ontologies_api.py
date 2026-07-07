@@ -187,30 +187,62 @@ def test_delete_ontology(client: TestClient) -> None:
     assert get_response.status_code == 404
 
 
+def _import_ontology_draft(
+    client: TestClient,
+    *,
+    application_id: str,
+    connector_id: str,
+    title: str = "Imported Vendor Ontology",
+    source_content: str | None = None,
+) -> dict:
+    turtle = source_content or """
+@prefix ex: <http://example.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<http://example.org/> a owl:Ontology .
+ex:Vendor a owl:Class ;
+    rdfs:label "Vendor" .
+""".strip()
+    response = client.post(
+        "/api/v1/ontologies/import",
+        json={
+            "application_id": application_id,
+            "title": title,
+            "connector_id": connector_id,
+            "source_format": "ttl",
+            "source_content": turtle,
+        },
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+def _advance_ontology_to_approved(client: TestClient, ontology_id: str) -> None:
+    for next_status in ("Validated", "Approved"):
+        response = client.patch(
+            f"/api/v1/ontologies/{ontology_id}/status",
+            json={"status": next_status},
+        )
+        assert response.status_code == 200
+
+
 def test_delete_imported_ontology_removes_fuseki_graph(client: TestClient) -> None:
     application_id = _create_application(client)
     connector_id = _create_active_fuseki_connector(client)
-    turtle = """
-@prefix ex: <http://example.org/> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
-<http://example.org/> a owl:Ontology .
-ex:Vendor a owl:Class .
-""".strip()
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+        title="Delete Graph Ontology",
+    )
+    ontology_id = imported["id"]
+    _advance_ontology_to_approved(client, ontology_id)
 
     with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
         mock_urlopen.return_value.__enter__.return_value.status = 204
-        create = client.post(
-            "/api/v1/ontologies/import",
-            json={
-                "application_id": application_id,
-                "title": "Delete Graph Ontology",
-                "connector_id": connector_id,
-                "source_format": "ttl",
-                "source_content": turtle,
-            },
-        )
+        materialize = client.post(f"/api/v1/ontologies/{ontology_id}/materialize")
+    assert materialize.status_code == 200
 
-    ontology_id = create.json()["id"]
     mock_urlopen.reset_mock()
     mock_urlopen.return_value.__enter__.return_value.status = 204
 
@@ -255,13 +287,11 @@ def test_patch_status_invalid_transition_returns_422(client: TestClient) -> None
     assert response.status_code == 422
 
 
-def test_import_ontology_persists_artifact_to_fuseki(
+def test_import_ontology_creates_draft_without_fuseki_write(
     client: TestClient, db_engine: Engine
 ) -> None:
     application_id = _create_application(client)
     connector_id = _create_active_fuseki_connector(client)
-    workspace = client.get(f"/api/v1/applications/{application_id}").json()["workspace"]
-    fuseki_dataset = workspace["fuseki_dataset"]
     turtle = """
 @prefix ex: <http://example.org/> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
@@ -272,7 +302,6 @@ ex:Vendor a owl:Class ;
 """.strip()
 
     with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
-        mock_urlopen.return_value.__enter__.return_value.status = 204
         response = client.post(
             "/api/v1/ontologies/import",
             json={
@@ -283,18 +312,16 @@ ex:Vendor a owl:Class ;
                 "source_content": turtle,
             },
         )
+        mock_urlopen.assert_not_called()
 
     assert response.status_code == 201
     body = response.json()
     assert body["status"] == "Draft"
     assert body["source_format"] == "ttl"
-    assert body["artifact_uri"].startswith(f"fuseki://{fuseki_dataset}/ontologies/")
+    assert body["connector_id"] == connector_id
+    assert body["artifact_uri"] is None
+    assert body["ontology_definition"]["metadata"]["import"]["source_content"] == turtle
     assert body["semantic_transaction_id"] is not None
-
-    request = mock_urlopen.call_args.args[0]
-    assert "graph=urn%3Asip%3Aontology%3A" in request.full_url
-    assert "/data" in request.full_url
-    assert request.get_header("Content-type") == "text/turtle"
 
     with Session(db_engine) as session:
         transaction = session.scalar(
@@ -310,9 +337,126 @@ ex:Vendor a owl:Class ;
                 TraceStep.step_type == "persist_artifact",
             )
         )
+        assert persist_step is None
+
+
+def test_materialize_ontology_persists_artifact_to_fuseki(
+    client: TestClient, db_engine: Engine
+) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    workspace = client.get(f"/api/v1/applications/{application_id}").json()["workspace"]
+    fuseki_dataset = workspace["fuseki_dataset"]
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+    _advance_ontology_to_approved(client, ontology_id)
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 204
+        response = client.post(f"/api/v1/ontologies/{ontology_id}/materialize")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["artifact_uri"].startswith(f"fuseki://{fuseki_dataset}/ontologies/")
+    assert body["semantic_transaction_id"] is not None
+
+    request = mock_urlopen.call_args.args[0]
+    assert "graph=urn%3Asip%3Aontology%3A" in request.full_url
+    assert "/data" in request.full_url
+    assert request.get_header("Content-type") == "text/turtle"
+
+    with Session(db_engine) as session:
+        transaction = session.scalar(
+            select(SemanticTransaction).where(
+                SemanticTransaction.id == UUID(body["semantic_transaction_id"]),
+            )
+        )
+        assert transaction is not None
+        assert transaction.transaction_type == "ontology.materialized"
+        step_types = session.scalars(
+            select(TraceStep.step_type).where(
+                TraceStep.semantic_transaction_id == transaction.id,
+            )
+        ).all()
+        assert "ConnectorSelected" in step_types
+        assert "OntologyApproved" in step_types
+        assert "OntologyMaterialized" in step_types
+        assert "persist_artifact" in step_types
+        persist_step = session.scalar(
+            select(TraceStep).where(
+                TraceStep.semantic_transaction_id == transaction.id,
+                TraceStep.step_type == "persist_artifact",
+            )
+        )
         assert persist_step is not None
-        assert "Stub" not in (persist_step.message or "")
         assert fuseki_dataset_service_path(fuseki_dataset) in (persist_step.message or "")
+
+
+def test_materialize_requires_approved_status(client: TestClient) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+
+    response = client.post(f"/api/v1/ontologies/{ontology_id}/materialize")
+    assert response.status_code == 422
+
+
+def test_materialize_blocked_when_validation_report_has_errors(
+    client: TestClient,
+) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+    _advance_ontology_to_approved(client, ontology_id)
+
+    ontology = client.get(f"/api/v1/ontologies/{ontology_id}").json()
+    definition = ontology["ontology_definition"]
+    definition["metadata"]["validation"]["passed"] = False
+    definition["metadata"]["validation"]["error_count"] = 1
+    client.patch(
+        f"/api/v1/ontologies/{ontology_id}",
+        json={"ontology_definition": definition},
+    )
+
+    response = client.post(f"/api/v1/ontologies/{ontology_id}/materialize")
+    assert response.status_code == 422
+
+
+def test_patch_draft_updates_structured_definition(client: TestClient) -> None:
+    application_id = _create_application(client)
+    create = client.post(
+        "/api/v1/ontologies",
+        json={"application_id": application_id, "title": "Draft Patch Ontology"},
+    )
+    ontology_id = create.json()["id"]
+    response = client.patch(
+        f"/api/v1/ontologies/{ontology_id}",
+        json={
+            "ontology_definition": {
+                "schema_version": "1",
+                "classes": [{"name": "UpdatedClass"}],
+                "properties": [],
+                "relationships": [],
+                "metadata": {},
+            }
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["ontology_definition"]["classes"][0]["name"] == "UpdatedClass"
 
 
 def test_import_ontology_rejects_invalid_rdf(client: TestClient) -> None:
@@ -337,29 +481,12 @@ def test_imported_ontology_can_be_marked_validated_after_passing_report(
 ) -> None:
     application_id = _create_application(client)
     connector_id = _create_active_fuseki_connector(client)
-    turtle = """
-@prefix ex: <http://example.org/> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-<http://example.org/> a owl:Ontology .
-ex:Vendor a owl:Class ;
-    rdfs:label "Vendor" .
-""".strip()
-
-    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
-        mock_urlopen.return_value.__enter__.return_value.status = 204
-        imported = client.post(
-            "/api/v1/ontologies/import",
-            json={
-                "application_id": application_id,
-                "title": "Imported Vendor Ontology",
-                "connector_id": connector_id,
-                "source_format": "ttl",
-                "source_content": turtle,
-            },
-        )
-
-    ontology_id = imported.json()["id"]
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
     response = client.patch(
         f"/api/v1/ontologies/{ontology_id}/status",
         json={"status": "Validated"},
@@ -372,29 +499,12 @@ def test_imported_ontology_validated_blocked_when_report_has_errors(
 ) -> None:
     application_id = _create_application(client)
     connector_id = _create_active_fuseki_connector(client)
-    turtle = """
-@prefix ex: <http://example.org/> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-<http://example.org/> a owl:Ontology .
-ex:Vendor a owl:Class ;
-    rdfs:label "Vendor" .
-""".strip()
-
-    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
-        mock_urlopen.return_value.__enter__.return_value.status = 204
-        imported = client.post(
-            "/api/v1/ontologies/import",
-            json={
-                "application_id": application_id,
-                "title": "Imported Vendor Ontology",
-                "connector_id": connector_id,
-                "source_format": "ttl",
-                "source_content": turtle,
-            },
-        )
-
-    ontology_id = imported.json()["id"]
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
     ontology = client.get(f"/api/v1/ontologies/{ontology_id}").json()
     definition = ontology["ontology_definition"]
     definition["metadata"]["validation"]["passed"] = False
@@ -414,35 +524,14 @@ ex:Vendor a owl:Class ;
 def test_run_ontology_validation_persists_report(client: TestClient, db_engine: Engine) -> None:
     application_id = _create_application(client)
     connector_id = _create_active_fuseki_connector(client)
-    turtle = """
-@prefix ex: <http://example.org/> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-<http://example.org/> a owl:Ontology .
-ex:Vendor a owl:Class ;
-    rdfs:label "Vendor" .
-""".strip()
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
 
-    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
-        mock_urlopen.return_value.__enter__.return_value.status = 204
-        imported = client.post(
-            "/api/v1/ontologies/import",
-            json={
-                "application_id": application_id,
-                "title": "Imported Vendor Ontology",
-                "connector_id": connector_id,
-                "source_format": "ttl",
-                "source_content": turtle,
-            },
-        )
-
-    ontology_id = imported.json()["id"]
-
-    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
-        mock_response = mock_urlopen.return_value.__enter__.return_value
-        mock_response.status = 200
-        mock_response.read.return_value = turtle.encode("utf-8")
-        response = client.post(f"/api/v1/ontologies/{ontology_id}/validate")
+    response = client.post(f"/api/v1/ontologies/{ontology_id}/validate")
 
     assert response.status_code == 200
     body = response.json()
@@ -490,22 +579,21 @@ def test_import_ontology_rejects_inactive_connector(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-def test_import_ontology_returns_502_when_fuseki_write_fails(
+def test_materialize_returns_502_when_fuseki_write_fails(
     client: TestClient, db_engine: Engine
 ) -> None:
     application_id = _create_application(client)
     connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+        title="Failed Materialize",
+    )
+    ontology_id = imported["id"]
+    _advance_ontology_to_approved(client, ontology_id)
 
     from urllib.error import HTTPError
-
-    turtle = """
-@prefix ex: <http://example.org/> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-<http://example.org/> a owl:Ontology .
-ex:Vendor a owl:Class ;
-    rdfs:label "Vendor" .
-""".strip()
 
     with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
         mock_urlopen.side_effect = HTTPError(
@@ -515,23 +603,15 @@ ex:Vendor a owl:Class ;
             hdrs=None,
             fp=None,
         )
-        response = client.post(
-            "/api/v1/ontologies/import",
-            json={
-                "application_id": application_id,
-                "title": "Failed Import",
-                "connector_id": connector_id,
-                "source_format": "ttl",
-                "source_content": turtle,
-            },
-        )
+        response = client.post(f"/api/v1/ontologies/{ontology_id}/materialize")
 
     assert response.status_code == 502
 
     with Session(db_engine) as session:
-        imported_count = session.scalar(
+        materialized_count = session.scalar(
             select(func.count())
             .select_from(SemanticTransaction)
-            .where(SemanticTransaction.transaction_type == "ontology.imported")
+            .where(SemanticTransaction.transaction_type == "ontology.materialized")
         )
-        assert imported_count == 0
+        assert materialized_count == 0
+    assert client.get(f"/api/v1/ontologies/{ontology_id}").json()["artifact_uri"] is None

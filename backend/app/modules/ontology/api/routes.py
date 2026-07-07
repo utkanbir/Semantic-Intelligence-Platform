@@ -53,7 +53,9 @@ from app.modules.ontology.services.ontology_service import (
     InvalidOntologyDefinitionStatusTransitionError,
     InvalidOntologyDefinitionVersionForkError,
     OntologyArtifactPersistError,
+    OntologyAlreadyMaterializedError,
     OntologyDefinitionNotFoundError,
+    OntologyMaterializationNotAllowedError,
     OntologyService,
     OntologyValidationFailedError,
     OntologyValidationRequiredError,
@@ -367,6 +369,54 @@ def run_ontology_validation(
         ontology=to_ontology_definition_response(ontology),
         report=to_ontology_validation_report_response(report),
         semantic_transaction_id=semantic_transaction_id,
+    )
+
+
+@router.post(
+    "/{ontology_id}/materialize",
+    response_model=OntologyDefinitionResponse,
+)
+def materialize_ontology(
+    ontology_id: UUID, db: DbSession
+) -> OntologyDefinitionResponse:
+    service = _get_service(db)
+    try:
+        ontology, semantic_transaction_id = service.materialize_ontology(ontology_id)
+    except OntologyDefinitionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ApplicationNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ApplicationWorkspaceNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ConnectorNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidOntologyConnectorError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyMaterializationNotAllowedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyAlreadyMaterializedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyValidationRequiredError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyArtifactPersistError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
+    return to_ontology_definition_response(
+        ontology, semantic_transaction_id=semantic_transaction_id
     )
 
 
