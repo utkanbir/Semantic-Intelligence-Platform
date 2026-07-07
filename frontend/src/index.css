@@ -2983,6 +2983,44 @@ body {
   font-size: 0.8125rem;
 }
 
+.ontology-wizard__parse-errors,
+.ontology-wizard__parse-warnings {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e0e3ea;
+}
+
+.ontology-wizard__parse-errors {
+  border-color: #d99;
+  background: #fcf1f1;
+}
+
+.ontology-wizard__parse-warnings {
+  border-color: #e3d29a;
+  background: #fbf7ec;
+}
+
+.ontology-wizard__parse-errors h5,
+.ontology-wizard__parse-warnings h5 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.ontology-wizard__approval {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ontology-wizard__approval input {
+  width: auto;
+}
+
 .ontology-wizard__what-happens {
   margin-top: 1.25rem;
   padding: 1rem 1.125rem;
