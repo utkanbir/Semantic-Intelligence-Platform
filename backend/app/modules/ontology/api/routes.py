@@ -27,6 +27,7 @@ from app.modules.audit_trace.repositories.sqlalchemy_repository import (
     SqlAlchemyAuditTraceRepository,
 )
 from app.modules.ontology.api.schemas import (
+    OntologyConnectorSelectRequest,
     OntologyContentValidateRequest,
     OntologyDefinitionCreateRequest,
     OntologyDefinitionImportRequest,
@@ -68,6 +69,7 @@ from app.modules.ontology.services.ontology_service import (
     NoExtractionSourcesError,
     OntologyAlreadyMaterializedError,
     OntologyArtifactPersistError,
+    OntologyConnectorSelectionNotAllowedError,
     OntologyDefinitionNotFoundError,
     OntologyMaterializationNotAllowedError,
     OntologyService,
@@ -378,6 +380,34 @@ def update_ontology_status(
             detail=str(error),
         ) from error
     return to_ontology_definition_response(ontology)
+
+
+@router.put("/{ontology_id}/connector", response_model=OntologyDefinitionResponse)
+def select_ontology_connector(
+    ontology_id: UUID, payload: OntologyConnectorSelectRequest, db: DbSession
+) -> OntologyDefinitionResponse:
+    service = _get_service(db)
+    try:
+        ontology, semantic_transaction_id = service.select_connector(
+            ontology_id, connector_id=payload.connector_id
+        )
+    except OntologyDefinitionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ConnectorNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidOntologyConnectorError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except OntologyConnectorSelectionNotAllowedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return to_ontology_definition_response(
+        ontology, semantic_transaction_id=semantic_transaction_id
+    )
 
 
 @router.post(

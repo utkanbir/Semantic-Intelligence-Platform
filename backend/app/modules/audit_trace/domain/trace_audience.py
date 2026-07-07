@@ -17,12 +17,15 @@ SEMANTIC_LINEAGE_TRANSACTION_TYPES: frozenset[str] = frozenset(
     {
         "ontology.created",
         "ontology.imported",
+        "ontology.generated",
         "ontology.updated",
         "ontology.status_changed",
         "ontology.version_forked",
         "ontology.published",
         "ontology.validation_run",
         "ontology.suggestion_reviewed",
+        "ontology.connector_selected",
+        "ontology.materialized",
     }
 )
 
