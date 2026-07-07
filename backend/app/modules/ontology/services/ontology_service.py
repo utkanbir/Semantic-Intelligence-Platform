@@ -12,14 +12,14 @@ from app.modules.adapters.repositories.interfaces import TechnologyAdapterReposi
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.domain.models import OntologyDefinition
-from app.modules.ontology.ports.interfaces import (
-    KnowledgeGraphPortResolver,
-    OntologyTransactionRecorder,
-)
 from app.modules.ontology.domain.validation import (
     OntologyValidationReport,
     attach_validation_report,
     read_stored_validation_report,
+)
+from app.modules.ontology.ports.interfaces import (
+    KnowledgeGraphPortResolver,
+    OntologyTransactionRecorder,
 )
 from app.modules.ontology.repositories.interfaces import OntologyDefinitionRepository
 from app.modules.ontology.services.ontology_validation_service import OntologyValidationService
@@ -425,7 +425,10 @@ class OntologyService:
             transaction_type="ontology.validation_run",
             ontology=result,
             steps=[
-                ("validate_structure", f"Structural validation {'passed' if report.passed else 'failed'}"),
+                (
+                    "validate_structure",
+                    f"Structural validation {'passed' if report.passed else 'failed'}",
+                ),
                 (
                     "summarize_findings",
                     f"{report.error_count} errors, {report.warning_count} warnings",

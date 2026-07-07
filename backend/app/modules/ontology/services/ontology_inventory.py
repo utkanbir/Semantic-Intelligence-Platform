@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from rdflib import Graph, Literal, URIRef
-from rdflib.namespace import OWL, RDF, RDFS
+from rdflib.namespace import RDFS
 
 from app.modules.ontology.domain.validation import (
     INVENTORY_CLASS_CAP,

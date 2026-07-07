@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from rdflib import Graph, URIRef
 from rdflib.namespace import OWL, RDF, RDFS

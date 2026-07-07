@@ -52,7 +52,11 @@ ex:orderDate a owl:DatatypeProperty ;
     rdfs:domain ex:Order ;
     rdfs:range xsd:date .
 """.strip()
-    report = service.validate_content(source_content=turtle, source_format="ttl", include_ai_review=False)
+    report = service.validate_content(
+        source_content=turtle,
+        source_format="ttl",
+        include_ai_review=False,
+    )
 
     assert report.inventory is not None
     assert len(report.inventory.classes) == 2

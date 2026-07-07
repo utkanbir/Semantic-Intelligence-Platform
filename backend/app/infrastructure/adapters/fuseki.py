@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import base64
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
+from urllib.request import Request, urlopen
 
 from rdflib import Graph
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 from app.modules.adapters.services.connector_provision import read_provision_block
 
@@ -121,7 +121,9 @@ class FusekiKnowledgeGraphAdapter:
             with urlopen(request, timeout=15) as response:
                 status = getattr(response, "status", 200)
         except HTTPError as error:
-            raise FusekiImportError(_format_fuseki_http_error(error, "Fuseki ping failed")) from error
+            raise FusekiImportError(
+                _format_fuseki_http_error(error, "Fuseki ping failed")
+            ) from error
         except URLError as error:
             raise FusekiImportError(f"Fuseki ping request failed: {error.reason}") from error
 
@@ -208,7 +210,9 @@ class FusekiKnowledgeGraphAdapter:
             with urlopen(request, timeout=30) as response:
                 status = getattr(response, "status", 200)
         except HTTPError as error:
-            raise FusekiImportError(_format_fuseki_http_error(error, "Fuseki import failed")) from error
+            raise FusekiImportError(
+                _format_fuseki_http_error(error, "Fuseki import failed")
+            ) from error
         except URLError as error:
             raise FusekiImportError(f"Fuseki import request failed: {error.reason}") from error
 
@@ -240,7 +244,9 @@ class FusekiKnowledgeGraphAdapter:
                 status = getattr(response, "status", 200)
                 body = response.read()
         except HTTPError as error:
-            raise FusekiImportError(_format_fuseki_http_error(error, "Fuseki export failed")) from error
+            raise FusekiImportError(
+                _format_fuseki_http_error(error, "Fuseki export failed")
+            ) from error
         except URLError as error:
             raise FusekiImportError(f"Fuseki export request failed: {error.reason}") from error
 
