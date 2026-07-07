@@ -113,6 +113,10 @@ class OntologyDefinitionStatusUpdateRequest(BaseModel):
     status: OntologyDefinitionStatus
 
 
+class OntologyConnectorSelectRequest(BaseModel):
+    connector_id: UUID
+
+
 class OntologyDefinitionVersionCreateRequest(BaseModel):
     ontology_definition: dict[str, Any] | None = None
 

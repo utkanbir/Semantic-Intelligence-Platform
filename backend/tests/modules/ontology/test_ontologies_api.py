@@ -382,10 +382,27 @@ def test_materialize_ontology_persists_artifact_to_fuseki(
                 TraceStep.semantic_transaction_id == transaction.id,
             )
         ).all()
-        assert "ConnectorSelected" in step_types
-        assert "OntologyApproved" in step_types
+        # Materialize records only the write; ConnectorSelected / OntologyApproved
+        # are owned by their dedicated lifecycle actions to avoid duplication.
         assert "OntologyMaterialized" in step_types
         assert "persist_artifact" in step_types
+        assert "ConnectorSelected" not in step_types
+        assert "OntologyApproved" not in step_types
+
+        run_step_types = session.scalars(
+            select(TraceStep.step_type)
+            .join(
+                SemanticTransaction,
+                SemanticTransaction.id == TraceStep.semantic_transaction_id,
+            )
+            .where(SemanticTransaction.resource_id == ontology_id)
+        ).all()
+        # The full ontology-creation run (all transactions sharing the ontology
+        # resource id) covers connector selection, approval, and materialization.
+        assert "ConnectorSelected" in run_step_types
+        assert "OntologyApproved" in run_step_types
+        assert "OntologyMaterialized" in run_step_types
+
         persist_step = session.scalar(
             select(TraceStep).where(
                 TraceStep.semantic_transaction_id == transaction.id,
@@ -798,6 +815,170 @@ def test_suggestion_decision_requires_prior_review(client: TestClient) -> None:
     response = client.post(
         f"/api/v1/ontologies/{ontology_id}/suggestions/finding-1/decision",
         json={"decision": "accepted"},
+    )
+    assert response.status_code == 422
+
+
+def _manual_definition() -> dict:
+    return {
+        "schema_version": "1",
+        "classes": [
+            {"name": "Vendor", "label": "Vendor"},
+            {"name": "Invoice", "label": "Invoice"},
+        ],
+        "properties": [
+            {
+                "name": "totalAmount",
+                "label": "Total Amount",
+                "domain": "Invoice",
+                "datatype": "decimal",
+            },
+        ],
+        "relationships": [
+            {
+                "name": "issuedBy",
+                "label": "Issued By",
+                "domain": "Invoice",
+                "range": "Vendor",
+            },
+        ],
+        "metadata": {
+            "mode": "manual",
+            "manual": {
+                "namespace": "https://example.org/billing#",
+                "prefix": "billing",
+            },
+        },
+    }
+
+
+def test_manual_happy_path_draft_validate_connector_approve_materialize(
+    client: TestClient, db_engine: Engine
+) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+
+    # No graph store write happens for any step before materialize.
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as pre_materialize_urlopen:
+        create = client.post(
+            "/api/v1/ontologies",
+            json={
+                "application_id": application_id,
+                "title": "Manual Billing Ontology",
+                "ontology_definition": _manual_definition(),
+            },
+        )
+        assert create.status_code == 201
+        ontology_id = create.json()["id"]
+
+        run = client.post(f"/api/v1/ontologies/{ontology_id}/validate")
+        assert run.status_code == 200
+        assert run.json()["report"]["passed"] is True
+
+        validated = client.patch(
+            f"/api/v1/ontologies/{ontology_id}/status",
+            json={"status": "Validated"},
+        )
+        assert validated.status_code == 200
+
+        connector = client.put(
+            f"/api/v1/ontologies/{ontology_id}/connector",
+            json={"connector_id": connector_id},
+        )
+        assert connector.status_code == 200
+        assert connector.json()["connector_id"] == connector_id
+        assert connector.json()["semantic_transaction_id"] is not None
+
+        approved = client.patch(
+            f"/api/v1/ontologies/{ontology_id}/status",
+            json={"status": "Approved"},
+        )
+        assert approved.status_code == 200
+
+        pre_materialize_urlopen.assert_not_called()
+
+    with patch("app.infrastructure.adapters.fuseki.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 204
+        materialize = client.post(f"/api/v1/ontologies/{ontology_id}/materialize")
+        mock_urlopen.assert_called()
+
+    assert materialize.status_code == 200
+    body = materialize.json()
+    assert body["id"] == ontology_id
+    assert body["semantic_transaction_id"] is not None
+    assert body["artifact_uri"] is not None
+
+    request = mock_urlopen.call_args.args[0]
+    assert "graph=urn%3Asip%3Aontology%3A" in request.full_url
+    assert "/data" in request.full_url
+
+    with Session(db_engine) as session:
+        ordered_steps = session.execute(
+            select(TraceStep.step_type)
+            .join(
+                SemanticTransaction,
+                SemanticTransaction.id == TraceStep.semantic_transaction_id,
+            )
+            .where(SemanticTransaction.resource_id == ontology_id)
+            .order_by(SemanticTransaction.created_at.asc(), TraceStep.step_number.asc())
+        ).scalars().all()
+
+    def _position(step_type: str) -> int:
+        return ordered_steps.index(step_type)
+
+    for expected_step in (
+        "ModeSelected",
+        "DraftCreated",
+        "DeterministicValidationExecuted",
+        "LLMSemanticReviewExecuted",
+        "ConnectorSelected",
+        "OntologyApproved",
+        "OntologyMaterialized",
+    ):
+        assert expected_step in ordered_steps
+
+    # Lifecycle ordering: draft first, materialize last.
+    assert _position("ModeSelected") < _position("DraftCreated")
+    assert _position("DraftCreated") < _position("DeterministicValidationExecuted")
+    assert _position("ConnectorSelected") < _position("OntologyApproved")
+    assert _position("OntologyApproved") < _position("OntologyMaterialized")
+
+
+def test_select_connector_rejected_after_approved(client: TestClient) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+    _advance_ontology_to_approved(client, ontology_id)
+
+    response = client.put(
+        f"/api/v1/ontologies/{ontology_id}/connector",
+        json={"connector_id": connector_id},
+    )
+    assert response.status_code == 422
+
+
+def test_manual_approve_blocked_without_passing_validation(client: TestClient) -> None:
+    application_id = _create_application(client)
+    create = client.post(
+        "/api/v1/ontologies",
+        json={
+            "application_id": application_id,
+            "title": "Unvalidated Manual Ontology",
+            "ontology_definition": _manual_definition(),
+        },
+    )
+    ontology_id = create.json()["id"]
+
+    # Skip validation entirely: structured drafts must not reach Validated/Approved
+    # without a passing validation report on record.
+    response = client.patch(
+        f"/api/v1/ontologies/{ontology_id}/status",
+        json={"status": "Validated"},
     )
     assert response.status_code == 422
 
