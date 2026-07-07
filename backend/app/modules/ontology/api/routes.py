@@ -34,14 +34,20 @@ from app.modules.ontology.api.schemas import (
     OntologyDefinitionStatusUpdateRequest,
     OntologyDefinitionUpdateRequest,
     OntologyDefinitionVersionCreateRequest,
+    OntologySuggestionDecisionResponse,
     OntologyValidationReportResponse,
     OntologyValidationRunResponse,
+    SuggestionDecisionRequest,
     to_ontology_definition_response,
     to_ontology_validation_report_response,
+    to_semantic_review_response,
 )
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.repositories.sqlalchemy_repository import (
     SqlAlchemyOntologyDefinitionRepository,
+)
+from app.modules.ontology.services.ontology_semantic_review_service import (
+    OntologySemanticReviewService,
 )
 from app.modules.ontology.services.ontology_service import (
     UNSET,
@@ -59,6 +65,8 @@ from app.modules.ontology.services.ontology_service import (
     OntologyService,
     OntologyValidationFailedError,
     OntologyValidationRequiredError,
+    SemanticReviewFindingNotFoundError,
+    SemanticReviewNotAvailableError,
 )
 from app.modules.ontology.services.ontology_validation_service import OntologyValidationService
 from app.shared.ports.knowledge_graph import KnowledgeGraphPort
@@ -167,6 +175,7 @@ def _get_service(db: Session) -> OntologyService:
         SqlAlchemyOntologyTransactionRecorder(db),
         _SqlAlchemyKnowledgeGraphPortResolver(),
         OntologyValidationService(resolve_llm_port()),
+        OntologySemanticReviewService(resolve_llm_port()),
     )
 
 
@@ -338,7 +347,9 @@ def run_ontology_validation(
 ) -> OntologyValidationRunResponse:
     service = _get_service(db)
     try:
-        ontology, report, semantic_transaction_id = service.run_validation(ontology_id)
+        ontology, report, review, semantic_transaction_id = service.run_validation(
+            ontology_id
+        )
     except OntologyDefinitionNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except ApplicationWorkspaceNotFoundError as error:
@@ -368,6 +379,40 @@ def run_ontology_validation(
     return OntologyValidationRunResponse(
         ontology=to_ontology_definition_response(ontology),
         report=to_ontology_validation_report_response(report),
+        semantic_review=to_semantic_review_response(review),
+        semantic_transaction_id=semantic_transaction_id,
+    )
+
+
+@router.post(
+    "/{ontology_id}/suggestions/{finding_id}/decision",
+    response_model=OntologySuggestionDecisionResponse,
+)
+def record_suggestion_decision(
+    ontology_id: UUID,
+    finding_id: str,
+    payload: SuggestionDecisionRequest,
+    db: DbSession,
+) -> OntologySuggestionDecisionResponse:
+    service = _get_service(db)
+    try:
+        ontology, review, semantic_transaction_id = service.record_suggestion_decision(
+            ontology_id,
+            finding_id=finding_id,
+            decision=payload.decision,
+        )
+    except OntologyDefinitionNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except SemanticReviewFindingNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except SemanticReviewNotAvailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return OntologySuggestionDecisionResponse(
+        ontology=to_ontology_definition_response(ontology),
+        semantic_review=to_semantic_review_response(review),
         semantic_transaction_id=semantic_transaction_id,
     )
 

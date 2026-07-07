@@ -615,3 +615,188 @@ def test_materialize_returns_502_when_fuseki_write_fails(
         )
         assert materialized_count == 0
     assert client.get(f"/api/v1/ontologies/{ontology_id}").json()["artifact_uri"] is None
+
+
+def test_run_validation_includes_semantic_review_and_trace_steps(
+    client: TestClient, db_engine: Engine
+) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+
+    response = client.post(f"/api/v1/ontologies/{ontology_id}/validate")
+
+    assert response.status_code == 200
+    body = response.json()
+    review = body["semantic_review"]
+    assert review["available"] is True
+    assert len(review["findings"]) >= 1
+    assert {finding["kind"] for finding in review["findings"]} <= {
+        "suggestion",
+        "warning",
+        "improvement",
+    }
+    assert all(finding["decision"] is None for finding in review["findings"])
+
+    with Session(db_engine) as session:
+        step_types = session.scalars(
+            select(TraceStep.step_type).where(
+                TraceStep.semantic_transaction_id == UUID(body["semantic_transaction_id"]),
+            )
+        ).all()
+        assert "DeterministicValidationExecuted" in step_types
+        assert "LLMSemanticReviewExecuted" in step_types
+
+
+def test_run_validation_degrades_when_llm_unavailable(client: TestClient) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+
+    with patch(
+        "app.modules.ontology.api.routes.resolve_llm_port", return_value=None
+    ):
+        response = client.post(f"/api/v1/ontologies/{ontology_id}/validate")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["report"]["passed"] is True
+    assert body["semantic_review"]["available"] is False
+    assert body["semantic_review"]["findings"] == []
+
+
+def test_accept_suggestion_records_trace_without_mutating_definition(
+    client: TestClient, db_engine: Engine
+) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+
+    run = client.post(f"/api/v1/ontologies/{ontology_id}/validate").json()
+    definition_before = run["ontology"]["ontology_definition"]
+    finding_id = run["semantic_review"]["findings"][0]["id"]
+
+    response = client.post(
+        f"/api/v1/ontologies/{ontology_id}/suggestions/{finding_id}/decision",
+        json={"decision": "accepted"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    accepted = next(
+        finding
+        for finding in body["semantic_review"]["findings"]
+        if finding["id"] == finding_id
+    )
+    assert accepted["decision"] == "accepted"
+
+    ontology = client.get(f"/api/v1/ontologies/{ontology_id}").json()
+    assert (
+        ontology["ontology_definition"]["classes"] == definition_before["classes"]
+    )
+    assert (
+        ontology["ontology_definition"]["properties"]
+        == definition_before["properties"]
+    )
+    assert (
+        ontology["ontology_definition"]["relationships"]
+        == definition_before["relationships"]
+    )
+
+    with Session(db_engine) as session:
+        transaction = session.scalar(
+            select(SemanticTransaction).where(
+                SemanticTransaction.id == UUID(body["semantic_transaction_id"]),
+            )
+        )
+        assert transaction is not None
+        assert transaction.transaction_type == "ontology.suggestion_reviewed"
+        step_types = session.scalars(
+            select(TraceStep.step_type).where(
+                TraceStep.semantic_transaction_id == transaction.id,
+            )
+        ).all()
+        assert "SuggestionAccepted" in step_types
+
+
+def test_ignore_suggestion_records_trace_step(client: TestClient, db_engine: Engine) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+
+    run = client.post(f"/api/v1/ontologies/{ontology_id}/validate").json()
+    finding_id = run["semantic_review"]["findings"][0]["id"]
+
+    response = client.post(
+        f"/api/v1/ontologies/{ontology_id}/suggestions/{finding_id}/decision",
+        json={"decision": "ignored"},
+    )
+    assert response.status_code == 200
+    ignored = next(
+        finding
+        for finding in response.json()["semantic_review"]["findings"]
+        if finding["id"] == finding_id
+    )
+    assert ignored["decision"] == "ignored"
+
+    with Session(db_engine) as session:
+        step = session.scalar(
+            select(TraceStep).where(
+                TraceStep.semantic_transaction_id
+                == UUID(response.json()["semantic_transaction_id"]),
+                TraceStep.step_type == "SuggestionIgnored",
+            )
+        )
+        assert step is not None
+
+
+def test_suggestion_decision_unknown_finding_returns_404(client: TestClient) -> None:
+    application_id = _create_application(client)
+    connector_id = _create_active_fuseki_connector(client)
+    imported = _import_ontology_draft(
+        client,
+        application_id=application_id,
+        connector_id=connector_id,
+    )
+    ontology_id = imported["id"]
+    client.post(f"/api/v1/ontologies/{ontology_id}/validate")
+
+    response = client.post(
+        f"/api/v1/ontologies/{ontology_id}/suggestions/does-not-exist/decision",
+        json={"decision": "accepted"},
+    )
+    assert response.status_code == 404
+
+
+def test_suggestion_decision_requires_prior_review(client: TestClient) -> None:
+    application_id = _create_application(client)
+    create = client.post(
+        "/api/v1/ontologies",
+        json={"application_id": application_id, "title": "No Review Ontology"},
+    )
+    ontology_id = create.json()["id"]
+
+    response = client.post(
+        f"/api/v1/ontologies/{ontology_id}/suggestions/finding-1/decision",
+        json={"decision": "accepted"},
+    )
+    assert response.status_code == 422
