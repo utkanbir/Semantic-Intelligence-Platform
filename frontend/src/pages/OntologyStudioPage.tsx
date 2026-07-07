@@ -212,31 +212,58 @@ function ValidationChecklist({ checks }: { checks: ValidationCheck[] }) {
 }
 
 function ValidationReportPanel({ report }: { report: OntologyValidationReport }) {
+  const errors = report.findings.filter((finding) => finding.level === "error");
+  const warnings = report.findings.filter((finding) => finding.level === "warning");
+
   return (
     <div className="ontology-wizard__review-card">
-      <h4>Validation report</h4>
+      <h4>Parse & validation report</h4>
       <p>
-        {report.passed ? "Structural validation passed" : "Structural validation failed"}
+        {report.error_count === 0
+          ? "Parsed successfully — review inventory before continuing"
+          : "Parsing failed — resolve errors before continuing"}
         {" · "}
         {report.error_count} errors, {report.warning_count} warnings
       </p>
-      <ul className="ontology-wizard__validation-checklist">
-        {report.findings
-          .filter((finding) => finding.level !== "info")
-          .map((finding) => (
-            <li
-              key={`${finding.code}-${finding.message}`}
-              className={`ontology-wizard__validation-item${
-                finding.level === "error" ? "" : " ontology-wizard__validation-item--passed"
-              }`}
-            >
-              <span className="ontology-wizard__validation-marker" aria-hidden="true">
-                {finding.level === "error" ? "✕" : "!"}
-              </span>
-              {finding.message}
-            </li>
-          ))}
-      </ul>
+
+      {errors.length > 0 && (
+        <div className="ontology-wizard__validation-block">
+          <h5>Errors (blocking)</h5>
+          <ul className="ontology-wizard__validation-checklist" aria-label="Parse errors">
+            {errors.map((finding) => (
+              <li key={`${finding.code}-${finding.message}`} className="ontology-wizard__validation-item">
+                <span className="ontology-wizard__validation-marker" aria-hidden="true">
+                  ✕
+                </span>
+                {finding.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div className="ontology-wizard__validation-block">
+          <h5>Warnings (non-blocking)</h5>
+          <ul
+            className="ontology-wizard__validation-checklist ontology-wizard__validation-checklist--warnings"
+            aria-label="Parse warnings"
+          >
+            {warnings.map((finding) => (
+              <li
+                key={`${finding.code}-${finding.message}`}
+                className="ontology-wizard__validation-item ontology-wizard__validation-item--warning"
+              >
+                <span className="ontology-wizard__validation-marker" aria-hidden="true">
+                  !
+                </span>
+                {finding.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {report.ai_summary && <p className="ontology-wizard__hint">{report.ai_summary}</p>}
       <OntologyValidationInventoryView inventory={report.inventory} />
     </div>
@@ -278,6 +305,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [validationLoading, setValidationLoading] = useState(false);
   const [backendValidationReport, setBackendValidationReport] =
     useState<OntologyValidationReport | null>(null);
+  const [importContentApproved, setImportContentApproved] = useState(false);
 
   const visibleSteps = skipModeStep ? FOCUSED_WIZARD_STEPS : FULL_WIZARD_STEPS;
   const currentPhase = phaseForStep(step, skipModeStep);
@@ -401,6 +429,11 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       ? manualValidationChecks.every((check) => check.passed)
       : importValidationChecks.every((check) => check.passed));
 
+  function resetImportParseState() {
+    setBackendValidationReport(null);
+    setImportContentApproved(false);
+  }
+
   async function runBackendValidation(): Promise<OntologyValidationReport | null> {
     if (!contentForSubmission) {
       return null;
@@ -473,8 +506,16 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
 
     if (phase === "validate") {
-      if (backendValidationReport && backendValidationReport.error_count > 0) {
+      if (!backendValidationReport) {
+        return "Run parse validation before continuing";
+      }
+
+      if (backendValidationReport.error_count > 0) {
         return "Resolve validation errors before continuing";
+      }
+
+      if (mode === "import" && !importContentApproved) {
+        return "Approve the parsed ontology content before continuing";
       }
     }
 
@@ -507,7 +548,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     setMode(nextMode);
     setStepError(null);
     setSubmitError(null);
-    setBackendValidationReport(null);
+    resetImportParseState();
     setDraftOntologyId(null);
 
     if (nextMode === "create") {
@@ -516,17 +557,41 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   }
 
   async function handleNext() {
+    if (currentPhase === "edit" && mode === "import") {
+      const editMessage = validatePhase("edit");
+      if (editMessage) {
+        setStepError(editMessage);
+        return;
+      }
+
+      setStepError(null);
+      resetImportParseState();
+      const report = await runBackendValidation();
+      if (!report) {
+        return;
+      }
+
+      setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+      return;
+    }
+
     if (currentPhase === "validate") {
       setStepError(null);
       const report =
-        backendValidationReport && backendValidationReport.error_count === 0
-          ? backendValidationReport
-          : await runBackendValidation();
+        backendValidationReport ??
+        (mode === "create" ? await runBackendValidation() : null);
       if (!report) {
+        if (mode === "import") {
+          setStepError("Run parse validation before continuing");
+        }
         return;
       }
       if (report.error_count > 0) {
         setStepError("Resolve validation errors before continuing");
+        return;
+      }
+      if (mode === "import" && !importContentApproved) {
+        setStepError("Approve the parsed ontology content before continuing");
         return;
       }
       setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
@@ -682,7 +747,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       setSourceFileSize(file.size);
       setSourceContent(text);
       setSourceFormat(inferSourceFormat(file.name));
-      setBackendValidationReport(null);
+      resetImportParseState();
       setStepError(null);
       setSubmitError(null);
       if (!title.trim()) {
@@ -997,7 +1062,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 Step {stepNumber} · Edit draft
               </h3>
               <p className="ontology-wizard__panel-lead">
-                Select a local OWL/RDF file. Basic RDF structure is checked before validation.
+                Upload or paste OWL/RDF content. Content is parsed and reviewed before advancing
+                to connector selection.
               </p>
               <div className="ontology-wizard__step-body">
                 <div className="agent-runs-page__field">
@@ -1008,31 +1074,84 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     onChange={(event) => {
                       setTitle(event.target.value);
                       setStepError(null);
-                      setBackendValidationReport(null);
+                      resetImportParseState();
                     }}
                   />
                 </div>
 
-                <div className="agent-runs-page__field">
-                  <label htmlFor="ontology-import-file">Ontology file</label>
-                  <input
-                    id="ontology-import-file"
-                    type="file"
-                    accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
-                    onChange={(event) => void handleFileChange(event)}
-                  />
-                  {sourceFileName ? (
-                    <p className="ontology-wizard__file-info" role="status">
-                      {sourceFileName}
-                      {sourceFileSize !== null && ` · ${formatFileSize(sourceFileSize)}`}
-                      {` · format: ${effectiveSourceFormat}`}
-                    </p>
-                  ) : (
-                    <p className="agent-runs-page__field-hint">
-                      Accepted formats include TTL, RDF/XML, OWL, and JSON-LD.
-                    </p>
-                  )}
+                <div className="ontology-wizard__source-tabs" role="tablist" aria-label="Import source">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={sourceMethod === "file"}
+                    className={`ontology-wizard__source-tab${
+                      sourceMethod === "file" ? " ontology-wizard__source-tab--active" : ""
+                    }`}
+                    onClick={() => {
+                      setSourceMethod("file");
+                      setStepError(null);
+                    }}
+                  >
+                    Upload file
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={sourceMethod === "paste"}
+                    className={`ontology-wizard__source-tab${
+                      sourceMethod === "paste" ? " ontology-wizard__source-tab--active" : ""
+                    }`}
+                    onClick={() => {
+                      setSourceMethod("paste");
+                      setStepError(null);
+                    }}
+                  >
+                    Paste text
+                  </button>
                 </div>
+
+                {sourceMethod === "file" ? (
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-import-file">Ontology file</label>
+                    <input
+                      id="ontology-import-file"
+                      type="file"
+                      accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
+                      onChange={(event) => void handleFileChange(event)}
+                    />
+                    {sourceFileName ? (
+                      <p className="ontology-wizard__file-info" role="status">
+                        {sourceFileName}
+                        {sourceFileSize !== null && ` · ${formatFileSize(sourceFileSize)}`}
+                        {` · format: ${effectiveSourceFormat}`}
+                      </p>
+                    ) : (
+                      <p className="agent-runs-page__field-hint">
+                        Accepted formats include TTL, RDF/XML, OWL, and JSON-LD.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-import-content">Ontology content</label>
+                    <textarea
+                      id="ontology-import-content"
+                      rows={14}
+                      className="ontology-wizard__import-textarea"
+                      value={sourceContent}
+                      onChange={(event) => {
+                        setSourceMethod("paste");
+                        setSourceContent(event.target.value);
+                        setStepError(null);
+                        resetImportParseState();
+                      }}
+                    />
+                    <p className="agent-runs-page__field-hint">
+                      Paste Turtle, RDF/XML, OWL, or JSON-LD. Source format can be adjusted on the
+                      connector step.
+                    </p>
+                  </div>
+                )}
 
                 {contentForSubmission && (
                   <div className="ontology-wizard__review-card">
@@ -1046,7 +1165,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 <ValidationChecklist checks={importValidationChecks} />
                 {editStepValid && (
                   <p className="platform-page__field-hint" role="status">
-                    Basic validation passed — ready to run structural validation.
+                    Basic validation passed — click Next to parse and review ontology structure.
                   </p>
                 )}
               </div>
@@ -1057,23 +1176,39 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             <div className="ontologies-page__create-panel">
               <h3 className="ontologies-page__create-title">Step {stepNumber} · Validate</h3>
               <p className="ontology-wizard__panel-lead">
-                Run deterministic structural validation on the draft content before selecting a
-                graph store connector.
+                {mode === "import"
+                  ? "Review parsed classes, properties, and relationships. Approve the content before selecting a graph store connector."
+                  : "Run deterministic structural validation on the draft content before selecting a graph store connector."}
               </p>
 
               {validationLoading && (
                 <p className="ontologies-page__status" role="status">
-                  Running structural validation…
+                  {mode === "import" ? "Parsing ontology content…" : "Running structural validation…"}
                 </p>
               )}
 
               {backendValidationReport ? (
-                <ValidationReportPanel report={backendValidationReport} />
-              ) : (
+                <>
+                  <ValidationReportPanel report={backendValidationReport} />
+                  {mode === "import" && backendValidationReport.error_count === 0 && (
+                    <label className="ontology-wizard__approval">
+                      <input
+                        type="checkbox"
+                        checked={importContentApproved}
+                        onChange={(event) => {
+                          setImportContentApproved(event.target.checked);
+                          setStepError(null);
+                        }}
+                      />
+                      I approve this parsed ontology content for draft creation
+                    </label>
+                  )}
+                </>
+              ) : mode === "create" ? (
                 <p className="agent-runs-page__field-hint">
                   Click Next to run validation against the submitted ontology content.
                 </p>
-              )}
+              ) : null}
             </div>
           )}
 
