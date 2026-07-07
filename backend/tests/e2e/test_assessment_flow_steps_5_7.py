@@ -30,7 +30,7 @@ def test_assessment_mvp_step_5_registers_knowledge_assets(client: TestClient) ->
 
     ontology = create_ontology(client, application_id, title="Vendor Ontology")
     published_ontology = advance_ontology_to_published(client, ontology["id"])
-    assert published_ontology["status"] == "Published"
+    assert published_ontology["status"] == "Approved"
 
     kg = create_knowledge_graph(
         client,
