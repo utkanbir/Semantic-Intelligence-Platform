@@ -3,15 +3,20 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import {
   createOntology,
+  generateOntology,
   importOntology,
   materializeOntology,
   runOntologyValidation,
   updateOntology,
   updateOntologyStatus,
   validateOntologyContent,
+  type OntologyExtraction,
+  type OntologyGenerationSource,
+  type OntologyGenerationSourceKind,
   type OntologyValidationReport,
 } from "../api/ontologies";
 import { ManualOntologyDraftEditor } from "../components/ManualOntologyDraftEditor";
+import { GeneratedCandidateReview } from "../components/GeneratedCandidateReview";
 import { OntologyValidationInventoryView } from "../components/OntologyValidationInventory";
 import { listConnectors, type ConnectorResponse } from "../api/adapters";
 import {
@@ -25,14 +30,37 @@ import {
   type OntologyDataPropertyRow,
   type OntologyObjectPropertyRow,
 } from "../lib/ontologyDraft";
+import {
+  countCandidates,
+  extractionToRows,
+  rowsToGeneratedDefinition,
+  type GeneratedDraftRows,
+} from "../lib/ontologyExtraction";
 
 interface OntologyStudioPageProps {
   applicationId: string;
 }
 
-type WizardMode = "create" | "import";
+type WizardMode = "create" | "import" | "generate";
 type ImportSourceMethod = "file" | "paste";
-type WizardPhase = "mode" | "edit" | "validate" | "connector" | "review" | "finalize";
+type GenerateSourceMethod = "file" | "paste" | "knowledge_source";
+type WizardPhase =
+  | "mode"
+  | "edit"
+  | "validate"
+  | "connector"
+  | "review"
+  | "finalize"
+  | "generate_sources"
+  | "generate_review";
+
+interface GenerateSourceEntry {
+  id: string;
+  kind: OntologyGenerationSourceKind;
+  name: string;
+  content: string;
+  referenceId?: string;
+}
 
 type PageState =
   | { kind: "loading" }
@@ -49,6 +77,7 @@ type PageState =
       title: string;
       mode: WizardMode;
       connectorLabel: string;
+      candidateCount?: number;
     };
 
 const FULL_WIZARD_STEPS = [
@@ -67,6 +96,10 @@ const FOCUSED_WIZARD_STEPS = [
   "Review & run",
   "Approve & materialize",
 ] as const;
+
+const GENERATE_WIZARD_STEPS = ["Mode", "Add sources", "Review & approve"] as const;
+
+const GENERATE_FOCUSED_STEPS = ["Add sources", "Review & approve"] as const;
 
 const SEMANTIC_TRANSACTION_STEPS = [
   "validate_request",
@@ -88,7 +121,13 @@ function formatConnectorLabel(connector: ConnectorResponse): string {
 }
 
 function formatModeLabel(mode: WizardMode): string {
-  return mode === "create" ? "Manual" : "OWL Import";
+  if (mode === "create") {
+    return "Manual";
+  }
+  if (mode === "generate") {
+    return "Generate from Sources";
+  }
+  return "OWL Import";
 }
 
 function normalizePrefix(prefix: string): string {
@@ -165,10 +204,29 @@ function readUploadedFile(file: File): Promise<string> {
   return readWithFileReader();
 }
 
-function phaseForStep(step: number, skipModeStep: boolean): WizardPhase {
-  const phases: WizardPhase[] = skipModeStep
-    ? ["edit", "validate", "connector", "review", "finalize"]
-    : ["mode", "edit", "validate", "connector", "review", "finalize"];
+function stepsForMode(
+  mode: WizardMode | null,
+  skipModeStep: boolean,
+): readonly string[] {
+  if (mode === "generate") {
+    return skipModeStep ? GENERATE_FOCUSED_STEPS : GENERATE_WIZARD_STEPS;
+  }
+  return skipModeStep ? FOCUSED_WIZARD_STEPS : FULL_WIZARD_STEPS;
+}
+
+function phaseForStep(
+  step: number,
+  mode: WizardMode | null,
+  skipModeStep: boolean,
+): WizardPhase {
+  const phases: WizardPhase[] =
+    mode === "generate"
+      ? skipModeStep
+        ? ["generate_sources", "generate_review"]
+        : ["mode", "generate_sources", "generate_review"]
+      : skipModeStep
+        ? ["edit", "validate", "connector", "review", "finalize"]
+        : ["mode", "edit", "validate", "connector", "review", "finalize"];
   return phases[step] ?? "mode";
 }
 
@@ -322,6 +380,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     if (modeParam === "import") {
       return "import";
     }
+    if (modeParam === "generate") {
+      return "generate";
+    }
     return null;
   }, [searchParams]);
   const skipModeStep = initialMode !== null;
@@ -358,9 +419,22 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     [],
   );
   const [draftSaving, setDraftSaving] = useState(false);
+  const [generateSourceMethod, setGenerateSourceMethod] = useState<GenerateSourceMethod>("file");
+  const [generateSources, setGenerateSources] = useState<GenerateSourceEntry[]>([]);
+  const [pasteName, setPasteName] = useState("");
+  const [pasteContent, setPasteContent] = useState("");
+  const [knowledgeReference, setKnowledgeReference] = useState("");
+  const [knowledgeName, setKnowledgeName] = useState("");
+  const [knowledgeContent, setKnowledgeContent] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generatedExtraction, setGeneratedExtraction] = useState<OntologyExtraction | null>(null);
+  const [generatedRows, setGeneratedRows] = useState<GeneratedDraftRows | null>(null);
+  const [generatedDefinition, setGeneratedDefinition] = useState<Record<string, unknown>>({});
+  const [generatedTransactionId, setGeneratedTransactionId] = useState<string | null>(null);
+  const [generateApproved, setGenerateApproved] = useState(false);
 
-  const visibleSteps = skipModeStep ? FOCUSED_WIZARD_STEPS : FULL_WIZARD_STEPS;
-  const currentPhase = phaseForStep(step, skipModeStep);
+  const visibleSteps = stepsForMode(mode, skipModeStep);
+  const currentPhase = phaseForStep(step, mode, skipModeStep);
   const pageTitle = mode
     ? `Create ontology · ${formatModeLabel(mode)}`
     : "Create ontology";
@@ -608,9 +682,193 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     setBackendValidationReport(null);
     setParsedContentApproved(false);
     setDraftOntologyId(null);
+    setGeneratedExtraction(null);
+    setGeneratedRows(null);
+    setGeneratedTransactionId(null);
+    setGenerateApproved(false);
 
     if (nextMode === "create") {
       setSourceFormat("ttl");
+    }
+  }
+
+  function toGenerationSourcePayload(entry: GenerateSourceEntry): OntologyGenerationSource {
+    return {
+      kind: entry.kind,
+      content: entry.content,
+      ...(entry.name.trim() ? { name: entry.name.trim() } : {}),
+      ...(entry.referenceId && entry.referenceId.trim()
+        ? { reference_id: entry.referenceId.trim() }
+        : {}),
+    };
+  }
+
+  async function handleGenerateSourceFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await readUploadedFile(file);
+      setGenerateSources((current) => [
+        ...current,
+        { id: createRowId(), kind: "file", name: file.name, content: text },
+      ]);
+      setStepError(null);
+      setSubmitError(null);
+      if (!title.trim()) {
+        setTitle(file.name.replace(/\.[^.]+$/, ""));
+      }
+    } catch {
+      setSubmitError("Failed to read the selected file");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  function handleAddPasteSource() {
+    if (!pasteContent.trim()) {
+      setStepError("Paste some text before adding it as a source");
+      return;
+    }
+
+    setGenerateSources((current) => [
+      ...current,
+      {
+        id: createRowId(),
+        kind: "paste",
+        name: pasteName.trim() || "Pasted text",
+        content: pasteContent,
+      },
+    ]);
+    setPasteName("");
+    setPasteContent("");
+    setStepError(null);
+  }
+
+  function handleAddKnowledgeSource() {
+    if (!knowledgeContent.trim()) {
+      setStepError("Provide the knowledge source text before adding it");
+      return;
+    }
+    if (!knowledgeReference.trim() && !knowledgeName.trim()) {
+      setStepError("Provide a knowledge source reference id or name");
+      return;
+    }
+
+    setGenerateSources((current) => [
+      ...current,
+      {
+        id: createRowId(),
+        kind: "knowledge_source",
+        name: knowledgeName.trim() || knowledgeReference.trim(),
+        content: knowledgeContent,
+        referenceId: knowledgeReference.trim() || undefined,
+      },
+    ]);
+    setKnowledgeReference("");
+    setKnowledgeName("");
+    setKnowledgeContent("");
+    setStepError(null);
+  }
+
+  function handleRemoveGenerateSource(id: string) {
+    setGenerateSources((current) => current.filter((entry) => entry.id !== id));
+    setStepError(null);
+  }
+
+  async function handleGenerateDraft(): Promise<boolean> {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setStepError("Title is required");
+      return false;
+    }
+    if (generateSources.length === 0) {
+      setStepError("Add at least one source to generate from");
+      return false;
+    }
+
+    setStepError(null);
+    setSubmitError(null);
+    setGenerating(true);
+
+    try {
+      const createdByValue = createdBy.trim();
+      const descriptionValue = description.trim();
+      const response = await generateOntology({
+        application_id: applicationId,
+        title: trimmedTitle,
+        sources: generateSources.map(toGenerationSourcePayload),
+        ...(createdByValue ? { created_by: createdByValue } : {}),
+        ...(descriptionValue ? { description: descriptionValue } : {}),
+      });
+
+      setDraftOntologyId(response.ontology.id);
+      setGeneratedExtraction(response.extraction);
+      setGeneratedRows(extractionToRows(response.extraction));
+      setGeneratedDefinition(response.ontology.ontology_definition);
+      setGeneratedTransactionId(response.semantic_transaction_id);
+      setGenerateApproved(false);
+      setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+      return true;
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to generate ontology draft from sources";
+      setSubmitError(message);
+      return false;
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleApproveGeneratedDraft() {
+    if (!generateApproved) {
+      setStepError("Approve the generated draft to continue");
+      return;
+    }
+    if (!draftOntologyId || !generatedRows) {
+      setStepError("Generate a draft before approving");
+      return;
+    }
+
+    setStepError(null);
+    setSubmitError(null);
+    setSubmitting(true);
+
+    try {
+      const descriptionValue = description.trim();
+      const definition = rowsToGeneratedDefinition(generatedRows, generatedDefinition);
+      const updated = await updateOntology(draftOntologyId, {
+        title: title.trim(),
+        ...(descriptionValue ? { description: descriptionValue } : { description: null }),
+        ontology_definition: definition,
+      });
+
+      setState({
+        kind: "completed",
+        mode: "generate",
+        ontologyId: updated.id,
+        title: updated.title,
+        artifactUri: null,
+        semanticTransactionId: generatedTransactionId,
+        connectorLabel: "—",
+        candidateCount: countCandidates(generatedRows),
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to save the generated ontology draft";
+      setSubmitError(message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -680,6 +938,11 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   }
 
   async function handleNext() {
+    if (currentPhase === "generate_sources") {
+      await handleGenerateDraft();
+      return;
+    }
+
     if (currentPhase === "edit" && mode === "create") {
       const editMessage = validatePhase("edit");
       if (editMessage) {
@@ -877,6 +1140,11 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (currentPhase === "generate_review") {
+      await handleApproveGeneratedDraft();
+      return;
+    }
+
     if (currentPhase === "review") {
       await handleCreateDraft();
       return;
@@ -961,7 +1229,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           <p className="ontology-wizard__completion-status">
             {state.mode === "create"
               ? "Ontology materialized successfully"
-              : "Ontology imported and materialized successfully"}
+              : state.mode === "generate"
+                ? "Ontology draft generated successfully"
+                : "Ontology imported and materialized successfully"}
           </p>
 
           <dl className="ontology-wizard__completion-meta">
@@ -971,12 +1241,19 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             </div>
             <div>
               <dt>Status</dt>
-              <dd>Approved · materialized</dd>
+              <dd>{state.mode === "generate" ? "Draft · approved" : "Approved · materialized"}</dd>
             </div>
-            <div>
-              <dt>{GRAPH_STORE_CONNECTOR_LABEL}</dt>
-              <dd>{state.connectorLabel}</dd>
-            </div>
+            {state.mode === "generate" ? (
+              <div>
+                <dt>Approved candidates</dt>
+                <dd>{state.candidateCount ?? 0}</dd>
+              </div>
+            ) : (
+              <div>
+                <dt>{GRAPH_STORE_CONNECTOR_LABEL}</dt>
+                <dd>{state.connectorLabel}</dd>
+              </div>
+            )}
             {state.artifactUri && (
               <div>
                 <dt>Artifact URI</dt>
@@ -987,12 +1264,23 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             )}
           </dl>
 
+          {state.mode === "generate" && (
+            <p className="ontology-wizard__completion-copy">
+              The editable draft is saved. Validation and materialization become available in a
+              later sprint (S34-08).
+            </p>
+          )}
+
           <section className="ontology-wizard__completion-semantic" aria-labelledby="semantic-tx-heading">
             <h3 id="semantic-tx-heading">Semantic transaction</h3>
             {state.semanticTransactionId ? (
               <>
                 <p className="ontology-wizard__completion-copy">
-                  Recorded as <code>ontology.materialized</code> with orchestrated trace steps.
+                  Recorded as{" "}
+                  <code>
+                    {state.mode === "generate" ? "ontology.generated" : "ontology.materialized"}
+                  </code>{" "}
+                  with orchestrated trace steps.
                 </p>
                 <p>
                   <Link
@@ -1002,16 +1290,19 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     View semantic transaction
                   </Link>
                 </p>
-                <ul className="ontology-wizard__completion-steps">
-                  {SEMANTIC_TRANSACTION_STEPS.map((stepName) => (
-                    <li key={stepName}>{stepName}</li>
-                  ))}
-                </ul>
+                {state.mode !== "generate" && (
+                  <ul className="ontology-wizard__completion-steps">
+                    {SEMANTIC_TRANSACTION_STEPS.map((stepName) => (
+                      <li key={stepName}>{stepName}</li>
+                    ))}
+                  </ul>
+                )}
               </>
             ) : (
               <p className="agent-runs-page__error" role="alert">
-                Ontology was materialized but no semantic transaction id was returned. Check
-                semantic transactions for the latest ontology lineage entry.
+                {state.mode === "generate"
+                  ? "The draft was generated but no semantic transaction id was returned. Check semantic transactions for the latest ontology lineage entry."
+                  : "Ontology was materialized but no semantic transaction id was returned. Check semantic transactions for the latest ontology lineage entry."}
               </p>
             )}
           </section>
@@ -1044,6 +1335,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const hasActiveConnectors = activeConnectors.length > 0;
   const isLastStep = step >= visibleSteps.length - 1;
   const isReviewStep = currentPhase === "review";
+  const isGenerateSources = currentPhase === "generate_sources";
+  const isGenerateReview = currentPhase === "generate_review";
 
   return (
     <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
@@ -1058,7 +1351,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               ? "Define business meaning from scratch. A draft is validated, approved, then materialized through your graph store connector."
               : mode === "import"
                 ? "Import existing OWL/RDF semantics. Content is validated, saved as a draft, approved, then materialized."
-                : "Capture business meaning for this application. Choose Manual or OWL Import to continue."}
+                : mode === "generate"
+                  ? "Extract candidate concepts from your sources. Review and edit the suggestions, then approve the editable draft."
+                  : "Capture business meaning for this application. Choose a creation mode to continue."}
           </p>
         </div>
       </div>
@@ -1130,16 +1425,20 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     Import existing OWL/RDF content from a file upload or pasted text.
                   </span>
                 </label>
-                <div
-                  className="ontology-wizard__mode-card ontology-wizard__mode-card--disabled"
-                  aria-disabled="true"
-                >
-                  <span className="ontology-wizard__mode-badge">Coming soon</span>
+                <label className="ontology-wizard__mode-card">
+                  <input
+                    type="radio"
+                    name="ontology-mode"
+                    value="generate"
+                    checked={mode === "generate"}
+                    onChange={() => handleModeChange("generate")}
+                  />
                   <span className="ontology-wizard__mode-title">Generate from Sources</span>
                   <span className="ontology-wizard__mode-copy">
-                    Extract ontology candidates from application knowledge sources and documents.
+                    Extract candidate classes, properties, and relationships from files, pasted
+                    text, or an existing knowledge source, then review and edit before approving.
                   </span>
-                </div>
+                </label>
               </div>
             </div>
           )}
@@ -1396,6 +1695,250 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             </div>
           )}
 
+          {currentPhase === "generate_sources" && (
+            <div className="ontologies-page__create-panel">
+              <h3 className="ontologies-page__create-title">Step {stepNumber} · Add sources</h3>
+              <p className="ontology-wizard__panel-lead">
+                Provide the sources to extract candidate concepts from. File and pasted text are
+                read into plain text in your browser and sent inline. URL and CSV/Excel sources are
+                planned for a later sprint.
+              </p>
+
+              <div className="ontology-wizard__step-body">
+                <div className="agent-runs-page__field">
+                  <label htmlFor="ontology-generate-title">Title</label>
+                  <input
+                    id="ontology-generate-title"
+                    value={title}
+                    onChange={(event) => {
+                      setTitle(event.target.value);
+                      setStepError(null);
+                    }}
+                  />
+                </div>
+                <div className="agent-runs-page__field">
+                  <label htmlFor="ontology-generate-description">
+                    Description <span className="agent-runs-page__optional">(optional)</span>
+                  </label>
+                  <textarea
+                    id="ontology-generate-description"
+                    rows={2}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                  />
+                </div>
+                <div className="agent-runs-page__field">
+                  <label htmlFor="ontology-generate-created-by">
+                    Created by <span className="agent-runs-page__optional">(optional)</span>
+                  </label>
+                  <input
+                    id="ontology-generate-created-by"
+                    value={createdBy}
+                    onChange={(event) => setCreatedBy(event.target.value)}
+                  />
+                </div>
+
+                <div
+                  className="ontology-wizard__source-tabs"
+                  role="tablist"
+                  aria-label="Generate source method"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={generateSourceMethod === "file"}
+                    className={`ontology-wizard__source-tab${
+                      generateSourceMethod === "file" ? " ontology-wizard__source-tab--active" : ""
+                    }`}
+                    onClick={() => setGenerateSourceMethod("file")}
+                  >
+                    Upload file
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={generateSourceMethod === "paste"}
+                    className={`ontology-wizard__source-tab${
+                      generateSourceMethod === "paste" ? " ontology-wizard__source-tab--active" : ""
+                    }`}
+                    onClick={() => setGenerateSourceMethod("paste")}
+                  >
+                    Paste text
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={generateSourceMethod === "knowledge_source"}
+                    className={`ontology-wizard__source-tab${
+                      generateSourceMethod === "knowledge_source"
+                        ? " ontology-wizard__source-tab--active"
+                        : ""
+                    }`}
+                    onClick={() => setGenerateSourceMethod("knowledge_source")}
+                  >
+                    Knowledge source
+                  </button>
+                </div>
+
+                {generateSourceMethod === "file" && (
+                  <div className="agent-runs-page__field">
+                    <label htmlFor="ontology-generate-file">Source file</label>
+                    <input
+                      id="ontology-generate-file"
+                      type="file"
+                      accept=".txt,.md,.json,.ttl,.rdf,.owl,.xml,text/plain"
+                      onChange={(event) => void handleGenerateSourceFile(event)}
+                    />
+                    <p className="agent-runs-page__field-hint">
+                      Text-bearing files are read client-side and added to the source list below.
+                    </p>
+                  </div>
+                )}
+
+                {generateSourceMethod === "paste" && (
+                  <div className="ontology-wizard__step-body">
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-generate-paste-name">
+                        Source name <span className="agent-runs-page__optional">(optional)</span>
+                      </label>
+                      <input
+                        id="ontology-generate-paste-name"
+                        value={pasteName}
+                        onChange={(event) => setPasteName(event.target.value)}
+                      />
+                    </div>
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-generate-paste-content">Pasted text</label>
+                      <textarea
+                        id="ontology-generate-paste-content"
+                        className="ontology-wizard__import-textarea"
+                        rows={6}
+                        value={pasteContent}
+                        onChange={(event) => setPasteContent(event.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="platform-page__button"
+                      onClick={handleAddPasteSource}
+                    >
+                      Add pasted source
+                    </button>
+                  </div>
+                )}
+
+                {generateSourceMethod === "knowledge_source" && (
+                  <div className="ontology-wizard__step-body">
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-generate-knowledge-ref">
+                        Knowledge source reference id
+                      </label>
+                      <input
+                        id="ontology-generate-knowledge-ref"
+                        value={knowledgeReference}
+                        onChange={(event) => setKnowledgeReference(event.target.value)}
+                      />
+                    </div>
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-generate-knowledge-name">
+                        Knowledge source name{" "}
+                        <span className="agent-runs-page__optional">(optional)</span>
+                      </label>
+                      <input
+                        id="ontology-generate-knowledge-name"
+                        value={knowledgeName}
+                        onChange={(event) => setKnowledgeName(event.target.value)}
+                      />
+                    </div>
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-generate-knowledge-content">
+                        Knowledge source text
+                      </label>
+                      <textarea
+                        id="ontology-generate-knowledge-content"
+                        className="ontology-wizard__import-textarea"
+                        rows={6}
+                        value={knowledgeContent}
+                        onChange={(event) => setKnowledgeContent(event.target.value)}
+                      />
+                      <p className="agent-runs-page__field-hint">
+                        Paste the text of an existing application knowledge source. Its reference id
+                        is recorded for lineage.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="platform-page__button"
+                      onClick={handleAddKnowledgeSource}
+                    >
+                      Add knowledge source
+                    </button>
+                  </div>
+                )}
+
+                <div className="ontology-wizard__review-card">
+                  <h4>Sources ({generateSources.length})</h4>
+                  {generateSources.length === 0 ? (
+                    <p className="ontology-wizard__manual-empty">
+                      No sources added yet. Add at least one source to generate candidates.
+                    </p>
+                  ) : (
+                    <ul className="ontology-wizard__source-entries" aria-label="Added sources">
+                      {generateSources.map((entry) => (
+                        <li key={entry.id} className="ontology-wizard__source-entry">
+                          <span>
+                            <strong>{entry.name}</strong>{" "}
+                            <span className="agent-runs-page__optional">
+                              ({entry.kind.replace("_", " ")} · {entry.content.length} chars)
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            className="platform-page__button platform-table__action"
+                            onClick={() => handleRemoveGenerateSource(entry.id)}
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentPhase === "generate_review" && (
+            <div className="ontologies-page__create-panel">
+              <h3 className="ontologies-page__create-title">
+                Step {stepNumber} · Review &amp; approve
+              </h3>
+              <p className="ontology-wizard__panel-lead">
+                These candidate concepts were extracted from your sources. They are advisory — edit,
+                remove, or add concepts, then approve the draft. Approval is required before the
+                draft can move on to validation and materialization.
+              </p>
+
+              {generatedRows && (
+                <GeneratedCandidateReview
+                  rows={generatedRows}
+                  onRowsChange={(rows) => {
+                    setGeneratedRows(rows);
+                    setStepError(null);
+                  }}
+                  approved={generateApproved}
+                  onApprovedChange={(approved) => {
+                    setGenerateApproved(approved);
+                    setStepError(null);
+                  }}
+                  extractionAvailable={generatedExtraction?.available ?? false}
+                  summary={generatedExtraction?.summary}
+                  model={generatedExtraction?.model}
+                />
+              )}
+            </div>
+          )}
+
           {currentPhase === "validate" && (
             <div className="ontologies-page__create-panel">
               <h3 className="ontologies-page__create-title">Step {stepNumber} · Validate</h3>
@@ -1633,7 +2176,17 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 Back
               </button>
             )}
-            {!isLastStep && !isReviewStep && (
+            {isGenerateSources && (
+              <button type="button" onClick={() => void handleNext()} disabled={generating}>
+                {generating ? "Generating…" : "Generate draft from sources"}
+              </button>
+            )}
+            {isGenerateReview && (
+              <button type="submit" disabled={submitting || !generateApproved}>
+                {submitting ? "Saving draft…" : "Approve & save draft"}
+              </button>
+            )}
+            {!isGenerateSources && !isGenerateReview && !isLastStep && !isReviewStep && (
               <button
                 type="button"
                 onClick={() => void handleNext()}
@@ -1642,12 +2195,12 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 {validationLoading ? "Validating…" : draftSaving ? "Saving…" : "Next"}
               </button>
             )}
-            {isReviewStep && (
+            {!isGenerateSources && !isGenerateReview && isReviewStep && (
               <button type="submit" disabled={submitting || validationLoading}>
                 {submitting ? "Creating draft…" : "Create draft & continue"}
               </button>
             )}
-            {isLastStep && (
+            {!isGenerateSources && !isGenerateReview && isLastStep && (
               <button type="submit" disabled={submitting || validationLoading || !draftOntologyId}>
                 {submitting ? "Approving & materializing…" : "Approve & materialize"}
               </button>

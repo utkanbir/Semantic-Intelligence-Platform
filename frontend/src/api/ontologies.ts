@@ -145,6 +145,87 @@ export function importOntology(
   });
 }
 
+export type OntologyGenerationSourceKind = "file" | "paste" | "knowledge_source";
+
+export interface OntologyGenerationSource {
+  kind: OntologyGenerationSourceKind;
+  content: string;
+  name?: string;
+  reference_id?: string;
+}
+
+export interface OntologyGenerateRequest {
+  application_id: string;
+  title: string;
+  sources: OntologyGenerationSource[];
+  created_by?: string;
+  description?: string;
+}
+
+export interface CandidateEvidence {
+  snippet: string;
+  source_ref: string | null;
+}
+
+export interface ClassCandidate {
+  name: string;
+  label: string | null;
+  description: string | null;
+  evidence: CandidateEvidence[];
+}
+
+export interface PropertyCandidate {
+  name: string;
+  label: string | null;
+  domain: string | null;
+  datatype: string | null;
+  description: string | null;
+  evidence: CandidateEvidence[];
+}
+
+export interface RelationshipCandidate {
+  name: string;
+  label: string | null;
+  domain: string | null;
+  range: string | null;
+  description: string | null;
+  evidence: CandidateEvidence[];
+}
+
+export interface ExtractionSourceSummary {
+  kind: string;
+  name: string | null;
+  reference_id: string | null;
+  content_length: number;
+}
+
+export interface OntologyExtraction {
+  available: boolean;
+  extracted_at: string;
+  extraction_id: string;
+  model: string | null;
+  summary: string | null;
+  classes: ClassCandidate[];
+  properties: PropertyCandidate[];
+  relationships: RelationshipCandidate[];
+  sources: ExtractionSourceSummary[];
+}
+
+export interface OntologyGenerateResponse {
+  ontology: OntologyDefinitionResponse;
+  extraction: OntologyExtraction;
+  semantic_transaction_id: string | null;
+}
+
+export function generateOntology(
+  payload: OntologyGenerateRequest,
+): Promise<OntologyGenerateResponse> {
+  return apiFetch<OntologyGenerateResponse>("/ontologies/generate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export interface OntologyContentValidateRequest {
   source_format: string;
   source_content: string;

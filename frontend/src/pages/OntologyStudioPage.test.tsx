@@ -599,7 +599,6 @@ describe("OntologyStudioPage", () => {
     });
 
     expect(screen.getByText("Generate from Sources")).toBeInTheDocument();
-    expect(screen.getByText("Coming soon")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
