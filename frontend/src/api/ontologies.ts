@@ -226,3 +226,10 @@ export function deleteOntology(ontologyId: string): Promise<void> {
     method: "DELETE",
   });
 }
+
+export function materializeOntology(ontologyId: string): Promise<OntologyDefinitionResponse> {
+  return apiFetch<OntologyDefinitionResponse>(`/ontologies/${ontologyId}/materialize`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}

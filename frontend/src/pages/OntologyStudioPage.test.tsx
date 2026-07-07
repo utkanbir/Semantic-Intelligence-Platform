@@ -2,8 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listConnectors } from "../api/adapters";
-import { importOntology, runOntologyValidation, validateOntologyContent, type OntologyDefinitionResponse } from "../api/ontologies";
-import { OntologyValidationPage } from "./OntologyValidationPage";
+import {
+  importOntology,
+  materializeOntology,
+  runOntologyValidation,
+  updateOntologyStatus,
+  validateOntologyContent,
+  type OntologyDefinitionResponse,
+} from "../api/ontologies";
 import { OntologyStudioPage } from "./OntologyStudioPage";
 
 vi.mock("../api/adapters", () => ({
@@ -18,23 +24,19 @@ vi.mock("../api/ontologies", async (importOriginal) => {
   return {
     ...actual,
     importOntology: vi.fn(),
+    materializeOntology: vi.fn(),
     validateOntologyContent: vi.fn(),
     runOntologyValidation: vi.fn(),
     updateOntologyStatus: vi.fn(),
   };
 });
 
-vi.mock("../connectors/catalog", () => ({
-  getVendorLabel: vi.fn(() => "Apache Jena Fuseki"),
-  readConnectorVendor: vi.fn(() => "apache_fuseki"),
-}));
-
 const connector = {
   id: "connector-1",
   connector_type: "ontology_knowledge_graph" as const,
   connector_key: "fuseki",
   status: "Active" as const,
-  title: "Primary Fuseki",
+  title: "Primary Graph Store",
   description: null,
   created_by: "alice@example.com",
   created_at: "2025-06-01T10:00:00Z",
@@ -48,7 +50,7 @@ const connector = {
   },
 };
 
-const importedOntology: OntologyDefinitionResponse = {
+const draftOntology: OntologyDefinitionResponse = {
   id: "onto-1",
   application_id: "app-1",
   version_number: 1,
@@ -65,9 +67,16 @@ const importedOntology: OntologyDefinitionResponse = {
   version_created_at: null,
   ontology_definition: {},
   connector_id: "connector-1",
-  artifact_uri: "fuseki://app-demo/ontologies/onto-1/artifact.ttl",
+  artifact_uri: null,
   source_format: "ttl",
-  semantic_transaction_id: "txn-1",
+  semantic_transaction_id: "txn-import-1",
+};
+
+const materializedOntology: OntologyDefinitionResponse = {
+  ...draftOntology,
+  status: "Approved",
+  artifact_uri: "fuseki://app-demo/ontologies/onto-1/artifact.ttl",
+  semantic_transaction_id: "txn-materialize-1",
 };
 
 function renderPage(initialEntry = "/applications/app-1/ontology/create") {
@@ -77,10 +86,6 @@ function renderPage(initialEntry = "/applications/app-1/ontology/create") {
         <Route
           path="/applications/:applicationId/ontology/create"
           element={<OntologyStudioPage applicationId="app-1" />}
-        />
-        <Route
-          path="/applications/:applicationId/ontology/:ontologyId/validate"
-          element={<OntologyValidationPage applicationId="app-1" ontologyId="onto-1" />}
         />
       </Routes>
     </MemoryRouter>,
@@ -109,31 +114,65 @@ const passingValidationReport = {
   },
 };
 
+async function goToReviewStep(options?: { createdBy?: string }) {
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+  await waitFor(() => {
+    expect(screen.getByRole("heading", { name: /Step \d+ · Validate/ })).toBeInTheDocument();
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+  await waitFor(() => {
+    expect(screen.getByRole("heading", { name: /Step \d+ · Connector/ })).toBeInTheDocument();
+  });
+
+  if (options?.createdBy) {
+    fireEvent.change(screen.getByLabelText(/Created by/), {
+      target: { value: options.createdBy },
+    });
+  }
+
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+  await waitFor(() => {
+    expect(screen.getByRole("heading", { name: /Step \d+ · Review & run/ })).toBeInTheDocument();
+  });
+}
+
 describe("OntologyStudioPage", () => {
   beforeEach(() => {
     vi.mocked(listConnectors).mockReset();
     vi.mocked(importOntology).mockReset();
+    vi.mocked(materializeOntology).mockReset();
     vi.mocked(validateOntologyContent).mockReset();
     vi.mocked(runOntologyValidation).mockReset();
+    vi.mocked(updateOntologyStatus).mockReset();
     vi.mocked(listConnectors).mockResolvedValue([connector]);
     vi.mocked(validateOntologyContent).mockResolvedValue(passingValidationReport);
+    vi.mocked(importOntology).mockResolvedValue(draftOntology);
     vi.mocked(runOntologyValidation).mockResolvedValue({
-      ontology: importedOntology,
+      ontology: draftOntology,
       report: passingValidationReport,
       semantic_transaction_id: "txn-validate-1",
     });
+    vi.mocked(updateOntologyStatus).mockImplementation(async (_id, status) => ({
+      ...draftOntology,
+      status,
+      approved_at: status === "Approved" ? "2025-06-01T11:00:00Z" : null,
+      validated_at: status === "Validated" ? "2025-06-01T10:30:00Z" : null,
+    }));
+    vi.mocked(materializeOntology).mockResolvedValue(materializedOntology);
   });
 
-  it("creates a minimal ontology and submits it through the import API", async () => {
-    vi.mocked(importOntology).mockResolvedValue(importedOntology);
-
+  it("creates a minimal ontology draft and materializes after approval", async () => {
     renderPage("/applications/app-1/ontology/create?mode=manual");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Create ontology · Manual" })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("heading", { name: "Step 1 · Define ontology" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Step 1 · Edit draft" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Customer Ontology" },
@@ -148,27 +187,13 @@ describe("OntologyStudioPage", () => {
       target: { value: "Business vocabulary" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Step 2 · Connector" })).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText(/Created by/), {
-      target: { value: "alice@example.com" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-
-    await waitFor(() => {
-      expect(screen.getByText("What will happen")).toBeInTheDocument();
-    });
+    await goToReviewStep({ createdBy: "alice@example.com" });
 
     expect(screen.getByText("Manual")).toBeInTheDocument();
-    expect(screen.getByText("Primary Fuseki — Apache Jena Fuseki")).toBeInTheDocument();
+    expect(screen.getByText("Primary Graph Store")).toBeInTheDocument();
     expect(screen.getByText(/@prefix cust:/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Materialize & continue to approval" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create draft & continue" }));
 
     await waitFor(() => {
       expect(importOntology).toHaveBeenCalledWith({
@@ -191,13 +216,28 @@ describe("OntologyStudioPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Ontology validation" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Step 5 · Approve & materialize" }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve & materialize" }));
+
+    await waitFor(() => {
+      expect(runOntologyValidation).toHaveBeenCalledWith("onto-1");
+      expect(updateOntologyStatus).toHaveBeenCalledWith("onto-1", "Validated");
+      expect(updateOntologyStatus).toHaveBeenCalledWith("onto-1", "Approved");
+      expect(materializeOntology).toHaveBeenCalledWith("onto-1");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Ontology materialized successfully")).toBeInTheDocument();
     });
   });
 
-  it("imports ontology RDF file through the import API", async () => {
+  it("imports ontology RDF file through the draft-first flow", async () => {
     vi.mocked(importOntology).mockResolvedValue({
-      ...importedOntology,
+      ...draftOntology,
       title: "Imported Ontology",
       source_format: "rdf",
     });
@@ -207,8 +247,6 @@ describe("OntologyStudioPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
-
-    expect(screen.getByRole("heading", { name: "Step 1 · Import OWL/RDF" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Imported Ontology" },
@@ -224,23 +262,9 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await goToReviewStep();
 
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Step 2 · Connector" })).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText("Source format"), {
-      target: { value: "rdf" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-
-    await waitFor(() => {
-      expect(screen.getByText("What will happen")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Materialize & continue to approval" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create draft & continue" }));
 
     await waitFor(() => {
       expect(importOntology).toHaveBeenCalledWith({
@@ -253,7 +277,7 @@ describe("OntologyStudioPage", () => {
     });
   });
 
-  it("blocks materialize when backend validation reports errors", async () => {
+  it("blocks advancing when backend validation reports errors", async () => {
     vi.mocked(validateOntologyContent).mockResolvedValue({
       ...passingValidationReport,
       passed: false,
@@ -285,12 +309,13 @@ describe("OntologyStudioPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
     });
+
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Resolve validation errors before continuing to review and materialize",
+        "Resolve validation errors before continuing",
       );
     });
 
@@ -319,6 +344,7 @@ describe("OntologyStudioPage", () => {
     expect(screen.getByText(/format: ttl/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Source format")).toHaveValue("ttl");
@@ -331,6 +357,9 @@ describe("OntologyStudioPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
     });
+
+    expect(screen.getByText("Generate from Sources")).toBeInTheDocument();
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
@@ -345,13 +374,13 @@ describe("OntologyStudioPage", () => {
     renderPage("/applications/app-1/ontology/create?mode=manual");
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Step 1 · Define ontology" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Step 1 · Edit draft" })).toBeInTheDocument();
     });
 
     expect(screen.queryByRole("heading", { name: /Step 1 · Mode/i })).not.toBeInTheDocument();
   });
 
-  it("shows empty state when no ready ontology connectors exist", async () => {
+  it("shows empty state when no ready graph store connectors exist", async () => {
     vi.mocked(listConnectors).mockResolvedValue([
       {
         ...connector,
@@ -364,7 +393,7 @@ describe("OntologyStudioPage", () => {
     renderPage("/applications/app-1/ontology/create?mode=import");
 
     await waitFor(() => {
-      expect(screen.getByText(/No ontology \/ knowledge graph connector is ready yet/)).toBeInTheDocument();
+      expect(screen.getByText(/No graph store connector is ready yet/)).toBeInTheDocument();
     });
 
     expect(screen.getByRole("link", { name: "Open connectors" })).toHaveAttribute(

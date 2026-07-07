@@ -1,14 +1,16 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
-import { importOntology, validateOntologyContent, type OntologyValidationReport } from "../api/ontologies";
-import { OntologyValidationInventoryView } from "../components/OntologyValidationInventory";
 import {
-  listConnectors,
-  CONNECTOR_TYPE_LABELS,
-  type ConnectorResponse,
-} from "../api/adapters";
-import { getVendorLabel, readConnectorVendor } from "../connectors/catalog";
+  importOntology,
+  materializeOntology,
+  runOntologyValidation,
+  updateOntologyStatus,
+  validateOntologyContent,
+  type OntologyValidationReport,
+} from "../api/ontologies";
+import { OntologyValidationInventoryView } from "../components/OntologyValidationInventory";
+import { listConnectors, type ConnectorResponse } from "../api/adapters";
 
 interface OntologyStudioPageProps {
   applicationId: string;
@@ -16,7 +18,7 @@ interface OntologyStudioPageProps {
 
 type WizardMode = "create" | "import";
 type ImportSourceMethod = "file" | "paste";
-type WizardPhase = "mode" | "edit" | "connector" | "review";
+type WizardPhase = "mode" | "edit" | "validate" | "connector" | "review" | "finalize";
 
 type PageState =
   | { kind: "loading" }
@@ -26,7 +28,7 @@ type PageState =
       activeConnectors: ConnectorResponse[];
     }
   | {
-      kind: "imported";
+      kind: "completed";
       ontologyId: string;
       artifactUri: string | null | undefined;
       semanticTransactionId: string | null | undefined;
@@ -35,8 +37,23 @@ type PageState =
       connectorLabel: string;
     };
 
-const FULL_WIZARD_STEPS = ["Mode", "Edit & validate", "Connector", "Review & run"] as const;
-const FOCUSED_WIZARD_STEPS = ["Edit & validate", "Connector", "Review & run"] as const;
+const FULL_WIZARD_STEPS = [
+  "Mode",
+  "Edit draft",
+  "Validate",
+  "Connector",
+  "Review & run",
+  "Approve & materialize",
+] as const;
+
+const FOCUSED_WIZARD_STEPS = [
+  "Edit draft",
+  "Validate",
+  "Connector",
+  "Review & run",
+  "Approve & materialize",
+] as const;
+
 const SEMANTIC_TRANSACTION_STEPS = [
   "validate_request",
   "resolve_connector",
@@ -44,6 +61,8 @@ const SEMANTIC_TRANSACTION_STEPS = [
   "persist_metadata",
   "finalize",
 ] as const;
+
+const GRAPH_STORE_CONNECTOR_LABEL = "Graph store connector";
 const PREFIX_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
 function listActiveOntologyConnectors(connectors: ConnectorResponse[]): ConnectorResponse[] {
@@ -51,12 +70,7 @@ function listActiveOntologyConnectors(connectors: ConnectorResponse[]): Connecto
 }
 
 function formatConnectorLabel(connector: ConnectorResponse): string {
-  const vendorId = readConnectorVendor(connector.connector_configuration);
-  const vendorLabel = vendorId
-    ? getVendorLabel(connector.connector_type, vendorId)
-    : null;
-
-  return vendorLabel ? `${connector.title} — ${vendorLabel}` : connector.title;
+  return connector.title;
 }
 
 function formatModeLabel(mode: WizardMode): string {
@@ -165,26 +179,10 @@ function readUploadedFile(file: File): Promise<string> {
 }
 
 function phaseForStep(step: number, skipModeStep: boolean): WizardPhase {
-  if (skipModeStep) {
-    if (step === 0) {
-      return "edit";
-    }
-    if (step === 1) {
-      return "connector";
-    }
-    return "review";
-  }
-
-  if (step === 0) {
-    return "mode";
-  }
-  if (step === 1) {
-    return "edit";
-  }
-  if (step === 2) {
-    return "connector";
-  }
-  return "review";
+  const phases: WizardPhase[] = skipModeStep
+    ? ["edit", "validate", "connector", "review", "finalize"]
+    : ["mode", "edit", "validate", "connector", "review", "finalize"];
+  return phases[step] ?? "mode";
 }
 
 interface ValidationCheck {
@@ -213,8 +211,39 @@ function ValidationChecklist({ checks }: { checks: ValidationCheck[] }) {
   );
 }
 
+function ValidationReportPanel({ report }: { report: OntologyValidationReport }) {
+  return (
+    <div className="ontology-wizard__review-card">
+      <h4>Validation report</h4>
+      <p>
+        {report.passed ? "Structural validation passed" : "Structural validation failed"}
+        {" · "}
+        {report.error_count} errors, {report.warning_count} warnings
+      </p>
+      <ul className="ontology-wizard__validation-checklist">
+        {report.findings
+          .filter((finding) => finding.level !== "info")
+          .map((finding) => (
+            <li
+              key={`${finding.code}-${finding.message}`}
+              className={`ontology-wizard__validation-item${
+                finding.level === "error" ? "" : " ontology-wizard__validation-item--passed"
+              }`}
+            >
+              <span className="ontology-wizard__validation-marker" aria-hidden="true">
+                {finding.level === "error" ? "✕" : "!"}
+              </span>
+              {finding.message}
+            </li>
+          ))}
+      </ul>
+      {report.ai_summary && <p className="ontology-wizard__hint">{report.ai_summary}</p>}
+      <OntologyValidationInventoryView inventory={report.inventory} />
+    </div>
+  );
+}
+
 export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialMode = useMemo((): WizardMode | null => {
     const modeParam = searchParams.get("mode")?.toLowerCase();
@@ -242,6 +271,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [sourceFormat, setSourceFormat] = useState("ttl");
   const [sourceContent, setSourceContent] = useState("");
   const [createdBy, setCreatedBy] = useState("");
+  const [draftOntologyId, setDraftOntologyId] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -349,9 +379,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       {
         id: "source",
         label:
-          sourceMethod === "file"
-            ? "Ontology file uploaded"
-            : "Ontology content pasted",
+          sourceMethod === "file" ? "Ontology file uploaded" : "Ontology content pasted",
         passed: Boolean(trimmedContent),
       },
       {
@@ -372,9 +400,6 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     (mode === "create"
       ? manualValidationChecks.every((check) => check.passed)
       : importValidationChecks.every((check) => check.passed));
-
-  const backendValidationBlocking =
-    backendValidationReport !== null && backendValidationReport.error_count > 0;
 
   async function runBackendValidation(): Promise<OntologyValidationReport | null> {
     if (!contentForSubmission) {
@@ -447,13 +472,31 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       }
     }
 
+    if (phase === "validate") {
+      if (backendValidationReport && backendValidationReport.error_count > 0) {
+        return "Resolve validation errors before continuing";
+      }
+    }
+
     if (phase === "connector") {
       if (!connectorId) {
-        return "Connector is required";
+        return `${GRAPH_STORE_CONNECTOR_LABEL} is required`;
       }
 
       if (mode === "import" && !sourceFormat.trim()) {
         return "Source format is required";
+      }
+    }
+
+    if (phase === "review") {
+      if (!connectorId || !contentForSubmission) {
+        return "Complete the flow before creating the draft";
+      }
+    }
+
+    if (phase === "finalize") {
+      if (!draftOntologyId) {
+        return "Create the ontology draft before approving and materializing";
       }
     }
 
@@ -464,6 +507,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     setMode(nextMode);
     setStepError(null);
     setSubmitError(null);
+    setBackendValidationReport(null);
+    setDraftOntologyId(null);
 
     if (nextMode === "create") {
       setSourceFormat("ttl");
@@ -471,23 +516,27 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   }
 
   async function handleNext() {
-    const message = validatePhase(currentPhase);
-    if (message) {
-      setStepError(message);
-      return;
-    }
-
-    if (currentPhase === "connector") {
-      const report = await runBackendValidation();
+    if (currentPhase === "validate") {
+      setStepError(null);
+      const report =
+        backendValidationReport && backendValidationReport.error_count === 0
+          ? backendValidationReport
+          : await runBackendValidation();
       if (!report) {
         return;
       }
       if (report.error_count > 0) {
-        setStepError(
-          "Resolve validation errors before continuing to review and materialize",
-        );
+        setStepError("Resolve validation errors before continuing");
         return;
       }
+      setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+      return;
+    }
+
+    const message = validatePhase(currentPhase);
+    if (message) {
+      setStepError(message);
+      return;
     }
 
     setStepError(null);
@@ -500,33 +549,23 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     setStep((current) => Math.max(current - 1, 0));
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const reviewValidation = validatePhase("connector");
+  async function handleCreateDraft(): Promise<boolean> {
+    const reviewValidation = validatePhase("review");
     if (reviewValidation) {
       setStepError(reviewValidation);
-      return;
-    }
-
-    setStepError(null);
-    setSubmitError(null);
-
-    const report = await runBackendValidation();
-    if (!report) {
-      return;
-    }
-    if (report.error_count > 0) {
-      setSubmitError("Resolve validation errors before materializing the ontology");
-      return;
+      return false;
     }
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle || !connectorId || !contentForSubmission) {
-      setSubmitError("Complete the flow before materializing the ontology");
-      return;
+      setStepError("Complete the flow before creating the draft");
+      return false;
     }
 
+    setStepError(null);
+    setSubmitError(null);
     setSubmitting(true);
+
     try {
       const createdByValue = createdBy.trim();
       const descriptionValue = description.trim();
@@ -539,8 +578,70 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         ...(createdByValue ? { created_by: createdByValue } : {}),
         ...(descriptionValue ? { description: descriptionValue } : {}),
       });
-      navigate(`/applications/${applicationId}/ontology/${ontology.id}/validate`, {
-        replace: true,
+
+      setDraftOntologyId(ontology.id);
+      if (ontology.artifact_uri) {
+        setSubmitError(
+          "Draft creation returned an artifact URI unexpectedly. Continue only after confirming draft-only import.",
+        );
+        return false;
+      }
+
+      setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+      return true;
+    } catch (error: unknown) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to create ontology draft";
+      setSubmitError(message);
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleApproveAndMaterialize() {
+    const finalizeValidation = validatePhase("finalize");
+    if (finalizeValidation) {
+      setSubmitError(finalizeValidation);
+      return;
+    }
+
+    if (!draftOntologyId) {
+      return;
+    }
+
+    setStepError(null);
+    setSubmitError(null);
+    setSubmitting(true);
+
+    try {
+      const validationResult = await runOntologyValidation(draftOntologyId);
+      if (!validationResult.report.passed) {
+        setSubmitError("Resolve validation errors before approving and materializing");
+        return;
+      }
+
+      await updateOntologyStatus(draftOntologyId, "Validated");
+      const approved = await updateOntologyStatus(draftOntologyId, "Approved");
+      const materialized = await materializeOntology(draftOntologyId);
+
+      const selectedConnector =
+        state.kind === "ready"
+          ? (state.activeConnectors.find((connector) => connector.id === connectorId) ?? null)
+          : null;
+
+      setState({
+        kind: "completed",
+        ontologyId: materialized.id,
+        artifactUri: materialized.artifact_uri,
+        semanticTransactionId: materialized.semantic_transaction_id,
+        title: approved.title,
+        mode: mode ?? "create",
+        connectorLabel: selectedConnector ? formatConnectorLabel(selectedConnector) : "—",
       });
     } catch (error: unknown) {
       const message =
@@ -548,10 +649,23 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to materialize ontology";
+            : "Failed to approve and materialize ontology";
       setSubmitError(message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (currentPhase === "review") {
+      await handleCreateDraft();
+      return;
+    }
+
+    if (currentPhase === "finalize") {
+      await handleApproveAndMaterialize();
     }
   }
 
@@ -568,6 +682,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       setSourceFileSize(file.size);
       setSourceContent(text);
       setSourceFormat(inferSourceFormat(file.name));
+      setBackendValidationReport(null);
       setStepError(null);
       setSubmitError(null);
       if (!title.trim()) {
@@ -596,7 +711,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     );
   }
 
-  if (state.kind === "imported") {
+  if (state.kind === "completed") {
     return (
       <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
         <Link to={backHref} className="agent-run-detail__back">
@@ -608,7 +723,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           <p className="ontology-wizard__completion-status">
             {state.mode === "create"
               ? "Ontology materialized successfully"
-              : "Ontology imported successfully"}
+              : "Ontology imported and materialized successfully"}
           </p>
 
           <dl className="ontology-wizard__completion-meta">
@@ -618,10 +733,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             </div>
             <div>
               <dt>Status</dt>
-              <dd>Draft · v1</dd>
+              <dd>Approved · materialized</dd>
             </div>
             <div>
-              <dt>Connector</dt>
+              <dt>{GRAPH_STORE_CONNECTOR_LABEL}</dt>
               <dd>{state.connectorLabel}</dd>
             </div>
             {state.artifactUri && (
@@ -639,7 +754,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             {state.semanticTransactionId ? (
               <>
                 <p className="ontology-wizard__completion-copy">
-                  Recorded as <code>ontology.imported</code> with orchestrated trace steps.
+                  Recorded as <code>ontology.materialized</code> with orchestrated trace steps.
                 </p>
                 <p>
                   <Link
@@ -689,6 +804,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const sourcePreview = previewSourceContent(contentForSubmission);
   const stepNumber = step + 1;
   const hasActiveConnectors = activeConnectors.length > 0;
+  const isLastStep = step >= visibleSteps.length - 1;
+  const isReviewStep = currentPhase === "review";
 
   return (
     <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
@@ -700,9 +817,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           <h2 id="ontology-create-heading">{pageTitle}</h2>
           <p className="agent-runs-page__lead">
             {mode === "create"
-              ? "Define business meaning from scratch. A minimal ontology document is generated, validated, and materialized through your connector."
+              ? "Define business meaning from scratch. A draft is validated, approved, then materialized through your graph store connector."
               : mode === "import"
-                ? "Import existing OWL/RDF semantics. Content is validated client-side, then materialized through the connector framework."
+                ? "Import existing OWL/RDF semantics. Content is validated, saved as a draft, approved, then materialized."
                 : "Capture business meaning for this application. Choose Manual or OWL Import to continue."}
           </p>
         </div>
@@ -711,8 +828,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       {!hasActiveConnectors ? (
         <div className="agent-runs-page__empty" role="status">
           <p>
-            No ontology / knowledge graph connector is ready yet. Create one under Platform →
-            Connectors, test the connection, and save it — then return here to create an ontology.
+            No graph store connector is ready yet. Create one under Platform → Connectors, test
+            the connection, and save it — then return here to create an ontology.
           </p>
           <p className="agent-runs-page__hint">
             <Link to="/connectors">Open connectors</Link>
@@ -758,8 +875,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                   <span className="ontology-wizard__mode-title">Manual</span>
                   <span className="ontology-wizard__mode-copy">
-                    Define title, namespace, and prefix. A minimal ontology document is
-                    generated for materialization.
+                    Define title, namespace, and prefix. A minimal ontology document is generated
+                    as a draft for validation and materialization.
                   </span>
                 </label>
                 <label className="ontology-wizard__mode-card">
@@ -775,6 +892,16 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     Import existing OWL/RDF content from a file upload or pasted text.
                   </span>
                 </label>
+                <div
+                  className="ontology-wizard__mode-card ontology-wizard__mode-card--disabled"
+                  aria-disabled="true"
+                >
+                  <span className="ontology-wizard__mode-badge">Coming soon</span>
+                  <span className="ontology-wizard__mode-title">Generate from Sources</span>
+                  <span className="ontology-wizard__mode-copy">
+                    Extract ontology candidates from application knowledge sources and documents.
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -782,11 +909,11 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           {currentPhase === "edit" && mode === "create" && (
             <div className="ontologies-page__create-panel">
               <h3 className="ontologies-page__create-title">
-                Step {stepNumber} · Define ontology
+                Step {stepNumber} · Edit draft
               </h3>
               <p className="ontology-wizard__panel-lead">
-                Manual mode captures namespace and prefix, then generates Turtle for
-                materialization — not application metadata alone.
+                Manual mode captures namespace and prefix, then generates Turtle for validation
+                and materialization — not application metadata alone.
               </p>
               <div className="ontology-wizard__edit-grid">
                 <div className="ontology-wizard__edit-form">
@@ -798,6 +925,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       onChange={(event) => {
                         setTitle(event.target.value);
                         setStepError(null);
+                        setBackendValidationReport(null);
                       }}
                     />
                   </div>
@@ -810,6 +938,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       onChange={(event) => {
                         setNamespaceIri(event.target.value);
                         setStepError(null);
+                        setBackendValidationReport(null);
                       }}
                     />
                     <p className="agent-runs-page__field-hint">
@@ -825,6 +954,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       onChange={(event) => {
                         setPrefix(event.target.value);
                         setStepError(null);
+                        setBackendValidationReport(null);
                       }}
                     />
                   </div>
@@ -836,7 +966,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       id="ontology-manual-description"
                       rows={3}
                       value={description}
-                      onChange={(event) => setDescription(event.target.value)}
+                      onChange={(event) => {
+                        setDescription(event.target.value);
+                        setBackendValidationReport(null);
+                      }}
                     />
                   </div>
                   <ValidationChecklist checks={manualValidationChecks} />
@@ -852,7 +985,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               </div>
               {editStepValid && (
                 <p className="platform-page__field-hint" role="status">
-                  Basic validation passed — ready to choose a connector.
+                  Basic validation passed — ready to run structural validation.
                 </p>
               )}
             </div>
@@ -861,11 +994,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           {currentPhase === "edit" && mode === "import" && (
             <div className="ontologies-page__create-panel">
               <h3 className="ontologies-page__create-title">
-                Step {stepNumber} · Import OWL/RDF
+                Step {stepNumber} · Edit draft
               </h3>
               <p className="ontology-wizard__panel-lead">
-                Select a local OWL/RDF file. Basic RDF structure is checked before connector
-                materialization.
+                Select a local OWL/RDF file. Basic RDF structure is checked before validation.
               </p>
               <div className="ontology-wizard__step-body">
                 <div className="agent-runs-page__field">
@@ -876,6 +1008,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     onChange={(event) => {
                       setTitle(event.target.value);
                       setStepError(null);
+                      setBackendValidationReport(null);
                     }}
                   />
                 </div>
@@ -913,10 +1046,34 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 <ValidationChecklist checks={importValidationChecks} />
                 {editStepValid && (
                   <p className="platform-page__field-hint" role="status">
-                    Basic validation passed — ready to choose a connector.
+                    Basic validation passed — ready to run structural validation.
                   </p>
                 )}
               </div>
+            </div>
+          )}
+
+          {currentPhase === "validate" && (
+            <div className="ontologies-page__create-panel">
+              <h3 className="ontologies-page__create-title">Step {stepNumber} · Validate</h3>
+              <p className="ontology-wizard__panel-lead">
+                Run deterministic structural validation on the draft content before selecting a
+                graph store connector.
+              </p>
+
+              {validationLoading && (
+                <p className="ontologies-page__status" role="status">
+                  Running structural validation…
+                </p>
+              )}
+
+              {backendValidationReport ? (
+                <ValidationReportPanel report={backendValidationReport} />
+              ) : (
+                <p className="agent-runs-page__field-hint">
+                  Click Next to run validation against the submitted ontology content.
+                </p>
+              )}
             </div>
           )}
 
@@ -925,7 +1082,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               <h3 className="ontologies-page__create-title">Step {stepNumber} · Connector</h3>
               <div className="ontology-wizard__step-body">
                 <div className="agent-runs-page__field">
-                  <label htmlFor="ontology-import-connector">Target connector</label>
+                  <label htmlFor="ontology-import-connector">{GRAPH_STORE_CONNECTOR_LABEL}</label>
                   <select
                     id="ontology-import-connector"
                     value={connectorId}
@@ -936,13 +1093,12 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   >
                     {activeConnectors.map((connector) => (
                       <option key={connector.id} value={connector.id}>
-                        {formatConnectorLabel(connector)} (
-                        {CONNECTOR_TYPE_LABELS[connector.connector_type]})
+                        {formatConnectorLabel(connector)}
                       </option>
                     ))}
                   </select>
                   <p className="agent-runs-page__field-hint">
-                    The connector materializes the ontology into the selected vendor without
+                    The connector materializes the ontology into the selected graph store without
                     coupling application logic to that technology.
                   </p>
                 </div>
@@ -959,7 +1115,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                   <p className="agent-runs-page__field-hint">
                     {mode === "create"
-                      ? "Manual mode always generates Turtle and submits it through the import pipeline."
+                      ? "Manual mode always generates Turtle for the draft import pipeline."
                       : "Adjust this if the pasted or uploaded content uses a different RDF serialization."}
                   </p>
                 </div>
@@ -1030,7 +1186,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       </div>
                     )}
                     <div>
-                      <dt>Connector</dt>
+                      <dt>{GRAPH_STORE_CONNECTOR_LABEL}</dt>
                       <dd>{selectedConnector ? formatConnectorLabel(selectedConnector) : "—"}</dd>
                     </div>
                     <div>
@@ -1061,61 +1217,53 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               <div className="ontology-wizard__what-happens">
                 <h4>What will happen</h4>
                 <ol>
-                  <li>Validate the submitted ontology artifact</li>
-                  <li>Materialize content through the selected connector</li>
-                  <li>Register the ontology definition as Draft</li>
-                  <li>Record a semantic transaction (<code>ontology.imported</code>)</li>
+                  <li>Create an ontology draft (no graph store write yet)</li>
+                  <li>Confirm validation and approve the draft</li>
+                  <li>Materialize content through the selected graph store connector</li>
+                  <li>Record semantic transactions for import and materialization</li>
                 </ol>
               </div>
 
-              {validationLoading && (
-                <p className="ontologies-page__status" role="status">
-                  Running structural validation…
-                </p>
-              )}
+              {backendValidationReport && <ValidationReportPanel report={backendValidationReport} />}
+            </div>
+          )}
+
+          {currentPhase === "finalize" && (
+            <div className="ontologies-page__create-panel">
+              <h3 className="ontologies-page__create-title">
+                Step {stepNumber} · Approve & materialize
+              </h3>
+              <p className="ontology-wizard__panel-lead">
+                Draft <strong>{title.trim()}</strong> is ready. Approve the ontology, then
+                materialize it through the selected graph store connector.
+              </p>
+
+              <dl className="ontology-wizard__review-list">
+                <div>
+                  <dt>Draft ID</dt>
+                  <dd>
+                    <code>{draftOntologyId}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{GRAPH_STORE_CONNECTOR_LABEL}</dt>
+                  <dd>{selectedConnector ? formatConnectorLabel(selectedConnector) : "—"}</dd>
+                </div>
+              </dl>
 
               {backendValidationReport && (
-                <div className="ontology-wizard__review-card">
-                  <h4>Validation report</h4>
-                  <p>
-                    {backendValidationReport.passed
-                      ? "Structural validation passed"
-                      : "Structural validation failed"}
-                    {" · "}
-                    {backendValidationReport.error_count} errors,{" "}
-                    {backendValidationReport.warning_count} warnings
-                  </p>
-                  <ul className="ontology-wizard__validation-checklist">
-                    {backendValidationReport.findings
-                      .filter((finding) => finding.level !== "info")
-                      .map((finding) => (
-                        <li
-                          key={`${finding.code}-${finding.message}`}
-                          className={`ontology-wizard__validation-item${
-                            finding.level === "error"
-                              ? ""
-                              : " ontology-wizard__validation-item--passed"
-                          }`}
-                        >
-                          <span className="ontology-wizard__validation-marker" aria-hidden="true">
-                            {finding.level === "error" ? "✕" : "!"}
-                          </span>
-                          {finding.message}
-                        </li>
-                      ))}
-                  </ul>
-                  {backendValidationReport.ai_summary && (
-                    <p className="ontology-wizard__hint">{backendValidationReport.ai_summary}</p>
-                  )}
-                  <OntologyValidationInventoryView inventory={backendValidationReport.inventory} />
-                  {backendValidationReport.passed && (
-                    <p className="ontology-wizard__hint">
-                      After materialize you will confirm validation and approve on the next
-                      screen.
-                    </p>
-                  )}
-                </div>
+                <ValidationReportPanel report={backendValidationReport} />
               )}
+
+              <div className="ontology-wizard__what-happens">
+                <h4>What will happen</h4>
+                <ol>
+                  <li>Re-run validation on the stored draft</li>
+                  <li>Mark the ontology as Validated and Approved</li>
+                  <li>Materialize the artifact to the graph store connector</li>
+                  <li>Record a semantic transaction (<code>ontology.materialized</code>)</li>
+                </ol>
+              </div>
             </div>
           )}
 
@@ -1131,16 +1279,19 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 Back
               </button>
             )}
-            {step < visibleSteps.length - 1 ? (
+            {!isLastStep && !isReviewStep && (
               <button type="button" onClick={() => void handleNext()} disabled={validationLoading}>
                 {validationLoading ? "Validating…" : "Next"}
               </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={submitting || validationLoading || backendValidationBlocking}
-              >
-                {submitting ? "Materializing…" : "Materialize & continue to approval"}
+            )}
+            {isReviewStep && (
+              <button type="submit" disabled={submitting || validationLoading}>
+                {submitting ? "Creating draft…" : "Create draft & continue"}
+              </button>
+            )}
+            {isLastStep && (
+              <button type="submit" disabled={submitting || validationLoading || !draftOntologyId}>
+                {submitting ? "Approving & materializing…" : "Approve & materialize"}
               </button>
             )}
           </div>
