@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal as PropertyKind, cast
+
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDFS
 
@@ -67,7 +69,10 @@ def build_validation_inventory(
             continue
         uri = str(resource)
         label = first_label(graph, resource)
-        property_type = "object" if resource in object_properties else "datatype"
+        property_type = cast(
+            PropertyKind["object", "datatype"],
+            "object" if resource in object_properties else "datatype",
+        )
         relations.append(
             OntologyRelationSummary(
                 uri=uri,

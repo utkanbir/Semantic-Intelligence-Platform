@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from rdflib import Graph, URIRef
@@ -116,11 +117,17 @@ class OntologyValidationService:
             )
             return self._build_report(findings, stats, ai_summary=None, inventory=None)
 
-        class_uris = set(graph.subjects(RDF.type, OWL.Class)) | set(
-            graph.subjects(RDF.type, RDFS.Class)
+        class_uris = cast(
+            set[URIRef],
+            set(graph.subjects(RDF.type, OWL.Class))
+            | set(graph.subjects(RDF.type, RDFS.Class)),
         )
-        object_properties = set(graph.subjects(RDF.type, OWL.ObjectProperty))
-        datatype_properties = set(graph.subjects(RDF.type, OWL.DatatypeProperty))
+        object_properties = cast(
+            set[URIRef], set(graph.subjects(RDF.type, OWL.ObjectProperty))
+        )
+        datatype_properties = cast(
+            set[URIRef], set(graph.subjects(RDF.type, OWL.DatatypeProperty))
+        )
         properties = object_properties | datatype_properties
 
         stats["class_count"] = len(class_uris)

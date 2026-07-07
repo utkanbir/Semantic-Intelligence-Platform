@@ -253,7 +253,7 @@ class FusekiKnowledgeGraphAdapter:
         if status not in {200, 204}:
             raise FusekiImportError(f"Fuseki export failed with HTTP {status}")
 
-        return body.decode("utf-8")
+        return str(body.decode("utf-8"))
 
     def delete_graph(self, *, dataset: str, graph: str) -> None:
         dataset_segment = fuseki_dataset_service_path(dataset)
