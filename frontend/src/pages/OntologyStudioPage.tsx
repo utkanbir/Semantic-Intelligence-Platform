@@ -1360,6 +1360,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       : "Not yet run";
   const stepNumber = step + 1;
   const hasActiveConnectors = activeConnectors.length > 0;
+  const connectorGateBlocksWizard = !hasActiveConnectors && mode !== "generate";
   const isLastStep = step >= visibleSteps.length - 1;
   const isReviewStep = currentPhase === "review";
   const isGenerateSources = currentPhase === "generate_sources";
@@ -1385,7 +1386,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         </div>
       </div>
 
-      {!hasActiveConnectors ? (
+      {connectorGateBlocksWizard ? (
         <div className="agent-runs-page__empty" role="status">
           <p>
             No graph store connector is ready yet. Create one under Platform → Connectors, test
@@ -2015,11 +2016,24 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             <div className="ontologies-page__create-panel">
               <h3 className="ontologies-page__create-title">Step {stepNumber} · Connector</h3>
               <div className="ontology-wizard__step-body">
+                {!hasActiveConnectors && (
+                  <div className="agent-runs-page__empty" role="status">
+                    <p>
+                      No graph store connector is ready yet. Create one under Platform →
+                      Connectors, test the connection, and save it — then return here to
+                      materialize.
+                    </p>
+                    <p className="agent-runs-page__hint">
+                      <Link to="/connectors">Open connectors</Link>
+                    </p>
+                  </div>
+                )}
                 <div className="agent-runs-page__field">
                   <label htmlFor="ontology-import-connector">{GRAPH_STORE_CONNECTOR_LABEL}</label>
                   <select
                     id="ontology-import-connector"
                     value={connectorId}
+                    disabled={!hasActiveConnectors}
                     onChange={(event) => {
                       setConnectorId(event.target.value);
                       setStepError(null);
