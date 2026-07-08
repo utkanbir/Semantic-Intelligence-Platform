@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../api";
 import { listConnectors } from "../api/adapters";
 import {
   createOntology,
@@ -83,6 +84,11 @@ const materializedOntology: OntologyDefinitionResponse = {
   semantic_transaction_id: "txn-materialize-1",
 };
 
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-probe">{location.pathname}</div>;
+}
+
 function renderPage(initialEntry = "/applications/app-1/ontology/create") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -91,6 +97,7 @@ function renderPage(initialEntry = "/applications/app-1/ontology/create") {
           path="/applications/:applicationId/ontology/create"
           element={<OntologyStudioPage applicationId="app-1" />}
         />
+        <Route path="*" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -282,9 +289,146 @@ describe("OntologyStudioPage", () => {
       expect(materializeOntology).toHaveBeenCalledWith("onto-1");
     });
 
+    // After materialization the wizard redirects to the semantic transaction detail
+    // using the returned semantic_transaction_id.
     await waitFor(() => {
-      expect(screen.getByText("Ontology materialized successfully")).toBeInTheDocument();
+      expect(screen.getByTestId("location-probe")).toHaveTextContent(
+        "/applications/app-1/semantic-transactions/txn-materialize-1",
+      );
     });
+  }, 15000);
+
+  it("renders the review summary with concept counts and validation status", async () => {
+    renderPage("/applications/app-1/ontology/create?mode=manual");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 1 · Edit draft" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Customer Ontology" },
+    });
+    fireEvent.change(screen.getByLabelText("Namespace / base IRI"), {
+      target: { value: "https://example.com/customer#" },
+    });
+    fireEvent.change(screen.getByLabelText("Prefix"), { target: { value: "cust" } });
+
+    fireEvent.change(screen.getByLabelText("Class label"), { target: { value: "Vendor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add data property" }));
+    fireEvent.change(screen.getByLabelText("Data property label"), {
+      target: { value: "vendor name" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add object property" }));
+    fireEvent.change(screen.getByLabelText("Object property label"), {
+      target: { value: "supplies to" },
+    });
+
+    await goToReviewStep();
+
+    // Summary lists class / object-property / data-property counts, the selected
+    // connector, and the validation status.
+    const summary = screen.getByText("Summary").closest(".ontology-wizard__review-card");
+    expect(summary).not.toBeNull();
+    const summaryScope = within(summary as HTMLElement);
+    expect(summaryScope.getByText("Classes").nextElementSibling).toHaveTextContent("1");
+    expect(summaryScope.getByText("Object properties").nextElementSibling).toHaveTextContent("1");
+    expect(summaryScope.getByText("Data properties").nextElementSibling).toHaveTextContent("1");
+    expect(summaryScope.getByText("Validation status").nextElementSibling).toHaveTextContent(
+      "Passed",
+    );
+    expect(summaryScope.getByText("Primary Graph Store")).toBeInTheDocument();
+
+    // A TTL preview of the draft is rendered alongside the summary.
+    expect(screen.getByText("Ontology preview (TTL)")).toBeInTheDocument();
+    expect(screen.getByText(/@prefix cust:/)).toBeInTheDocument();
+  });
+
+  it("blocks approve & materialize when re-validation reports blocking errors", async () => {
+    vi.mocked(runOntologyValidation).mockResolvedValue({
+      ontology: draftOntology,
+      report: {
+        ...passingValidationReport,
+        passed: false,
+        error_count: 2,
+        findings: [
+          { level: "error", code: "empty_graph", message: "Ontology graph is empty" },
+        ],
+      },
+      semantic_transaction_id: "txn-validate-err",
+    });
+
+    renderPage("/applications/app-1/ontology/create?mode=manual");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 1 · Edit draft" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Customer Ontology" } });
+    fireEvent.change(screen.getByLabelText("Namespace / base IRI"), {
+      target: { value: "https://example.com/customer#" },
+    });
+    fireEvent.change(screen.getByLabelText("Prefix"), { target: { value: "cust" } });
+    fireEvent.change(screen.getByLabelText("Class label"), { target: { value: "Vendor" } });
+
+    await goToReviewStep();
+    fireEvent.click(screen.getByRole("button", { name: "Create draft & continue" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Step 5 · Approve & materialize" }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve & materialize" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Resolve validation errors before approving and materializing",
+      );
+    });
+    expect(updateOntologyStatus).not.toHaveBeenCalledWith("onto-1", "Approved");
+    expect(materializeOntology).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a 422 error when materialize fails", async () => {
+    vi.mocked(materializeOntology).mockRejectedValue(
+      new ApiError("Materialize requires Approved status", 422),
+    );
+
+    renderPage("/applications/app-1/ontology/create?mode=manual");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 1 · Edit draft" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Customer Ontology" } });
+    fireEvent.change(screen.getByLabelText("Namespace / base IRI"), {
+      target: { value: "https://example.com/customer#" },
+    });
+    fireEvent.change(screen.getByLabelText("Prefix"), { target: { value: "cust" } });
+    fireEvent.change(screen.getByLabelText("Class label"), { target: { value: "Vendor" } });
+
+    await goToReviewStep();
+    fireEvent.click(screen.getByRole("button", { name: "Create draft & continue" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Step 5 · Approve & materialize" }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve & materialize" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Materialize requires Approved status",
+      );
+    });
+    // The wizard stays on the finalize step rather than redirecting.
+    expect(screen.queryByTestId("location-probe")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Step 5 · Approve & materialize" }),
+    ).toBeInTheDocument();
   });
 
   it("surfaces manual validation hints for duplicate class names", async () => {

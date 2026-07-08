@@ -288,6 +288,127 @@ export function buildTurtleFromDraft(draft: ManualOntologyDraftInput): string {
   return lines.join("\n");
 }
 
+export interface DefinitionTurtleOptions {
+  title?: string;
+  description?: string;
+  namespace?: string;
+  prefix?: string;
+}
+
+const DEFAULT_DEFINITION_NAMESPACE = "https://sip.local/ontology#";
+const DEFAULT_DEFINITION_PREFIX = "sip";
+
+function localReference(prefix: string, value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.includes(":") ? trimmed : `${prefix}:${trimmed}`;
+}
+
+function serializeTurtleBlock(headLine: string, tailLines: string[]): string {
+  if (tailLines.length === 0) {
+    return `${headLine} .`;
+  }
+  const rendered = [headLine, ...tailLines];
+  return rendered
+    .map((line, index) => (index === rendered.length - 1 ? `${line} .` : `${line} ;`))
+    .join("\n");
+}
+
+/**
+ * Serializes a structured ontology definition payload (classes, data
+ * properties, and object-property relationships) to Turtle for the Review &
+ * run preview. Used by the Generate mode where the draft is stored as a
+ * definition rather than raw RDF text.
+ */
+export function buildTurtleFromDefinition(
+  payload: Pick<OntologyDefinitionPayload, "classes" | "properties" | "relationships">,
+  options: DefinitionTurtleOptions = {},
+): string {
+  const namespace = options.namespace?.trim() || DEFAULT_DEFINITION_NAMESPACE;
+  const prefix = normalizePrefix(options.prefix ?? "") || DEFAULT_DEFINITION_PREFIX;
+
+  const lines = [
+    "@prefix owl: <http://www.w3.org/2002/07/owl#> .",
+    "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .",
+    "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .",
+    `@prefix ${prefix}: <${namespace}> .`,
+    "",
+  ];
+
+  const ontologyTail: string[] = [];
+  if (options.title?.trim()) {
+    ontologyTail.push(`  rdfs:label "${escapeTurtleLiteral(options.title.trim())}"`);
+  }
+  if (options.description?.trim()) {
+    ontologyTail.push(`  rdfs:comment "${escapeTurtleLiteral(options.description.trim())}"`);
+  }
+  lines.push(serializeTurtleBlock(`<${namespace}> a owl:Ontology`, ontologyTail));
+
+  payload.classes
+    .filter((row) => row.name.trim())
+    .forEach((row) => {
+      const tail: string[] = [];
+      if (row.label?.trim()) {
+        tail.push(`  rdfs:label "${escapeTurtleLiteral(row.label.trim())}"`);
+      }
+      if (row.description?.trim()) {
+        tail.push(`  rdfs:comment "${escapeTurtleLiteral(row.description.trim())}"`);
+      }
+      lines.push("");
+      lines.push(serializeTurtleBlock(`${prefix}:${row.name.trim()} a owl:Class`, tail));
+    });
+
+  payload.relationships
+    .filter((row) => row.name.trim())
+    .forEach((row) => {
+      const tail: string[] = [];
+      const domain = localReference(prefix, row.domain ?? "");
+      const range = localReference(prefix, row.range ?? "");
+      if (domain) {
+        tail.push(`  rdfs:domain ${domain}`);
+      }
+      if (range) {
+        tail.push(`  rdfs:range ${range}`);
+      }
+      if (row.label?.trim()) {
+        tail.push(`  rdfs:label "${escapeTurtleLiteral(row.label.trim())}"`);
+      }
+      if (row.description?.trim()) {
+        tail.push(`  rdfs:comment "${escapeTurtleLiteral(row.description.trim())}"`);
+      }
+      lines.push("");
+      lines.push(serializeTurtleBlock(`${prefix}:${row.name.trim()} a owl:ObjectProperty`, tail));
+    });
+
+  payload.properties
+    .filter((row) => row.name.trim())
+    .forEach((row) => {
+      const tail: string[] = [];
+      const domain = localReference(prefix, row.domain ?? "");
+      const datatype = formatDatatypeTurtle(row.datatype ?? "");
+      if (domain) {
+        tail.push(`  rdfs:domain ${domain}`);
+      }
+      if (datatype) {
+        tail.push(`  rdfs:range ${datatype}`);
+      }
+      if (row.label?.trim()) {
+        tail.push(`  rdfs:label "${escapeTurtleLiteral(row.label.trim())}"`);
+      }
+      if (row.description?.trim()) {
+        tail.push(`  rdfs:comment "${escapeTurtleLiteral(row.description.trim())}"`);
+      }
+      lines.push("");
+      lines.push(
+        serializeTurtleBlock(`${prefix}:${row.name.trim()} a owl:DatatypeProperty`, tail),
+      );
+    });
+
+  return lines.join("\n");
+}
+
 export function buildOntologyDefinitionWithImport(
   draft: ManualOntologyDraftInput,
   options: {
