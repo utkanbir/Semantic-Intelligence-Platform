@@ -19,6 +19,7 @@ SIP development uses AI-assisted engineering offices (Backend, DevOps, Frontend)
 
 | Document | Purpose |
 |----------|---------|
+| [Project handoff](../handoff.md) | Current sprint state, live env, onboarding |
 | [SIP_Decision_Authority_and_Lifecycle.md](./SIP_Decision_Authority_and_Lifecycle.md) | RACI matrix + decision lifecycles |
 | [SIP_Architecture_Governance_Policy.md](./SIP_Architecture_Governance_Policy.md) | Event-driven PR architecture gate |
 | [retros/](./retros/) | Sprint retrospective records |

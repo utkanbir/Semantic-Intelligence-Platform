@@ -247,3 +247,62 @@ Creating an OntologyDefinition **must not** provision runtime semantic assets (F
 - SIP Asset Catalog v1 — Ontology lifecycle
 - [SIP_ApplicationWorkspace_Provisioning_Contract_v1.md](./SIP_ApplicationWorkspace_Provisioning_Contract_v1.md) — `ontology_namespace`
 - [SIP_Blueprint_Lifecycle_Contract_v1.md](./SIP_Blueprint_Lifecycle_Contract_v1.md) — `semantic_concepts` stub
+
+---
+
+## Addendum S34–S35 (2026-07-08) — Draft-first creation wizard
+
+**Supersedes for Console/API behavior:** import-centric materialize-on-import flow described implicitly in early Sprint 7–31 docs. **Core aggregate fields (§4) and ARR-002 status enum (§5) remain binding.**
+
+### A. Draft-first lifecycle (Sprint 34)
+
+| Rule | Implementation |
+|------|----------------|
+| Create / import / generate produce **Draft** only | No Fuseki/graph write until explicit **Materialize** |
+| Materialize requires **Approved** + connector + passing validation | `POST /ontologies/{id}/materialize` |
+| Connector selection | `PUT /ontologies/{id}/connector` (may occur after draft creation) |
+
+### B. Three Console entry modes
+
+| Mode | API entry | Notes |
+|------|-----------|-------|
+| Manual | `POST /ontologies` + structured `ontology_definition` | Forms → TTL preview |
+| Import | `POST /ontologies/import` | File or paste; parse review; draft-only |
+| Generate | `POST /ontologies/generate` | Sources → LLM extraction → editable draft |
+
+Console route: `/applications/:id/ontology/create` (legacy `/ontology-studio` redirects).
+
+### C. Validation + advisory LLM review (Sprint 34–35)
+
+| Step | Endpoint | Blocking? |
+|------|----------|-----------|
+| Deterministic validation | `POST /ontologies/{id}/validate` | Errors block approve/materialize |
+| LLM semantic review | Same response includes `semantic_review` | **Non-blocking** — advisory only |
+| Suggestion decision | `POST /ontologies/{id}/suggestions/{finding_id}/decision` | Records Accept/Ignore; **does not mutate** `ontology_definition` |
+
+Finding kinds: `suggestion`, `warning`, `improvement`. Accept/Ignore UI applies to **suggestions** only.
+
+### D. Extended `ontology_definition` shape (informative)
+
+Beyond §4.2 stub, production payloads may include:
+
+```json
+{
+  "schema_version": "1",
+  "classes": [{"name": "...", "label": "...", "description": "..."}],
+  "properties": [{"name": "...", "domain": "...", "datatype": "..."}],
+  "relationships": [{"name": "...", "domain": "...", "range": "..."}],
+  "metadata": {
+    "mode": "manual|import|generate",
+    "validation": { "...": "deterministic report snapshot" },
+    "semantic_review": { "...": "LLM findings snapshot" },
+    "generate": { "...": "extraction lineage" }
+  }
+}
+```
+
+### E. Trace steps (ontology creation run)
+
+Per Sprint 34 plan §6: `ModeSelected`, `DraftCreated`, `DeterministicValidationExecuted`, `LLMSemanticReviewExecuted`, `ConnectorSelected`, `OntologyApproved`, `OntologyMaterialized`, `SuggestionAccepted`, `SuggestionIgnored`.
+
+See [handoff.md](../handoff.md) and [SIP_Software_Architecture_Guide.md](./SIP_Software_Architecture_Guide.md).

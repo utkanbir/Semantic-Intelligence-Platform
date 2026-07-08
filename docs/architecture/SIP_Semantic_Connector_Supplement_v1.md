@@ -45,10 +45,19 @@ Ontology create/import/status/fork operations record **SemanticTransaction** row
 
 ## Deferred
 
-- Real ObjectStorage/Fuseki artifact write (stub URI only)
-- Kubernetes connector provisioning (`provision_in_cluster`)
-- LLM document extraction
+- Kubernetes connector provisioning (`provision_in_cluster`) — partial; see Sprint 28
 - OpenMetadata sync
+- Full ObjectStorage artifact pipeline beyond ontology materialize
+
+## Shipped since original deferral (update 2026-07-08)
+
+| Former deferral | Shipped in | Notes |
+|-----------------|------------|-------|
+| Real Fuseki artifact write | Sprint 30+ | `POST /ontologies/{id}/materialize` writes to named graph |
+| LLM document extraction | Sprint 34–35 | Generate-from-Sources mode + URL/CSV sources |
+| Ontology import → immediate graph write | Sprint 34 | Replaced by draft-first; materialize after approve |
+
+Current Console flow: **Ontology Studio wizard** at `/applications/:id/ontology/create` — not import-only.
 
 ## Gate
 
