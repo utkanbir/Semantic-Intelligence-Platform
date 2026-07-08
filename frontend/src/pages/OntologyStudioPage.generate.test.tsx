@@ -249,6 +249,19 @@ describe("OntologyStudioPage · Generate from Sources", () => {
     vi.mocked(materializeOntology).mockResolvedValue(materializedGeneratedDraft);
   });
 
+  it("allows generate mode without an active graph store connector", async () => {
+    vi.mocked(listConnectors).mockResolvedValue([]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Step \d+ · Add sources/ })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/No graph store connector is ready yet/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate draft from sources" })).toBeInTheDocument();
+  });
+
   it("selects Generate mode from the mode step", async () => {
     renderPage("/applications/app-1/ontology/create");
 

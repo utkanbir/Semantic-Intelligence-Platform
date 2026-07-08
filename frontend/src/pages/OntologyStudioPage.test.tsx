@@ -796,4 +796,17 @@ describe("OntologyStudioPage", () => {
     );
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
   });
+
+  it("blocks manual mode when no ready graph store connectors exist", async () => {
+    vi.mocked(listConnectors).mockResolvedValue([]);
+
+    renderPage("/applications/app-1/ontology/create?mode=manual");
+
+    await waitFor(() => {
+      expect(screen.getByText(/No graph store connector is ready yet/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  });
 });
