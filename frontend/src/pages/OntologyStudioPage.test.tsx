@@ -179,6 +179,14 @@ describe("OntologyStudioPage", () => {
     vi.mocked(runOntologyValidation).mockResolvedValue({
       ontology: draftOntology,
       report: passingValidationReport,
+      semantic_review: {
+        available: false,
+        reviewed_at: "2025-06-01T10:00:00Z",
+        review_id: "review-1",
+        model: null,
+        summary: null,
+        findings: [],
+      },
       semantic_transaction_id: "txn-validate-1",
     });
     vi.mocked(updateOntologyStatus).mockImplementation(async (_id, status) => ({
@@ -354,6 +362,14 @@ describe("OntologyStudioPage", () => {
           { level: "error", code: "empty_graph", message: "Ontology graph is empty" },
         ],
       },
+      semantic_review: {
+        available: false,
+        reviewed_at: "2025-06-01T10:00:00Z",
+        review_id: "review-err",
+        model: null,
+        summary: null,
+        findings: [],
+      },
       semantic_transaction_id: "txn-validate-err",
     });
 
@@ -379,13 +395,8 @@ describe("OntologyStudioPage", () => {
       ).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve & materialize" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Resolve validation errors before approving and materializing",
-      );
-    });
+    expect(screen.getByRole("button", { name: "Approve & materialize" })).toBeDisabled();
+    expect(screen.getByText("Ontology graph is empty")).toBeInTheDocument();
     expect(updateOntologyStatus).not.toHaveBeenCalledWith("onto-1", "Approved");
     expect(materializeOntology).not.toHaveBeenCalled();
   });

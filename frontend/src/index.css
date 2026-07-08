@@ -3096,6 +3096,96 @@ body {
   color: #4a4a68;
 }
 
+.ontology-wizard__semantic-review {
+  margin-top: 1rem;
+}
+
+.ontology-wizard__semantic-findings {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ontology-wizard__semantic-finding {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e3ea;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.ontology-wizard__semantic-finding--suggestion {
+  border-left: 3px solid #2d4a7c;
+}
+
+.ontology-wizard__semantic-finding--warning {
+  border-left: 3px solid #b8860b;
+}
+
+.ontology-wizard__semantic-finding--improvement {
+  border-left: 3px solid #1f5c38;
+}
+
+.ontology-wizard__semantic-finding--accepted {
+  background: #f0f7f3;
+}
+
+.ontology-wizard__semantic-finding--ignored {
+  opacity: 0.75;
+}
+
+.ontology-wizard__semantic-finding-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.ontology-wizard__semantic-kind {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b6b80;
+}
+
+.ontology-wizard__semantic-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.ontology-wizard__semantic-detail,
+.ontology-wizard__semantic-target {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  color: #4a4a5e;
+}
+
+.ontology-wizard__semantic-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.625rem;
+}
+
+.ontology-wizard__semantic-decision {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ontology-wizard__semantic-decision--accepted {
+  color: #1f5c38;
+}
+
+.ontology-wizard__semantic-decision--ignored {
+  color: #6b6b80;
+}
+
 .ontology-wizard__completion-card {
   margin-top: 1rem;
   padding: 1.5rem;

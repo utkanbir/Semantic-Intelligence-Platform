@@ -231,6 +231,14 @@ describe("OntologyStudioPage · Generate from Sources", () => {
         ai_summary: null,
         inventory: { classes: [], relations: [], truncated: false },
       },
+      semantic_review: {
+        available: false,
+        reviewed_at: "2025-06-01T10:00:00Z",
+        review_id: "review-gen-1",
+        model: null,
+        summary: null,
+        findings: [],
+      },
       semantic_transaction_id: "txn-validate-gen-1",
     });
     vi.mocked(updateOntologyStatus).mockImplementation(async (_id, status) => ({

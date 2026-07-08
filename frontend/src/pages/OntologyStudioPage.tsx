@@ -15,11 +15,13 @@ import {
   type OntologyExtraction,
   type OntologyGenerationSource,
   type OntologyGenerationSourceKind,
+  type OntologySemanticReview,
   type OntologyValidationReport,
 } from "../api/ontologies";
 import { ManualOntologyDraftEditor } from "../components/ManualOntologyDraftEditor";
 import { GeneratedCandidateReview } from "../components/GeneratedCandidateReview";
 import { OntologyValidationInventoryView } from "../components/OntologyValidationInventory";
+import { SemanticReviewPanel } from "../components/SemanticReviewPanel";
 import { listConnectors, type ConnectorResponse } from "../api/adapters";
 import {
   buildManualDraftValidationChecks,
@@ -406,6 +408,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [validationLoading, setValidationLoading] = useState(false);
   const [backendValidationReport, setBackendValidationReport] =
     useState<OntologyValidationReport | null>(null);
+  const [semanticReview, setSemanticReview] = useState<OntologySemanticReview | null>(null);
   const [parsedContentApproved, setParsedContentApproved] = useState(false);
   const [manualClasses, setManualClasses] = useState<OntologyClassRow[]>([
     { id: createRowId(), label: "", description: "" },
@@ -435,6 +438,45 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const pageTitle = mode
     ? `Create ontology · ${formatModeLabel(mode)}`
     : "Create ontology";
+
+  useEffect(() => {
+    if (currentPhase !== "finalize" || !draftOntologyId) {
+      return;
+    }
+
+    let cancelled = false;
+    setValidationLoading(true);
+    setStepError(null);
+
+    runOntologyValidation(draftOntologyId)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setBackendValidationReport(result.report);
+        setSemanticReview(result.semantic_review);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          const message =
+            error instanceof ApiError
+              ? error.message
+              : error instanceof Error
+                ? error.message
+                : "Failed to run ontology validation";
+          setStepError(message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setValidationLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPhase, draftOntologyId]);
 
   useEffect(() => {
     if (initialMode) {
@@ -557,12 +599,19 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       : importValidationChecks.every((check) => check.passed));
 
   async function runBackendValidation(): Promise<OntologyValidationReport | null> {
-    if (!contentForSubmission) {
+    if (!contentForSubmission && !draftOntologyId) {
       return null;
     }
 
     setValidationLoading(true);
     try {
+      if (draftOntologyId) {
+        const result = await runOntologyValidation(draftOntologyId);
+        setBackendValidationReport(result.report);
+        setSemanticReview(result.semantic_review);
+        return result.report;
+      }
+
       const report = await validateOntologyContent({
         source_format: effectiveSourceFormat,
         source_content: contentForSubmission,
@@ -571,6 +620,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         application_id: applicationId,
       });
       setBackendValidationReport(report);
+      setSemanticReview(null);
       return report;
     } catch (error: unknown) {
       const message =
@@ -677,6 +727,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     setStepError(null);
     setSubmitError(null);
     setBackendValidationReport(null);
+    setSemanticReview(null);
     setParsedContentApproved(false);
     setDraftOntologyId(null);
     setGeneratedExtraction(null);
@@ -1127,8 +1178,15 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     setSubmitting(true);
 
     try {
-      const validationResult = await runOntologyValidation(draftOntologyId);
-      if (!validationResult.report.passed) {
+      let report = backendValidationReport;
+      if (!report?.passed) {
+        const validationResult = await runOntologyValidation(draftOntologyId);
+        report = validationResult.report;
+        setBackendValidationReport(report);
+        setSemanticReview(validationResult.semantic_review);
+      }
+
+      if (!report.passed) {
         setSubmitError("Resolve validation errors before approving and materializing");
         return;
       }
@@ -1923,18 +1981,28 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               )}
 
               {backendValidationReport ? (
-                mode === "import" ? (
-                  <ImportParseReview
-                    report={backendValidationReport}
-                    approved={parsedContentApproved}
-                    onApprovedChange={(approved) => {
-                      setParsedContentApproved(approved);
-                      setStepError(null);
-                    }}
-                  />
-                ) : (
-                  <ValidationReportPanel report={backendValidationReport} />
-                )
+                <>
+                  {mode === "import" ? (
+                    <ImportParseReview
+                      report={backendValidationReport}
+                      approved={parsedContentApproved}
+                      onApprovedChange={(approved) => {
+                        setParsedContentApproved(approved);
+                        setStepError(null);
+                      }}
+                    />
+                  ) : (
+                    <ValidationReportPanel report={backendValidationReport} />
+                  )}
+                  {draftOntologyId && semanticReview && (
+                    <SemanticReviewPanel
+                      ontologyId={draftOntologyId}
+                      review={semanticReview}
+                      onReviewChange={setSemanticReview}
+                      onError={setStepError}
+                    />
+                  )}
+                </>
               ) : (
                 <p className="agent-runs-page__field-hint">
                   Click Next to run validation against the submitted ontology content.
@@ -2110,7 +2178,19 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 </ol>
               </div>
 
-              {backendValidationReport && <ValidationReportPanel report={backendValidationReport} />}
+              {backendValidationReport && (
+                <>
+                  <ValidationReportPanel report={backendValidationReport} />
+                  {draftOntologyId && semanticReview && (
+                    <SemanticReviewPanel
+                      ontologyId={draftOntologyId}
+                      review={semanticReview}
+                      onReviewChange={setSemanticReview}
+                      onError={setSubmitError}
+                    />
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -2138,7 +2218,17 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
               </dl>
 
               {backendValidationReport && (
-                <ValidationReportPanel report={backendValidationReport} />
+                <>
+                  <ValidationReportPanel report={backendValidationReport} />
+                  {draftOntologyId && semanticReview && (
+                    <SemanticReviewPanel
+                      ontologyId={draftOntologyId}
+                      review={semanticReview}
+                      onReviewChange={setSemanticReview}
+                      onError={setSubmitError}
+                    />
+                  )}
+                </>
               )}
 
               <div className="ontology-wizard__what-happens">
