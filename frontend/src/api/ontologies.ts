@@ -177,11 +177,12 @@ export function importOntology(
   });
 }
 
-export type OntologyGenerationSourceKind = "file" | "paste" | "knowledge_source";
+export type OntologyGenerationSourceKind = "file" | "paste" | "knowledge_source" | "url";
 
 export interface OntologyGenerationSource {
   kind: OntologyGenerationSourceKind;
-  content: string;
+  content?: string;
+  url?: string;
   name?: string;
   reference_id?: string;
 }
@@ -229,6 +230,7 @@ export interface ExtractionSourceSummary {
   name: string | null;
   reference_id: string | null;
   content_length: number;
+  url?: string | null;
 }
 
 export interface OntologyExtraction {

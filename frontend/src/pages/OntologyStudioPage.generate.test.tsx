@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../api";
 import { listConnectors } from "../api/adapters";
 import {
   generateOntology,
@@ -303,6 +304,140 @@ describe("OntologyStudioPage · Generate from Sources", () => {
     // Evidence snippets are displayed per suggestion.
     expect(screen.getByText(/vendors supply goods to customers/)).toBeInTheDocument();
     expect(screen.getByText(/a vendor supplies to a customer/)).toBeInTheDocument();
+  });
+
+  it("adds a web URL source and sends kind url with url payload", async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 1 · Add sources" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "URL Ontology" },
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Web URL" }));
+    fireEvent.change(screen.getByLabelText("Web URL"), {
+      target: { value: "https://example.com/glossary" },
+    });
+    fireEvent.change(screen.getByLabelText(/Source name/), {
+      target: { value: "Glossary page" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add URL source" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("https://example.com/glossary")).toBeInTheDocument();
+      expect(screen.getByText(/url · https:\/\/example\.com\/glossary/)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate draft from sources" }));
+
+    await waitFor(() => {
+      expect(generateOntology).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "URL Ontology",
+          sources: [
+            expect.objectContaining({
+              kind: "url",
+              url: "https://example.com/glossary",
+              name: "Glossary page",
+            }),
+          ],
+        }),
+      );
+    });
+
+    const payload = vi.mocked(generateOntology).mock.calls[0]?.[0];
+    expect(payload?.sources?.[0]).not.toHaveProperty("content");
+  });
+
+  it("shows client validation error for invalid URL input", async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 1 · Add sources" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Web URL" }));
+    fireEvent.change(screen.getByLabelText("Web URL"), {
+      target: { value: "ftp://example.com/doc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add URL source" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/http or https/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Sources \(0\)/)).toBeInTheDocument();
+  });
+
+  it("adds a CSV file source with parsed tab-separated content", async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 1 · Add sources" })).toBeInTheDocument();
+    });
+
+    const csvFile = new File(["class,description\nVendor,A supplier"], "vendors.csv", {
+      type: "text/csv",
+    });
+
+    fireEvent.change(screen.getByLabelText("Source file"), {
+      target: { files: [csvFile] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/vendors\.csv/)).toBeInTheDocument();
+      expect(screen.getByText(/Sources \(1\)/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "CSV Ontology" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Generate draft from sources" }));
+
+    await waitFor(() => {
+      expect(generateOntology).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sources: [
+            expect.objectContaining({
+              kind: "file",
+              name: "vendors.csv",
+              content: "class\tdescription\nVendor\tA supplier",
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
+  it("surfaces API 422 errors from generateOntology", async () => {
+    vi.mocked(generateOntology).mockRejectedValue(
+      new ApiError("url is required when kind is url", 422, { detail: "url is required when kind is url" }),
+    );
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Step 1 · Add sources" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Vendor Ontology" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Paste text" }));
+    fireEvent.change(screen.getByLabelText("Pasted text"), {
+      target: { value: "vendors supply goods to customers" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add pasted source" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate draft from sources" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("url is required when kind is url")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("heading", { name: /Step \d+ · Review candidates/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("persists edits to a candidate on approval and advances to the connector step", async () => {
