@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "./client";
 import {
+  recordSuggestionDecision,
   runOntologyValidation,
   validateOntologyContent,
   type OntologyValidationReport,
@@ -49,6 +50,7 @@ describe("ontologies validation api", () => {
     vi.mocked(apiFetch).mockResolvedValue({
       ontology: { id: "onto-1" },
       report: { passed: true },
+      semantic_review: { available: false, findings: [] },
       semantic_transaction_id: "txn-1",
     });
 
@@ -57,6 +59,21 @@ describe("ontologies validation api", () => {
     expect(apiFetch).toHaveBeenCalledWith("/ontologies/onto-1/validate", {
       method: "POST",
       body: JSON.stringify({}),
+    });
+  });
+
+  it("recordSuggestionDecision posts decision to suggestion endpoint", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({
+      ontology: { id: "onto-1" },
+      semantic_review: { available: true, findings: [] },
+      semantic_transaction_id: "txn-2",
+    });
+
+    await recordSuggestionDecision("onto-1", "finding-1", { decision: "ignored" });
+
+    expect(apiFetch).toHaveBeenCalledWith("/ontologies/onto-1/suggestions/finding-1/decision", {
+      method: "POST",
+      body: JSON.stringify({ decision: "ignored" }),
     });
   });
 });

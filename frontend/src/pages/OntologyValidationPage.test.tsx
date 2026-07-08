@@ -91,6 +91,15 @@ function renderPage() {
   );
 }
 
+const unavailableSemanticReview = {
+  available: false,
+  reviewed_at: "2025-06-01T10:00:00Z",
+  review_id: "review-1",
+  model: null,
+  summary: null,
+  findings: [],
+};
+
 describe("OntologyValidationPage", () => {
   beforeEach(() => {
     vi.mocked(runOntologyValidation).mockReset();
@@ -98,6 +107,7 @@ describe("OntologyValidationPage", () => {
     vi.mocked(runOntologyValidation).mockResolvedValue({
       ontology,
       report: passingReport,
+      semantic_review: unavailableSemanticReview,
       semantic_transaction_id: "txn-validate-1",
     });
   });
@@ -173,6 +183,7 @@ describe("OntologyValidationPage", () => {
         validated_at: "2025-06-02T10:00:00Z",
       },
       report: passingReport,
+      semantic_review: unavailableSemanticReview,
       semantic_transaction_id: "txn-validate-1",
     });
 
@@ -201,6 +212,7 @@ describe("OntologyValidationPage", () => {
           },
         ],
       },
+      semantic_review: unavailableSemanticReview,
       semantic_transaction_id: "txn-validate-1",
     });
 
@@ -233,6 +245,7 @@ describe("OntologyValidationPage", () => {
           },
         ],
       },
+      semantic_review: unavailableSemanticReview,
       semantic_transaction_id: "txn-validate-1",
     });
 

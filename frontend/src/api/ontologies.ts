@@ -41,9 +41,41 @@ export interface OntologyValidationReport {
   inventory: OntologyValidationInventory | null;
 }
 
+export type SemanticFindingKind = "suggestion" | "warning" | "improvement";
+export type SuggestionDecision = "accepted" | "ignored";
+
+export interface SemanticReviewFinding {
+  id: string;
+  kind: SemanticFindingKind;
+  title: string;
+  detail: string;
+  target: string | null;
+  decision: SuggestionDecision | null;
+}
+
+export interface OntologySemanticReview {
+  available: boolean;
+  reviewed_at: string;
+  review_id: string;
+  model: string | null;
+  summary: string | null;
+  findings: SemanticReviewFinding[];
+}
+
 export interface OntologyValidationRunResponse {
   ontology: OntologyDefinitionResponse;
   report: OntologyValidationReport;
+  semantic_review: OntologySemanticReview;
+  semantic_transaction_id: string | null;
+}
+
+export interface SuggestionDecisionRequest {
+  decision: SuggestionDecision;
+}
+
+export interface OntologySuggestionDecisionResponse {
+  ontology: OntologyDefinitionResponse;
+  semantic_review: OntologySemanticReview;
   semantic_transaction_id: string | null;
 }
 
@@ -250,6 +282,20 @@ export function runOntologyValidation(
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+export function recordSuggestionDecision(
+  ontologyId: string,
+  findingId: string,
+  payload: SuggestionDecisionRequest,
+): Promise<OntologySuggestionDecisionResponse> {
+  return apiFetch<OntologySuggestionDecisionResponse>(
+    `/ontologies/${ontologyId}/suggestions/${findingId}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export function readStoredValidationReport(
