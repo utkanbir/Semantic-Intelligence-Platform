@@ -40,6 +40,11 @@ import {
   rowsToGeneratedDefinition,
   type GeneratedDraftRows,
 } from "../lib/ontologyExtraction";
+import {
+  GENERATE_SOURCE_FILE_ACCEPT,
+  readGenerateSourceFile,
+} from "../lib/generateSourceFiles";
+import { normalizeAndValidateGenerateSourceUrl } from "../lib/generateSourceUrl";
 
 interface OntologyStudioPageProps {
   applicationId: string;
@@ -47,7 +52,7 @@ interface OntologyStudioPageProps {
 
 type WizardMode = "create" | "import" | "generate";
 type ImportSourceMethod = "file" | "paste";
-type GenerateSourceMethod = "file" | "paste" | "knowledge_source";
+type GenerateSourceMethod = "file" | "paste" | "knowledge_source" | "url";
 type WizardPhase =
   | "mode"
   | "edit"
@@ -62,7 +67,8 @@ interface GenerateSourceEntry {
   id: string;
   kind: OntologyGenerationSourceKind;
   name: string;
-  content: string;
+  content?: string;
+  url?: string;
   referenceId?: string;
 }
 
@@ -181,6 +187,26 @@ function formatFileSize(bytes: number): string {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatGenerateSourceLabel(entry: GenerateSourceEntry): string {
+  if (entry.kind === "url") {
+    return entry.url ?? entry.name;
+  }
+  if (entry.kind === "file") {
+    return entry.name;
+  }
+  return entry.name;
+}
+
+function formatGenerateSourceMeta(entry: GenerateSourceEntry): string {
+  if (entry.kind === "url") {
+    return `url · ${entry.url ?? entry.name}`;
+  }
+  if (entry.kind === "file") {
+    return `file · ${entry.content?.length ?? 0} chars`;
+  }
+  return `${entry.kind.replace("_", " ")} · ${entry.content?.length ?? 0} chars`;
 }
 
 function readUploadedFile(file: File): Promise<string> {
@@ -427,6 +453,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [knowledgeReference, setKnowledgeReference] = useState("");
   const [knowledgeName, setKnowledgeName] = useState("");
   const [knowledgeContent, setKnowledgeContent] = useState("");
+  const [urlInput, setUrlInput] = useState("");
+  const [urlName, setUrlName] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generatedExtraction, setGeneratedExtraction] = useState<OntologyExtraction | null>(null);
   const [generatedRows, setGeneratedRows] = useState<GeneratedDraftRows | null>(null);
@@ -740,9 +768,17 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   }
 
   function toGenerationSourcePayload(entry: GenerateSourceEntry): OntologyGenerationSource {
+    if (entry.kind === "url") {
+      return {
+        kind: "url",
+        url: entry.url,
+        ...(entry.name.trim() ? { name: entry.name.trim() } : {}),
+      };
+    }
+
     return {
       kind: entry.kind,
-      content: entry.content,
+      content: entry.content ?? "",
       ...(entry.name.trim() ? { name: entry.name.trim() } : {}),
       ...(entry.referenceId && entry.referenceId.trim()
         ? { reference_id: entry.referenceId.trim() }
@@ -757,7 +793,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
 
     try {
-      const text = await readUploadedFile(file);
+      const text = await readGenerateSourceFile(file);
       setGenerateSources((current) => [
         ...current,
         { id: createRowId(), kind: "file", name: file.name, content: text },
@@ -767,11 +803,42 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       if (!title.trim()) {
         setTitle(file.name.replace(/\.[^.]+$/, ""));
       }
-    } catch {
-      setSubmitError("Failed to read the selected file");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to read the selected file";
+      setSubmitError(message);
     } finally {
       event.target.value = "";
     }
+  }
+
+  function handleAddUrlSource() {
+    let normalizedUrl: string;
+    try {
+      normalizedUrl = normalizeAndValidateGenerateSourceUrl(urlInput);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Enter a valid URL (for example https://example.com/page)";
+      setStepError(message);
+      return;
+    }
+
+    setGenerateSources((current) => [
+      ...current,
+      {
+        id: createRowId(),
+        kind: "url",
+        name: urlName.trim() || normalizedUrl,
+        content: "",
+        url: normalizedUrl,
+      },
+    ]);
+    setUrlInput("");
+    setUrlName("");
+    setStepError(null);
+    setSubmitError(null);
   }
 
   function handleAddPasteSource() {
@@ -1727,9 +1794,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             <div className="ontologies-page__create-panel">
               <h3 className="ontologies-page__create-title">Step {stepNumber} · Add sources</h3>
               <p className="ontology-wizard__panel-lead">
-                Provide the sources to extract candidate concepts from. File and pasted text are
-                read into plain text in your browser and sent inline. URL and CSV/Excel sources are
-                planned for a later sprint.
+                Provide the sources to extract candidate concepts from. Upload text, CSV, or Excel
+                files (parsed in your browser), paste text, add a knowledge source reference, or
+                supply a web URL for the server to fetch.
               </p>
 
               <div className="ontology-wizard__step-body">
@@ -1796,6 +1863,17 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   <button
                     type="button"
                     role="tab"
+                    aria-selected={generateSourceMethod === "url"}
+                    className={`ontology-wizard__source-tab${
+                      generateSourceMethod === "url" ? " ontology-wizard__source-tab--active" : ""
+                    }`}
+                    onClick={() => setGenerateSourceMethod("url")}
+                  >
+                    Web URL
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
                     aria-selected={generateSourceMethod === "knowledge_source"}
                     className={`ontology-wizard__source-tab${
                       generateSourceMethod === "knowledge_source"
@@ -1814,11 +1892,12 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     <input
                       id="ontology-generate-file"
                       type="file"
-                      accept=".txt,.md,.json,.ttl,.rdf,.owl,.xml,text/plain"
+                      accept={GENERATE_SOURCE_FILE_ACCEPT}
                       onChange={(event) => void handleGenerateSourceFile(event)}
                     />
                     <p className="agent-runs-page__field-hint">
-                      Text-bearing files are read client-side and added to the source list below.
+                      Text, CSV, and Excel (.xlsx) files are read client-side and sent as plain text.
+                      Legacy .xls files are not supported — save as .xlsx or .csv.
                     </p>
                   </div>
                 )}
@@ -1851,6 +1930,45 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       onClick={handleAddPasteSource}
                     >
                       Add pasted source
+                    </button>
+                  </div>
+                )}
+
+                {generateSourceMethod === "url" && (
+                  <div className="ontology-wizard__step-body">
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-generate-url">Web URL</label>
+                      <input
+                        id="ontology-generate-url"
+                        type="url"
+                        inputMode="url"
+                        placeholder="https://example.com/spec"
+                        value={urlInput}
+                        onChange={(event) => {
+                          setUrlInput(event.target.value);
+                          setStepError(null);
+                        }}
+                      />
+                      <p className="agent-runs-page__field-hint">
+                        The server fetches http and https pages when you generate the draft.
+                      </p>
+                    </div>
+                    <div className="agent-runs-page__field">
+                      <label htmlFor="ontology-generate-url-name">
+                        Source name <span className="agent-runs-page__optional">(optional)</span>
+                      </label>
+                      <input
+                        id="ontology-generate-url-name"
+                        value={urlName}
+                        onChange={(event) => setUrlName(event.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="platform-page__button"
+                      onClick={handleAddUrlSource}
+                    >
+                      Add URL source
                     </button>
                   </div>
                 )}
@@ -1915,9 +2033,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       {generateSources.map((entry) => (
                         <li key={entry.id} className="ontology-wizard__source-entry">
                           <span>
-                            <strong>{entry.name}</strong>{" "}
+                            <strong>{formatGenerateSourceLabel(entry)}</strong>{" "}
                             <span className="agent-runs-page__optional">
-                              ({entry.kind.replace("_", " ")} · {entry.content.length} chars)
+                              ({formatGenerateSourceMeta(entry)})
                             </span>
                           </span>
                           <button

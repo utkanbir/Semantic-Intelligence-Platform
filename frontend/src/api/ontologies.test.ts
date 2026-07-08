@@ -189,6 +189,47 @@ describe("ontologies API", () => {
     );
   });
 
+  it("generateOntology sends url sources without inline content", async () => {
+    const generateResponse = {
+      ontology: mockOntology,
+      extraction: {
+        available: true,
+        extracted_at: "2025-06-01T10:00:00Z",
+        extraction_id: "ext-url-1",
+        model: "stub-model",
+        summary: null,
+        classes: [],
+        properties: [],
+        relationships: [],
+        sources: [{ kind: "url", name: "https://example.com", reference_id: null, content_length: 0 }],
+      },
+      semantic_transaction_id: "txn-generate-url-1",
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(generateResponse), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const { generateOntology } = await import("./ontologies");
+    const payload = {
+      application_id: "app-1",
+      title: "Generated Ontology",
+      sources: [{ kind: "url" as const, url: "https://example.com/glossary", name: "Glossary" }],
+    };
+
+    await expect(generateOntology(payload)).resolves.toEqual(generateResponse);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/generate",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
   it("materializeOntology calls POST for ontology materialization", async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify(mockOntology), {
