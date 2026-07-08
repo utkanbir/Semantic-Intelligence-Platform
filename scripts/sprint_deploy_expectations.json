@@ -49,6 +49,21 @@
           "image": "sip-console:s50"
         }
       ]
+    },
+    "34": {
+      "label": "Ontology Creation Flow v2",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s51"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s52"
+        }
+      ]
     }
   }
 }
