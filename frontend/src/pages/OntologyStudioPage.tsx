@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import {
   createOntology,
@@ -8,8 +8,10 @@ import {
   materializeOntology,
   runOntologyValidation,
   updateOntology,
+  updateOntologyConnector,
   updateOntologyStatus,
   validateOntologyContent,
+  type OntologyDefinitionResponse,
   type OntologyExtraction,
   type OntologyGenerationSource,
   type OntologyGenerationSourceKind,
@@ -23,6 +25,7 @@ import {
   buildManualDraftValidationChecks,
   buildOntologyDefinition,
   buildOntologyDefinitionWithImport,
+  buildTurtleFromDefinition,
   buildTurtleFromDraft,
   createRowId,
   localNameFromLabel,
@@ -31,7 +34,6 @@ import {
   type OntologyObjectPropertyRow,
 } from "../lib/ontologyDraft";
 import {
-  countCandidates,
   extractionToRows,
   rowsToGeneratedDefinition,
   type GeneratedDraftRows,
@@ -68,16 +70,6 @@ type PageState =
   | {
       kind: "ready";
       activeConnectors: ConnectorResponse[];
-    }
-  | {
-      kind: "completed";
-      ontologyId: string;
-      artifactUri: string | null | undefined;
-      semanticTransactionId: string | null | undefined;
-      title: string;
-      mode: WizardMode;
-      connectorLabel: string;
-      candidateCount?: number;
     };
 
 const FULL_WIZARD_STEPS = [
@@ -97,16 +89,21 @@ const FOCUSED_WIZARD_STEPS = [
   "Approve & materialize",
 ] as const;
 
-const GENERATE_WIZARD_STEPS = ["Mode", "Add sources", "Review & approve"] as const;
+const GENERATE_WIZARD_STEPS = [
+  "Mode",
+  "Add sources",
+  "Review candidates",
+  "Connector",
+  "Review & run",
+  "Approve & materialize",
+] as const;
 
-const GENERATE_FOCUSED_STEPS = ["Add sources", "Review & approve"] as const;
-
-const SEMANTIC_TRANSACTION_STEPS = [
-  "validate_request",
-  "resolve_connector",
-  "persist_artifact",
-  "persist_metadata",
-  "finalize",
+const GENERATE_FOCUSED_STEPS = [
+  "Add sources",
+  "Review candidates",
+  "Connector",
+  "Review & run",
+  "Approve & materialize",
 ] as const;
 
 const GRAPH_STORE_CONNECTOR_LABEL = "Graph store connector";
@@ -222,8 +219,8 @@ function phaseForStep(
   const phases: WizardPhase[] =
     mode === "generate"
       ? skipModeStep
-        ? ["generate_sources", "generate_review"]
-        : ["mode", "generate_sources", "generate_review"]
+        ? ["generate_sources", "generate_review", "connector", "review", "finalize"]
+        : ["mode", "generate_sources", "generate_review", "connector", "review", "finalize"]
       : skipModeStep
         ? ["edit", "validate", "connector", "review", "finalize"]
         : ["mode", "edit", "validate", "connector", "review", "finalize"];
@@ -372,6 +369,7 @@ function ImportParseReview({ report, approved, onApprovedChange }: ImportParseRe
 
 export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialMode = useMemo((): WizardMode | null => {
     const modeParam = searchParams.get("mode")?.toLowerCase();
     if (modeParam === "manual" || modeParam === "create") {
@@ -430,7 +428,6 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [generatedExtraction, setGeneratedExtraction] = useState<OntologyExtraction | null>(null);
   const [generatedRows, setGeneratedRows] = useState<GeneratedDraftRows | null>(null);
   const [generatedDefinition, setGeneratedDefinition] = useState<Record<string, unknown>>({});
-  const [generatedTransactionId, setGeneratedTransactionId] = useState<string | null>(null);
   const [generateApproved, setGenerateApproved] = useState(false);
 
   const visibleSteps = stepsForMode(mode, skipModeStep);
@@ -684,7 +681,6 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     setDraftOntologyId(null);
     setGeneratedExtraction(null);
     setGeneratedRows(null);
-    setGeneratedTransactionId(null);
     setGenerateApproved(false);
 
     if (nextMode === "create") {
@@ -808,7 +804,6 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       setGeneratedExtraction(response.extraction);
       setGeneratedRows(extractionToRows(response.extraction));
       setGeneratedDefinition(response.ontology.ontology_definition);
-      setGeneratedTransactionId(response.semantic_transaction_id);
       setGenerateApproved(false);
       setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
       return true;
@@ -843,22 +838,13 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     try {
       const descriptionValue = description.trim();
       const definition = rowsToGeneratedDefinition(generatedRows, generatedDefinition);
-      const updated = await updateOntology(draftOntologyId, {
+      await updateOntology(draftOntologyId, {
         title: title.trim(),
         ...(descriptionValue ? { description: descriptionValue } : { description: null }),
         ontology_definition: definition,
       });
 
-      setState({
-        kind: "completed",
-        mode: "generate",
-        ontologyId: updated.id,
-        title: updated.title,
-        artifactUri: null,
-        semanticTransactionId: generatedTransactionId,
-        connectorLabel: "—",
-        candidateCount: countCandidates(generatedRows),
-      });
+      setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
     } catch (error: unknown) {
       const message =
         error instanceof ApiError
@@ -979,6 +965,38 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       return;
     }
 
+    if (currentPhase === "connector" && mode === "generate") {
+      const connectorMessage = validatePhase("connector");
+      if (connectorMessage) {
+        setStepError(connectorMessage);
+        return;
+      }
+      if (!draftOntologyId) {
+        setStepError("Generate a draft before selecting a connector");
+        return;
+      }
+
+      setDraftSaving(true);
+      setStepError(null);
+      try {
+        await updateOntologyConnector(draftOntologyId, connectorId);
+      } catch (error: unknown) {
+        const message =
+          error instanceof ApiError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : "Failed to attach the selected connector";
+        setStepError(message);
+        return;
+      } finally {
+        setDraftSaving(false);
+      }
+
+      setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+      return;
+    }
+
     if (currentPhase === "validate") {
       setStepError(null);
       const report =
@@ -1084,6 +1102,15 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
   }
 
+  function redirectAfterMaterialize(ontology: OntologyDefinitionResponse) {
+    const transactionId = ontology.semantic_transaction_id;
+    if (transactionId) {
+      navigate(`/applications/${applicationId}/semantic-transactions/${transactionId}`);
+      return;
+    }
+    navigate(`/applications/${applicationId}/ontology`);
+  }
+
   async function handleApproveAndMaterialize() {
     const finalizeValidation = validatePhase("finalize");
     if (finalizeValidation) {
@@ -1107,23 +1134,10 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       }
 
       await updateOntologyStatus(draftOntologyId, "Validated");
-      const approved = await updateOntologyStatus(draftOntologyId, "Approved");
+      await updateOntologyStatus(draftOntologyId, "Approved");
       const materialized = await materializeOntology(draftOntologyId);
 
-      const selectedConnector =
-        state.kind === "ready"
-          ? (state.activeConnectors.find((connector) => connector.id === connectorId) ?? null)
-          : null;
-
-      setState({
-        kind: "completed",
-        ontologyId: materialized.id,
-        artifactUri: materialized.artifact_uri,
-        semanticTransactionId: materialized.semantic_transaction_id,
-        title: approved.title,
-        mode: mode ?? "create",
-        connectorLabel: selectedConnector ? formatConnectorLabel(selectedConnector) : "—",
-      });
+      redirectAfterMaterialize(materialized);
     } catch (error: unknown) {
       const message =
         error instanceof ApiError
@@ -1146,6 +1160,12 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
 
     if (currentPhase === "review") {
+      if (mode === "generate") {
+        setStepError(null);
+        setSubmitError(null);
+        setStep((current) => Math.min(current + 1, visibleSteps.length - 1));
+        return;
+      }
       await handleCreateDraft();
       return;
     }
@@ -1217,120 +1237,69 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     );
   }
 
-  if (state.kind === "completed") {
-    return (
-      <section className="agent-runs-page" aria-labelledby="ontology-create-heading">
-        <Link to={backHref} className="agent-run-detail__back">
-          ← Back to ontologies
-        </Link>
-        <h2 id="ontology-create-heading">{pageTitle}</h2>
-
-        <article className="ontology-wizard__completion-card" role="status">
-          <p className="ontology-wizard__completion-status">
-            {state.mode === "create"
-              ? "Ontology materialized successfully"
-              : state.mode === "generate"
-                ? "Ontology draft generated successfully"
-                : "Ontology imported and materialized successfully"}
-          </p>
-
-          <dl className="ontology-wizard__completion-meta">
-            <div>
-              <dt>Title</dt>
-              <dd>{state.title}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{state.mode === "generate" ? "Draft · approved" : "Approved · materialized"}</dd>
-            </div>
-            {state.mode === "generate" ? (
-              <div>
-                <dt>Approved candidates</dt>
-                <dd>{state.candidateCount ?? 0}</dd>
-              </div>
-            ) : (
-              <div>
-                <dt>{GRAPH_STORE_CONNECTOR_LABEL}</dt>
-                <dd>{state.connectorLabel}</dd>
-              </div>
-            )}
-            {state.artifactUri && (
-              <div>
-                <dt>Artifact URI</dt>
-                <dd>
-                  <code>{state.artifactUri}</code>
-                </dd>
-              </div>
-            )}
-          </dl>
-
-          {state.mode === "generate" && (
-            <p className="ontology-wizard__completion-copy">
-              The editable draft is saved. Validation and materialization become available in a
-              later sprint (S34-08).
-            </p>
-          )}
-
-          <section className="ontology-wizard__completion-semantic" aria-labelledby="semantic-tx-heading">
-            <h3 id="semantic-tx-heading">Semantic transaction</h3>
-            {state.semanticTransactionId ? (
-              <>
-                <p className="ontology-wizard__completion-copy">
-                  Recorded as{" "}
-                  <code>
-                    {state.mode === "generate" ? "ontology.generated" : "ontology.materialized"}
-                  </code>{" "}
-                  with orchestrated trace steps.
-                </p>
-                <p>
-                  <Link
-                    to={`/applications/${applicationId}/semantic-transactions/${state.semanticTransactionId}`}
-                    className="ontologies-page__button ontologies-page__button--primary"
-                  >
-                    View semantic transaction
-                  </Link>
-                </p>
-                {state.mode !== "generate" && (
-                  <ul className="ontology-wizard__completion-steps">
-                    {SEMANTIC_TRANSACTION_STEPS.map((stepName) => (
-                      <li key={stepName}>{stepName}</li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : (
-              <p className="agent-runs-page__error" role="alert">
-                {state.mode === "generate"
-                  ? "The draft was generated but no semantic transaction id was returned. Check semantic transactions for the latest ontology lineage entry."
-                  : "Ontology was materialized but no semantic transaction id was returned. Check semantic transactions for the latest ontology lineage entry."}
-              </p>
-            )}
-          </section>
-
-          <p className="ontology-wizard__completion-links">
-            <Link to={`/applications/${applicationId}/ontology#ontology-${state.ontologyId}`}>
-              View ontology
-            </Link>
-            {!state.semanticTransactionId && (
-              <>
-                {" · "}
-                <Link to={`/applications/${applicationId}/semantic-transactions`}>
-                  Open semantic transactions
-                </Link>
-              </>
-            )}
-          </p>
-        </article>
-      </section>
-    );
-  }
-
   const { activeConnectors } = state;
   const selectedConnector =
     activeConnectors.find((connector) => connector.id === connectorId) ??
     activeConnectors[0] ??
     null;
   const sourcePreview = previewSourceContent(contentForSubmission);
+  const generatedTurtlePreview =
+    mode === "generate" && generatedRows
+      ? buildTurtleFromDefinition(
+          {
+            classes: generatedRows.classes,
+            properties: generatedRows.properties,
+            relationships: generatedRows.relationships,
+          },
+          { title: title.trim(), description: description.trim() },
+        )
+      : "";
+  const reviewSourcePreview =
+    mode === "generate" ? previewSourceContent(generatedTurtlePreview) : sourcePreview;
+  const reviewCounts = ((): {
+    classCount: number;
+    objectPropertyCount: number;
+    dataPropertyCount: number;
+  } => {
+    if (mode === "create") {
+      const definition = buildOntologyDefinition(manualDraftInput);
+      return {
+        classCount: definition.classes.length,
+        objectPropertyCount: definition.relationships.length,
+        dataPropertyCount: definition.properties.length,
+      };
+    }
+    if (mode === "generate" && generatedRows) {
+      return {
+        classCount: generatedRows.classes.filter((row) => row.name.trim()).length,
+        objectPropertyCount: generatedRows.relationships.filter((row) => row.name.trim()).length,
+        dataPropertyCount: generatedRows.properties.filter((row) => row.name.trim()).length,
+      };
+    }
+    const inventory = backendValidationReport?.inventory;
+    if (inventory) {
+      return {
+        classCount: inventory.classes.length,
+        objectPropertyCount: inventory.relations.filter(
+          (relation) => relation.property_type === "object",
+        ).length,
+        dataPropertyCount: inventory.relations.filter(
+          (relation) => relation.property_type === "datatype",
+        ).length,
+      };
+    }
+    return { classCount: 0, objectPropertyCount: 0, dataPropertyCount: 0 };
+  })();
+  const hasBlockingValidationErrors = backendValidationReport
+    ? backendValidationReport.error_count > 0
+    : false;
+  const validationStatusLabel = backendValidationReport
+    ? backendValidationReport.passed
+      ? `Passed · ${backendValidationReport.warning_count} warning(s)`
+      : `Failed · ${backendValidationReport.error_count} error(s)`
+    : mode === "generate"
+      ? "Runs on Approve & materialize"
+      : "Not yet run";
   const stepNumber = step + 1;
   const hasActiveConnectors = activeConnectors.length > 0;
   const isLastStep = step >= visibleSteps.length - 1;
@@ -1911,7 +1880,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
           {currentPhase === "generate_review" && (
             <div className="ontologies-page__create-panel">
               <h3 className="ontologies-page__create-title">
-                Step {stepNumber} · Review &amp; approve
+                Step {stepNumber} · Review candidates
               </h3>
               <p className="ontology-wizard__panel-lead">
                 These candidate concepts were extracted from your sources. They are advisory — edit,
@@ -2087,6 +2056,22 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                       <dd>{selectedConnector ? formatConnectorLabel(selectedConnector) : "—"}</dd>
                     </div>
                     <div>
+                      <dt>Classes</dt>
+                      <dd>{reviewCounts.classCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Object properties</dt>
+                      <dd>{reviewCounts.objectPropertyCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Data properties</dt>
+                      <dd>{reviewCounts.dataPropertyCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Validation status</dt>
+                      <dd>{validationStatusLabel}</dd>
+                    </div>
+                    <div>
                       <dt>Source format</dt>
                       <dd>{effectiveSourceFormat}</dd>
                     </div>
@@ -2106,18 +2091,22 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 </div>
 
                 <div className="ontology-wizard__review-card">
-                  <h4>Submitted artifact preview</h4>
-                  <pre className="ontology-wizard__source-preview">{sourcePreview}</pre>
+                  <h4>Ontology preview (TTL)</h4>
+                  <pre className="ontology-wizard__source-preview">{reviewSourcePreview}</pre>
                 </div>
               </div>
 
               <div className="ontology-wizard__what-happens">
                 <h4>What will happen</h4>
                 <ol>
-                  <li>Create an ontology draft (no graph store write yet)</li>
+                  {mode === "generate" ? (
+                    <li>Continue to approval (draft and connector already saved)</li>
+                  ) : (
+                    <li>Create an ontology draft (no graph store write yet)</li>
+                  )}
                   <li>Confirm validation and approve the draft</li>
                   <li>Materialize content through the selected graph store connector</li>
-                  <li>Record semantic transactions for import and materialization</li>
+                  <li>Record semantic transactions and redirect to the transaction detail</li>
                 </ol>
               </div>
 
@@ -2183,7 +2172,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             )}
             {isGenerateReview && (
               <button type="submit" disabled={submitting || !generateApproved}>
-                {submitting ? "Saving draft…" : "Approve & save draft"}
+                {submitting ? "Saving…" : "Approve & continue"}
               </button>
             )}
             {!isGenerateSources && !isGenerateReview && !isLastStep && !isReviewStep && (
@@ -2197,11 +2186,23 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
             )}
             {!isGenerateSources && !isGenerateReview && isReviewStep && (
               <button type="submit" disabled={submitting || validationLoading}>
-                {submitting ? "Creating draft…" : "Create draft & continue"}
+                {mode === "generate"
+                  ? "Continue to approve"
+                  : submitting
+                    ? "Creating draft…"
+                    : "Create draft & continue"}
               </button>
             )}
             {!isGenerateSources && !isGenerateReview && isLastStep && (
-              <button type="submit" disabled={submitting || validationLoading || !draftOntologyId}>
+              <button
+                type="submit"
+                disabled={
+                  submitting ||
+                  validationLoading ||
+                  !draftOntologyId ||
+                  hasBlockingValidationErrors
+                }
+              >
                 {submitting ? "Approving & materializing…" : "Approve & materialize"}
               </button>
             )}

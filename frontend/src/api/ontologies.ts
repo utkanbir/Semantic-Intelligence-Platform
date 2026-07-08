@@ -319,6 +319,16 @@ export function updateOntologyStatus(
   });
 }
 
+export function updateOntologyConnector(
+  ontologyId: string,
+  connectorId: string,
+): Promise<OntologyDefinitionResponse> {
+  return apiFetch<OntologyDefinitionResponse>(`/ontologies/${ontologyId}/connector`, {
+    method: "PUT",
+    body: JSON.stringify({ connector_id: connectorId }),
+  });
+}
+
 export function deleteOntology(ontologyId: string): Promise<void> {
   return apiFetch<void>(`/ontologies/${ontologyId}`, {
     method: "DELETE",

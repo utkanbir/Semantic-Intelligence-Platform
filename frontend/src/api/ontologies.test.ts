@@ -274,4 +274,25 @@ describe("ontologies API", () => {
       }),
     );
   });
+
+  it("updateOntologyConnector calls PUT with connector_id body", async () => {
+    const updated = { ...mockOntology, connector_id: "connector-1" };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(updated), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const { updateOntologyConnector } = await import("./ontologies");
+    await expect(updateOntologyConnector("onto-1", "connector-1")).resolves.toEqual(updated);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/onto-1/connector",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ connector_id: "connector-1" }),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
 });
