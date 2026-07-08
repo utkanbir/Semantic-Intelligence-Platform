@@ -15,6 +15,7 @@ from app.infrastructure.adapters.knowledge_graph_resolver import (
     resolve_knowledge_graph_port,
 )
 from app.infrastructure.adapters.llm_resolver import resolve_llm_port
+from app.infrastructure.adapters.web_content_resolver import resolve_web_content_port
 from app.infrastructure.database import get_db
 from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.sqlalchemy_repository import (
@@ -51,9 +52,7 @@ from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.repositories.sqlalchemy_repository import (
     SqlAlchemyOntologyDefinitionRepository,
 )
-from app.modules.ontology.services.ontology_generation_service import (
-    OntologyGenerationService,
-)
+from app.modules.ontology.services.ontology_generation_service import OntologyGenerationService
 from app.modules.ontology.services.ontology_semantic_review_service import (
     OntologySemanticReviewService,
 )
@@ -80,6 +79,7 @@ from app.modules.ontology.services.ontology_service import (
 )
 from app.modules.ontology.services.ontology_validation_service import OntologyValidationService
 from app.shared.ports.knowledge_graph import KnowledgeGraphPort
+from app.shared.web_content import InvalidUrlError, WebContentFetchError
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
@@ -186,7 +186,10 @@ def _get_service(db: Session) -> OntologyService:
         _SqlAlchemyKnowledgeGraphPortResolver(),
         OntologyValidationService(resolve_llm_port()),
         OntologySemanticReviewService(resolve_llm_port()),
-        OntologyGenerationService(resolve_llm_port()),
+        OntologyGenerationService(
+            resolve_llm_port(),
+            web_content_port=resolve_web_content_port(),
+        ),
     )
 
 
@@ -288,6 +291,11 @@ def generate_ontology_from_sources(
     except ApplicationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except NoExtractionSourcesError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except (InvalidUrlError, WebContentFetchError) as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),

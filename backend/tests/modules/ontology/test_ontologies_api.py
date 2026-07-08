@@ -22,6 +22,7 @@ from app.infrastructure.database import get_db
 from app.main import app as fastapi_app
 from app.modules.applications.repositories.orm_models import Base
 from app.modules.audit_trace.repositories.orm_models import SemanticTransaction, TraceStep
+from app.shared.web_content import WebContentFetchError
 
 
 @pytest.fixture()
@@ -1088,3 +1089,91 @@ def test_generate_from_sources_degrades_when_llm_unavailable(client: TestClient)
     assert body["extraction"]["classes"] == []
     assert body["extraction"]["properties"] == []
     assert body["extraction"]["relationships"] == []
+
+
+class _StubWebContentPort:
+    def fetch_text(self, *, url: str, max_bytes: int = 1_048_576) -> str:
+        return "Remote vendors issue invoices with totals."
+
+
+def test_generate_from_url_source_fetches_and_creates_draft(client: TestClient) -> None:
+    application_id = _create_application(client)
+    with patch(
+        "app.modules.ontology.api.routes.resolve_web_content_port",
+        return_value=_StubWebContentPort(),
+    ):
+        response = client.post(
+            "/api/v1/ontologies/generate",
+            json={
+                "application_id": application_id,
+                "title": "URL Generated Ontology",
+                "sources": [
+                    {
+                        "kind": "url",
+                        "url": "https://example.com/billing-spec.html",
+                        "name": "billing-spec.html",
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["extraction"]["available"] is True
+    assert len(body["extraction"]["sources"]) == 1
+    assert body["extraction"]["sources"][0]["kind"] == "url"
+    assert body["extraction"]["sources"][0]["url"] == "https://example.com/billing-spec.html"
+    assert body["extraction"]["sources"][0]["content_length"] > 0
+    metadata_sources = body["ontology"]["ontology_definition"]["metadata"]["generate"]["sources"]
+    assert metadata_sources[0]["url"] == "https://example.com/billing-spec.html"
+
+
+def test_generate_from_url_source_requires_url_field(client: TestClient) -> None:
+    application_id = _create_application(client)
+    response = client.post(
+        "/api/v1/ontologies/generate",
+        json={
+            "application_id": application_id,
+            "title": "Bad URL Source",
+            "sources": [{"kind": "url", "content": "ignored"}],
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_generate_from_url_source_fetch_failure_returns_422(client: TestClient) -> None:
+    application_id = _create_application(client)
+
+    class _FailingPort:
+        def fetch_text(self, *, url: str, max_bytes: int = 1_048_576) -> str:
+            raise WebContentFetchError("Failed to fetch URL: connection refused")
+
+    with patch(
+        "app.modules.ontology.api.routes.resolve_web_content_port",
+        return_value=_FailingPort(),
+    ):
+        response = client.post(
+            "/api/v1/ontologies/generate",
+            json={
+                "application_id": application_id,
+                "title": "Unreachable URL Ontology",
+                "sources": [{"kind": "url", "url": "https://example.com/down"}],
+            },
+        )
+
+    assert response.status_code == 422
+    assert "Failed to fetch URL" in response.json()["detail"]
+
+
+def test_generate_from_url_source_rejects_invalid_scheme(client: TestClient) -> None:
+    application_id = _create_application(client)
+    response = client.post(
+        "/api/v1/ontologies/generate",
+        json={
+            "application_id": application_id,
+            "title": "Invalid URL Ontology",
+            "sources": [{"kind": "url", "url": "ftp://example.com/doc.txt"}],
+        },
+    )
+    assert response.status_code == 422
+    assert "http or https" in response.json()["detail"]

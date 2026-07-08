@@ -24,6 +24,8 @@ from app.modules.ontology.domain.extraction import (
     RelationshipCandidate,
 )
 from app.shared.ports.llm import LLMPort
+from app.shared.ports.web_content import WebContentPort
+from app.shared.web_content import InvalidUrlError, WebContentFetchError, validate_fetch_url
 
 # "ontology extraction" is the marker the deterministic stub keys on to return
 # extraction-shaped JSON instead of the semantic-review shape.
@@ -54,9 +56,51 @@ _MAX_SOURCE_CHARS = 12000
 class OntologyGenerationService:
     """Builds candidate ontology drafts from sources via the LLM port."""
 
-    def __init__(self, llm_port: LLMPort | None = None, *, model: str | None = None) -> None:
+    def __init__(
+        self,
+        llm_port: LLMPort | None = None,
+        *,
+        model: str | None = None,
+        web_content_port: WebContentPort | None = None,
+    ) -> None:
         self._llm_port = llm_port
         self._model = model
+        self._web_content_port = web_content_port
+
+    def resolve_sources(self, sources: list[ExtractionSource]) -> list[ExtractionSource]:
+        """Resolve ``url`` sources to text content via :class:`WebContentPort`."""
+        resolved: list[ExtractionSource] = []
+        for source in sources:
+            if source.kind != "url":
+                resolved.append(source)
+                continue
+            if not source.url or not source.url.strip():
+                raise InvalidUrlError("url is required when kind is url")
+            normalized_url = validate_fetch_url(source.url)
+            if source.content and source.content.strip():
+                resolved.append(
+                    ExtractionSource(
+                        kind=source.kind,
+                        content=source.content,
+                        name=source.name,
+                        reference_id=source.reference_id,
+                        url=normalized_url,
+                    )
+                )
+                continue
+            if self._web_content_port is None:
+                raise WebContentFetchError("Web content fetching is not configured")
+            content = self._web_content_port.fetch_text(url=normalized_url)
+            resolved.append(
+                ExtractionSource(
+                    kind=source.kind,
+                    content=content,
+                    name=source.name,
+                    reference_id=source.reference_id,
+                    url=normalized_url,
+                )
+            )
+        return resolved
 
     def extract(
         self,
@@ -65,6 +109,7 @@ class OntologyGenerationService:
         title: str | None = None,
         description: str | None = None,
     ) -> ExtractionResult:
+        resolved_sources = self.resolve_sources(sources)
         now = datetime.now(UTC)
         extraction_id = uuid4()
 
@@ -74,10 +119,12 @@ class OntologyGenerationService:
                 extracted_at=now,
                 extraction_id=extraction_id,
                 model=self._model,
-                sources=sources,
+                sources=resolved_sources,
             )
 
-        user_prompt = self._build_prompt(sources, title=title, description=description)
+        user_prompt = self._build_prompt(
+            resolved_sources, title=title, description=description
+        )
         try:
             raw = self._llm_port.review_text(
                 system_prompt=_SYSTEM_PROMPT,
@@ -89,7 +136,7 @@ class OntologyGenerationService:
                 extracted_at=now,
                 extraction_id=extraction_id,
                 model=self._model,
-                sources=sources,
+                sources=resolved_sources,
             )
 
         summary, classes, properties, relationships = self._parse_response(raw)
@@ -102,7 +149,7 @@ class OntologyGenerationService:
             classes=classes,
             properties=properties,
             relationships=relationships,
-            sources=sources,
+            sources=resolved_sources,
         )
 
     def _build_prompt(
@@ -120,7 +167,7 @@ class OntologyGenerationService:
             "Sources:",
         ]
         for index, source in enumerate(sources, start=1):
-            label = source.name or source.reference_id or f"source-{index}"
+            label = source.name or source.reference_id or source.url or f"source-{index}"
             content = source.content.strip()
             if len(content) > _MAX_SOURCE_CHARS:
                 content = content[:_MAX_SOURCE_CHARS] + "…[truncated]"

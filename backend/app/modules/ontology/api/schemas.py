@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
 from app.modules.ontology.domain.extraction import ExtractionResult, ExtractionSource
@@ -157,10 +157,20 @@ class OntologySuggestionDecisionResponse(BaseModel):
 
 
 class OntologyGenerationSourceRequest(BaseModel):
-    kind: Literal["file", "paste", "knowledge_source"]
-    content: str = Field(min_length=1)
+    kind: Literal["file", "paste", "knowledge_source", "url"]
+    content: str = Field(default="")
+    url: str | None = Field(default=None, max_length=2048)
     name: str | None = Field(default=None, max_length=255)
     reference_id: str | None = Field(default=None, max_length=255)
+
+    @model_validator(mode="after")
+    def validate_source_fields(self) -> Self:
+        if self.kind == "url":
+            if not self.url or not self.url.strip():
+                raise ValueError("url is required when kind is url")
+        elif not self.content or not self.content.strip():
+            raise ValueError("content is required when kind is not url")
+        return self
 
 
 class OntologyGenerateRequest(BaseModel):
@@ -205,6 +215,7 @@ class ExtractionSourceResponse(BaseModel):
     kind: str
     name: str | None = None
     reference_id: str | None = None
+    url: str | None = None
     content_length: int
 
 
@@ -234,6 +245,7 @@ def to_extraction_source_domain(
         content=source.content,
         name=source.name,
         reference_id=source.reference_id,
+        url=source.url.strip() if source.url else None,
     )
 
 
@@ -297,6 +309,7 @@ def to_ontology_extraction_response(
                 kind=source.kind,
                 name=source.name,
                 reference_id=source.reference_id,
+                url=source.url,
                 content_length=len(source.content),
             )
             for source in extraction.sources
