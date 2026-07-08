@@ -5,6 +5,7 @@ from app.shared.ports.llm import LLMPort
 from app.shared.ports.object_storage import ObjectStoragePort
 from app.shared.ports.relational_db import RelationalDBPort
 from app.shared.ports.vector_store import VectorStorePort
+from app.shared.ports.web_content import WebContentPort
 
 __all__ = [
     "KnowledgeGraphPort",
@@ -12,4 +13,5 @@ __all__ = [
     "ObjectStoragePort",
     "RelationalDBPort",
     "VectorStorePort",
+    "WebContentPort",
 ]

@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.modules.ontology.domain.extraction import ExtractionSource
 from app.modules.ontology.services.ontology_generation_service import (
     OntologyGenerationService,
 )
+from app.shared.web_content import WebContentFetchError
 
 
 def _sources() -> list[ExtractionSource]:
@@ -85,6 +88,63 @@ class _ExplodingLLM:
 
     def review_text(self, *, system_prompt: str, user_prompt: str) -> str:
         raise RuntimeError("provider unavailable")
+
+
+class _StubWebContentPort:
+    def __init__(self, *, content: str = "Fetched page text about vendors.") -> None:
+        self._content = content
+        self.calls: list[str] = []
+
+    def fetch_text(self, *, url: str, max_bytes: int = 1_048_576) -> str:
+        self.calls.append(url)
+        return self._content
+
+
+class _FailingWebContentPort:
+    def fetch_text(self, *, url: str, max_bytes: int = 1_048_576) -> str:
+        raise WebContentFetchError("upstream unavailable")
+
+
+def test_resolve_sources_fetches_url_kind() -> None:
+    web = _StubWebContentPort()
+    service = OntologyGenerationService(_JsonLLM(), web_content_port=web)
+    sources = [
+        ExtractionSource(
+            kind="url",
+            content="",
+            url="https://example.com/spec.html",
+            name="spec.html",
+        )
+    ]
+
+    resolved = service.resolve_sources(sources)
+
+    assert web.calls == ["https://example.com/spec.html"]
+    assert resolved[0].content == "Fetched page text about vendors."
+    assert resolved[0].url == "https://example.com/spec.html"
+
+
+def test_extract_includes_fetched_url_content_in_prompt() -> None:
+    llm = _JsonLLM()
+    web = _StubWebContentPort(content="Vendors issue invoices monthly.")
+    service = OntologyGenerationService(llm, web_content_port=web)
+    sources = [
+        ExtractionSource(kind="url", content="", url="https://example.com/billing")
+    ]
+
+    service.extract(sources, title="Billing")
+
+    _system, user_prompt = llm.calls[0]
+    assert "Vendors issue invoices monthly." in user_prompt
+    assert "url: https://example.com/billing" in user_prompt
+
+
+def test_resolve_sources_raises_on_fetch_failure() -> None:
+    service = OntologyGenerationService(web_content_port=_FailingWebContentPort())
+    sources = [ExtractionSource(kind="url", content="", url="https://example.com/fail")]
+
+    with pytest.raises(WebContentFetchError, match="upstream unavailable"):
+        service.resolve_sources(sources)
 
 
 def test_extract_parses_structured_candidates() -> None:

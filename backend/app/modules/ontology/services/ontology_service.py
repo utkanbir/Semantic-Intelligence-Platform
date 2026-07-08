@@ -123,6 +123,12 @@ class NoExtractionSourcesError(Exception):
     """Raised when generate-from-sources is requested without usable sources."""
 
 
+def _source_is_usable(source: ExtractionSource) -> bool:
+    if source.kind == "url":
+        return bool(source.url and source.url.strip())
+    return bool(source.content and source.content.strip())
+
+
 class _NoOpTransactionRecorder:
     def record_orchestrated(
         self,
@@ -314,9 +320,7 @@ class OntologyService:
         if self._application_repository.get(application_id) is None:
             raise ApplicationNotFoundError("Application not found")
 
-        usable_sources = [
-            source for source in sources if source.content and source.content.strip()
-        ]
+        usable_sources = [source for source in sources if _source_is_usable(source)]
         if not usable_sources:
             raise NoExtractionSourcesError(
                 "At least one source with content is required for generation"
@@ -328,6 +332,12 @@ class OntologyService:
             description=description,
         )
 
+        resolved_sources = [
+            source
+            for source in extraction.sources
+            if source.content and source.content.strip()
+        ]
+
         now = datetime.now(UTC)
         definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
         definition["classes"] = [item.to_dict() for item in extraction.classes]
@@ -338,7 +348,7 @@ class OntologyService:
         definition["metadata"] = {
             "mode": "generate",
             "generate": {
-                "sources": [source.to_dict() for source in usable_sources],
+                "sources": [source.to_dict() for source in resolved_sources],
                 "extraction": extraction.to_dict(),
             },
         }
@@ -362,7 +372,7 @@ class OntologyService:
                 f"Extracted {extraction.class_count} classes, "
                 f"{extraction.property_count} properties, "
                 f"{extraction.relationship_count} relationships "
-                f"from {len(usable_sources)} sources"
+                f"from {len(resolved_sources)} sources"
             )
         else:
             extraction_message = "Skipped: LLM extraction unavailable"

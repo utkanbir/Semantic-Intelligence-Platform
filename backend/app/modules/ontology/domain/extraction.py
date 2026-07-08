@@ -17,13 +17,13 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-ExtractionSourceKind = Literal["file", "paste", "knowledge_source"]
+ExtractionSourceKind = Literal["file", "paste", "knowledge_source", "url"]
 
-_VALID_SOURCE_KINDS: frozenset[str] = frozenset({"file", "paste", "knowledge_source"})
+_VALID_SOURCE_KINDS: frozenset[str] = frozenset(
+    {"file", "paste", "knowledge_source", "url"}
+)
 
-# MVP scope guard: URL fetch and CSV/Excel parsing are deferred to Sprint 35.
-# The extraction pipeline only accepts text-bearing sources supplied inline so
-# it never crosses a module boundary with a new ingestion port.
+# CSV/Excel parsing stays client-side (frontend); backend accepts resolved text only.
 
 
 @dataclass(slots=True)
@@ -31,7 +31,8 @@ class ExtractionSource:
     """A single text-bearing source supplied for extraction.
 
     ``content`` is the raw text extracted client-side (uploaded file text,
-    pasted text, or the text of an existing application knowledge source).
+    pasted text, or the text of an existing application knowledge source) or
+    resolved server-side for ``url`` sources via :class:`WebContentPort`.
     ``reference_id`` is an opaque lineage handle (e.g. knowledge source id or
     original filename) recorded for trace/provenance only.
     """
@@ -40,14 +41,18 @@ class ExtractionSource:
     content: str
     name: str | None = None
     reference_id: str | None = None
+    url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "kind": self.kind,
             "name": self.name,
             "reference_id": self.reference_id,
             "content_length": len(self.content),
         }
+        if self.url is not None:
+            payload["url"] = self.url
+        return payload
 
 
 @dataclass(slots=True)
