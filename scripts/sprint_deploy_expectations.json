@@ -64,6 +64,21 @@
           "image": "sip-console:s52"
         }
       ]
+    },
+    "35": {
+      "label": "Ontology Flow Polish & Generate Extensions",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s53"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s54"
+        }
+      ]
     }
   }
 }

@@ -137,6 +137,10 @@
     "34": {
       "label": "Ontology Creation Flow v2",
       "issues": [305, 306, 307, 308, 309, 310, 311, 312]
+    },
+    "35": {
+      "label": "Ontology Flow Polish & Generate Extensions",
+      "issues": [325, 326, 327, 328]
     }
   }
 }

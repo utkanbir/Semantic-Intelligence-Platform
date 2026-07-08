@@ -723,6 +723,29 @@
         "agent_runs",
         "policy_definitions"
       ]
+    },
+    "35": {
+      "label": "Ontology Flow Polish & Generate Extensions",
+      "alembic_head": "20260706_0019",
+      "new_tables": [],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries",
+        "technology_adapters",
+        "agent_runs",
+        "policy_definitions"
+      ]
     }
   }
 }
