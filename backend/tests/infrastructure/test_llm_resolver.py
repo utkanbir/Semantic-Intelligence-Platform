@@ -34,6 +34,24 @@ def test_resolve_disabled_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_unknown_provider_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SIP_LLM_ENABLED", "true")
-    monkeypatch.setenv("SIP_LLM_PROVIDER", "openai")
-    with pytest.raises(UnsupportedLLMProviderError, match="openai"):
+    monkeypatch.setenv("SIP_LLM_PROVIDER", "anthropic")
+    with pytest.raises(UnsupportedLLMProviderError, match="anthropic"):
         resolve_llm_port()
+
+
+def test_openai_provider_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIP_LLM_ENABLED", "true")
+    monkeypatch.setenv("SIP_LLM_PROVIDER", "openai")
+    monkeypatch.delenv("SIP_LLM_API_KEY", raising=False)
+    with pytest.raises(UnsupportedLLMProviderError, match="SIP_LLM_API_KEY"):
+        resolve_llm_port()
+
+
+def test_openai_provider_resolves_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIP_LLM_ENABLED", "true")
+    monkeypatch.setenv("SIP_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("SIP_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("SIP_LLM_MODEL", "gpt-4o-mini")
+    port = resolve_llm_port()
+    assert port is not None
+    assert port.ping()["provider"] == "openai"
