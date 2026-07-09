@@ -252,7 +252,7 @@ When the repository has a **single maintainer with write access**:
 | Self-approval | **Not possible** on GitHub — the PR author cannot Approve their own PR |
 | Review requirement | Set branch protection **required reviews = 0** on `develop` and `main`, then merge via PR without Approve |
 | Alternative | Add a second GitHub account as collaborator solely for PR review |
-| CI | Keep `Backend CI`, `Kustomize CI`, and `Sprint Governance CI` as required status checks |
+| CI | Required status checks on **`develop` and `main` PRs:** `Backend CI`, `Kustomize CI`, `Sprint Governance CI`; `Frontend CI` when frontend paths change (S37-09) |
 | Direct push | **Blocked** on `develop` and `main` — sprint closes must merge via PR (S37-01: `scripts/apply-branch-protection.ps1`) |
 | Auto-merge | Enable in repo Settings if desired after reviews are configured |
 

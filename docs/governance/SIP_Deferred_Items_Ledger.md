@@ -36,6 +36,8 @@ Prevent "deferred to next sprint" commitments from disappearing without trace. E
 
 **Target milestone:** Technical Debt Backlog (#39). **Expiry:** `expires_sprint` on each open item (S37-06); close gate fails when past expiry.
 
+**Single register (S37-09):** `docs/handoff.md` §8 defers to this ledger — do not maintain a parallel debt table in handoff.
+
 ---
 
 ## Commands
