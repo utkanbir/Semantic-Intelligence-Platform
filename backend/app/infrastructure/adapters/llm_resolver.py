@@ -1,4 +1,9 @@
-"""Resolve LLM port implementations from application settings."""
+"""Resolve LLM port implementations from application settings.
+
+When ``llm_provider`` is ``stub`` (default), the port returns deterministic placeholder
+responses. User-facing copy uses **Advisory semantic review** — not a live LLM — until a
+real provider adapter is wired here (see S36-06 / audit remediation).
+"""
 
 from __future__ import annotations
 

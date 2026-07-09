@@ -133,7 +133,7 @@ SIP MVP is under active sprint delivery on the `develop` integration branch.
 ### Recent delivery highlights
 
 - **Ontology Creation Wizard (Sprint 34):** Manual forms, OWL/RDF import (file + paste), Generate from Sources; shared Validate → Connector → Review → Approve → Materialize lifecycle; graph write only after explicit approval.
-- **LLM semantic review (Sprint 34–35):** Advisory findings (suggestions, warnings, improvements) after deterministic validation; Accept/Ignore per suggestion; never auto-mutates the draft.
+- **Advisory semantic review (Sprint 34–35):** Structured advisory findings (suggestions, warnings, improvements) after deterministic validation; Accept/Ignore per suggestion; never auto-mutates the draft. Uses stub LLM port until a live provider is configured.
 - **Generate extensions (Sprint 35):** Web URL fetch, CSV/Excel client parse, relaxed connector gate for generate-only draft phase.
 - **Unified Connectors UX:** Platform hub, list-first connector registry, Fuseki persistence on materialize.
 - **Semantic Transactions UI:** Dedicated semantic lineage surface separate from operational audit trace.

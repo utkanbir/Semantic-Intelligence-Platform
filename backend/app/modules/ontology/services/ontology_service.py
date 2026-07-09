@@ -638,7 +638,7 @@ class OntologyService:
                 f"{review.improvement_count} improvement ideas"
             )
         else:
-            review_message = "Skipped: LLM semantic review unavailable"
+            review_message = "Skipped: advisory semantic review unavailable"
 
         semantic_transaction_id = self._record_transaction(
             transaction_type="ontology.validation_run",

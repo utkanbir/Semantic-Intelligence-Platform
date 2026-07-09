@@ -11,7 +11,7 @@
 
 The **Semantic Intelligence Platform (SIP)** is a modular monolith delivering a governed semantic lifecycle: Applications → Discovery → Blueprints → Assets → Data Products → Ontology & Knowledge Graph → Agents, with full **Semantic Transaction** audit trails.
 
-**Current maturity:** MVP Console and API are live on local Kubernetes (`sip-dev`). The most recent delivery focus is the **unified Ontology Creation Wizard** (Sprint 34–35): three entry modes (Manual, OWL/RDF Import, Generate from Sources), draft-first lifecycle, deterministic validation, advisory LLM semantic review, and materialize-after-approve to a graph-store connector (Fuseki).
+**Current maturity:** MVP Console and API are live on local Kubernetes (`sip-dev`). The most recent delivery focus is the **unified Ontology Creation Wizard** (Sprint 34–35): three entry modes (Manual, OWL/RDF Import, Generate from Sources), draft-first lifecycle, deterministic validation, advisory semantic review, and materialize-after-approve to a graph-store connector (Fuseki).
 
 **Latest closed sprint:** Sprint 35 — Ontology Flow Polish & Generate Extensions  
 **Close gate proof:** `verify-sprint-close.ps1 -Sprint 35` **PASSED**
@@ -81,7 +81,7 @@ Unified **7-step wizard** with three modes:
 **Rules:**
 - Deterministic validation **errors block** approve/materialize
 - Deterministic **warnings** allow proceed
-- LLM semantic review is **advisory only** — never auto-modifies the ontology
+- Advisory semantic review is **advisory only** — never auto-modifies the ontology (stub LLM port until provider wired)
 - User can **Accept / Ignore** per LLM **suggestion** (recorded in trace)
 - Graph store write happens **only** at Materialize (after Approved + connector set)
 
@@ -109,7 +109,7 @@ Base: `/api/v1/ontologies`
 | POST | `/` | Create draft-first ontology |
 | POST | `/import` | Import → draft (no graph write until materialize) |
 | POST | `/generate` | Generate from sources → draft + extraction |
-| POST | `/{id}/validate` | Run validation + LLM semantic review on draft |
+| POST | `/{id}/validate` | Run validation + advisory semantic review on draft |
 | POST | `/{id}/suggestions/{finding_id}/decision` | Accept/ignore LLM suggestion |
 | PUT | `/{id}/connector` | Select graph-store connector |
 | PATCH | `/{id}/status` | Lifecycle transition (e.g. Approved) |

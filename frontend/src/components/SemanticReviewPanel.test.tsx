@@ -73,8 +73,8 @@ describe("SemanticReviewPanel", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "LLM semantic review" })).toBeInTheDocument();
-    expect(screen.getByText(/LLM semantic review is unavailable/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Advisory semantic review" })).toBeInTheDocument();
+    expect(screen.getByText(/Advisory semantic review is unavailable/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Accept/ })).not.toBeInTheDocument();
   });
 
