@@ -650,6 +650,345 @@ body {
   font-size: 0.875rem;
 }
 
+.semantic-transaction-timeline__layer {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.semantic-transaction-timeline__status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+}
+
+.semantic-transaction-timeline__status--completed {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.semantic-transaction-timeline__status--failed {
+  background: #fff5f5;
+  color: #b91c1c;
+}
+
+.semantic-transaction-timeline__status--running,
+.semantic-transaction-timeline__status--in_progress {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.semantic-transaction-timeline__duration {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.semantic-transaction-timeline__io {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+}
+
+.semantic-transaction-timeline__io dt {
+  margin: 0;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.semantic-transaction-timeline__io dd {
+  margin: 0;
+  color: #4a4a68;
+  word-break: break-word;
+}
+
+.ontology-area-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e8ebf0;
+}
+
+.ontology-area-nav__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4a4a68;
+  text-decoration: none;
+}
+
+.ontology-area-nav__link:hover {
+  background: #f3f4f8;
+  color: #1f1f33;
+}
+
+.ontology-area-nav__link--active {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.ontology-chat__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.ontology-chat-page h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.ontology-chat-page__header {
+  margin-bottom: 1rem;
+}
+
+.ontology-chat-page__lead {
+  margin: 0;
+  color: #4a4a68;
+  max-width: 42rem;
+  font-size: 0.9375rem;
+}
+
+.ontology-chat-page__status {
+  margin: 0;
+  color: #4a4a68;
+}
+
+.ontology-chat-page__error {
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #e8b4b4;
+  background: #fff5f5;
+  color: #8b3a3a;
+}
+
+.ontology-chat-page__empty {
+  padding: 2rem;
+  border: 1px dashed #c8ccd4;
+  border-radius: 8px;
+  background: #fafbfc;
+  text-align: center;
+  color: #4a4a68;
+}
+
+.ontology-chat-page__empty p {
+  margin: 0;
+}
+
+.ontology-chat-page__hint {
+  margin-top: 0.5rem !important;
+  font-size: 0.875rem;
+  color: #6b6b80;
+}
+
+.ontology-chat-page__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ontology-chat-page__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.ontology-chat-page__field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f1f33;
+}
+
+.ontology-chat-page__optional {
+  font-weight: 400;
+  color: #6b6b80;
+}
+
+.ontology-chat-page__field select,
+.ontology-chat-page__field input,
+.ontology-chat-page__field textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font: inherit;
+  color: #1f1f33;
+  background: #fff;
+}
+
+.ontology-chat-page__field textarea {
+  resize: vertical;
+  min-height: 6rem;
+}
+
+.ontology-chat-page__field-error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #b91c1c;
+}
+
+.ontology-chat-page__form-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.ontology-chat-page__button {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ontology-chat-page__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ontology-chat-page__button--primary {
+  background: #6366f1;
+  color: #fff;
+}
+
+.ontology-chat-page__button--primary:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.ontology-chat-page__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ontology-chat-page__message {
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e8ebf0;
+  background: #fafbfc;
+}
+
+.ontology-chat-page__message--assistant {
+  background: #f5f7ff;
+  border-color: #dbe4ff;
+}
+
+.ontology-chat-page__message-role {
+  margin: 0 0 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b6b80;
+}
+
+.ontology-chat-page__message-content {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #1f1f33;
+}
+
+.semantic-trace-panel {
+  padding: 1rem 1.25rem;
+  border: 1px solid #e8ebf0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.semantic-trace-panel__title {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.semantic-trace-panel__subheading {
+  margin: 1.25rem 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.semantic-trace-panel__empty,
+.semantic-trace-panel__status-text {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.semantic-trace-panel__meta {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.semantic-trace-panel__meta-row {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.semantic-trace-panel__meta-row dt {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b6b80;
+}
+
+.semantic-trace-panel__meta-row dd {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #1f1f33;
+  word-break: break-word;
+}
+
+.semantic-trace-panel__link {
+  color: #6366f1;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.semantic-trace-panel__link:hover {
+  text-decoration: underline;
+}
+
+.semantic-trace-panel__status {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+}
+
+.semantic-trace-panel__status--completed {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.semantic-trace-panel__status--failed {
+  background: #fff5f5;
+  color: #b91c1c;
+}
+
+@media (max-width: 960px) {
+  .ontology-chat__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .agent-runs-table__link {
   color: #6366f1;
   font-weight: 500;

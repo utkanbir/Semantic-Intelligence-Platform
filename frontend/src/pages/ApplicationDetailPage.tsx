@@ -18,6 +18,7 @@ import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
 import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
 import { OntologiesPage } from "./OntologiesPage";
+import { OntologyChatPage } from "./OntologyChatPage";
 import { OntologyStudioPage } from "./OntologyStudioPage";
 import { OntologyValidationPage } from "./OntologyValidationPage";
 import { ProductsPage } from "./ProductsPage";
@@ -241,6 +242,10 @@ export function ApplicationDetailPage() {
         <Route
           path="ontology"
           element={<OntologiesPage applicationId={application.id} />}
+        />
+        <Route
+          path="ontology/chat"
+          element={<OntologyChatPage applicationId={application.id} />}
         />
         <Route
           path="ontology/create"
