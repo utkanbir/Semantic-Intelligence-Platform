@@ -14,6 +14,7 @@ from app.infrastructure.adapters.knowledge_graph_resolver import (
     UnsupportedKnowledgeGraphVendorError,
     resolve_knowledge_graph_port,
 )
+from app.core.config import get_settings
 from app.infrastructure.adapters.llm_resolver import resolve_llm_port
 from app.infrastructure.adapters.web_content_resolver import resolve_web_content_port
 from app.infrastructure.database import get_db
@@ -178,16 +179,20 @@ class _SqlAlchemyKnowledgeGraphPortResolver:
 
 
 def _get_service(db: Session) -> OntologyService:
+    settings = get_settings()
+    llm_port = resolve_llm_port()
+    llm_model = settings.llm_provider if settings.llm_enabled else None
     return OntologyService(
         SqlAlchemyOntologyDefinitionRepository(db),
         SqlAlchemyApplicationRepository(db),
         SqlAlchemyTechnologyAdapterRepository(db),
         SqlAlchemyOntologyTransactionRecorder(db),
         _SqlAlchemyKnowledgeGraphPortResolver(),
-        OntologyValidationService(resolve_llm_port()),
-        OntologySemanticReviewService(resolve_llm_port()),
+        OntologyValidationService(llm_port),
+        OntologySemanticReviewService(llm_port, model=llm_model),
         OntologyGenerationService(
-            resolve_llm_port(),
+            llm_port,
+            model=llm_model,
             web_content_port=resolve_web_content_port(),
         ),
     )

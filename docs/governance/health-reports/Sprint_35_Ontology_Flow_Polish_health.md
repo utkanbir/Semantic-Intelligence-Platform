@@ -11,6 +11,8 @@
 
 ## 1. Summary
 
+> Correction (2026-07-09, #358): `resolve_llm_port()` returned the deterministic stub for any `llm_provider` value; Generate-from-Sources output was not disclosed as stub-only at close.
+
 **Green.** Sprint 35 added process hygiene (PR template), Console LLM advisory UX, and bounded URL ingestion via a new `WebContentPort` — all without schema migration or module boundary violations.
 
 ---

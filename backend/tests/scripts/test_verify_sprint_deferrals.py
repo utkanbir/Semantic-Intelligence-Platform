@@ -117,6 +117,6 @@ def test_ledger_expiry_fails_when_past() -> None:
 def test_real_ledger_has_six_seeded_items() -> None:
     ledger = vsd._load_ledger(SCRIPTS_DIR / "deferred_items_ledger.json")
     open_items = [i for i in ledger["items"] if i.get("status") == "open"]
-    assert len(open_items) == 6
-    assert {i["github_issue"] for i in open_items} == {343, 344, 345, 346, 366, 367}
+    assert len(open_items) == 7
+    assert {i["github_issue"] for i in open_items} == {343, 344, 345, 346, 366, 367, 369}
     assert all(i.get("expires_sprint") is not None for i in open_items)

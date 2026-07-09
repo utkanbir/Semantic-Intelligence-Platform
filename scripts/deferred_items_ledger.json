@@ -57,6 +57,15 @@
       "target_milestone": "Technical Debt Backlog",
       "expires_sprint": 42,
       "status": "open"
+    },
+    {
+      "id": "TD-022",
+      "title": "Wire real LLM provider adapter (replace stub)",
+      "source": "S37-03 / second audit F-3",
+      "github_issue": 369,
+      "target_milestone": "Technical Debt Backlog",
+      "expires_sprint": 42,
+      "status": "open"
     }
   ]
 }
