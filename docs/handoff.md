@@ -11,10 +11,10 @@
 
 The **Semantic Intelligence Platform (SIP)** is a modular monolith delivering a governed semantic lifecycle: Applications → Discovery → Blueprints → Assets → Data Products → Ontology & Knowledge Graph → Agents, with full **Semantic Transaction** audit trails.
 
-**Current maturity:** MVP Console and API are live on local Kubernetes (`sip-dev`). Recent delivery: **Sprint 37 — Governance Hardening** (branch protection, sprint-close gates, LLM stub disclosure). Product surface remains the unified Ontology Creation Wizard (Sprint 34–35).
+**Current maturity:** MVP Console and API are live on local Kubernetes (`sip-dev`). Recent delivery: **Sprint 38 — Ontology Chat** (ontology-grounded Q&A with layered semantic trace + Console chat tab). Prior: Sprint 37 governance hardening.
 
-**Latest closed sprint:** Sprint 37 — Governance Hardening  
-**Close gate proof:** `verify-sprint-close.ps1 -Sprint 37` **PASSED** (via sprint close PR merge)
+**Latest closed sprint:** Sprint 38 — Ontology Chat  
+**Close gate proof:** `verify-sprint-close.ps1 -Sprint 38` **PASSED** (via sprint close PR merge)
 
 ---
 
@@ -26,15 +26,15 @@ The **Semantic Intelligence Platform (SIP)** is a modular monolith delivering a 
 | Namespace | `sip-dev` |
 | Console URL | http://console.sip.local |
 | API URL | http://api.sip.local |
-| Backend image | `sip-backend:s53` |
-| Console image | `sip-console:s54` |
-| Alembic head | `20260706_0019` |
-| DB tables | 16 cumulative (see Sprint 35 retro §12) |
+| Backend image | `sip-backend:s55` |
+| Console image | `sip-console:s56` |
+| Alembic head | `20260709_0020` |
+| DB tables | 16 cumulative (see Sprint 38 retro §12) |
 
 ### Verify before PO handoff
 
 ```powershell
-powershell -File scripts/verify-sprint-close.ps1 -Sprint 37
+powershell -File scripts/verify-sprint-close.ps1 -Sprint 38
 ```
 
 ---
@@ -54,6 +54,7 @@ powershell -File scripts/verify-sprint-close.ps1 -Sprint 37
 | 35 | Ontology Flow Polish (LLM UI, URL/CSV, PR template) | ✅ Closed |
 | 36 | Governance Remediation (sprint-close CI, MVP release) | ✅ Closed |
 | 37 | Governance Hardening (branch protection, gate fixes) | ✅ Closed |
+| 38 | Ontology Chat (layered trace, chat API + Console tab) | ✅ Closed |
 
 **Retros:** `docs/governance/retros/`  
 **Health reports:** `docs/governance/health-reports/`
@@ -66,7 +67,7 @@ powershell -File scripts/verify-sprint-close.ps1 -Sprint 37
 
 - Application-centric navigation (`/applications`)
 - Platform hub: Connectors, Governance, Audit Trace, Semantic Transactions
-- Per-application: Discovery, Blueprint, Assets, Products, Agents, Agent Runs, Ontology, Knowledge Graph, Audit Trace
+- Per-application: Discovery, Blueprint, Assets, Products, Agents, Agent Runs, Ontology (**Definitions + Chat**), Knowledge Graph, Audit Trace
 
 ### Ontology Studio (`/applications/:id/ontology/create`)
 
@@ -86,6 +87,13 @@ Unified **7-step wizard** with three modes:
 - Advisory semantic review is **advisory only** — never auto-modifies the ontology; **stub/sample output** until real LLM provider wired (TD-022 #369)
 - User can **Accept / Ignore** per LLM **suggestion** (recorded in trace)
 - Graph store write happens **only** at Materialize (after Approved + connector set)
+
+### Ontology Chat (`/applications/:id/ontology/chat`) — Sprint 38
+
+- Select an ontology; ask natural-language questions grounded in its structure (classes, properties, relationships)
+- Each question creates `ontology.question_answered` Semantic Transaction with six layered trace steps
+- Trace side panel shows transaction id, status, layer, summaries, duration, participating assets (ontology + LLM provider)
+- LLM via `LLMPort` — configure `SIP_LLM_PROVIDER=openai` + `SIP_LLM_API_KEY` for real answers; stub when unwired
 
 ### Connectors
 
@@ -116,6 +124,7 @@ Base: `/api/v1/ontologies`
 | PUT | `/{id}/connector` | Select graph-store connector |
 | PATCH | `/{id}/status` | Lifecycle transition (e.g. Approved) |
 | POST | `/{id}/materialize` | Write to connector named graph |
+| POST | `/chat/ontology` | Ontology-grounded Q&A (Sprint 38) |
 
 Full router list: `backend/app/api/v1/router.py`
 
@@ -179,7 +188,7 @@ At sprint close, `verify_sprint_deferrals.py` enforces ledger hygiene and retro/
 | **Ontology contract** | `docs/architecture/SIP_Ontology_Definition_Contract_v1.md` (+ § addendum S34) |
 | **Connector model** | `docs/architecture/SIP_Semantic_Connector_Supplement_v1.md` |
 | **Semantic transaction taxonomy** | `docs/governance/SIP_Semantic_Transaction_Taxonomy_and_Eligibility_Contract.md` |
-| **Sprint 37 retro (latest)** | `docs/governance/retros/Sprint_37_Governance_Hardening_retro.md` |
+| **Sprint 38 retro (latest)** | `docs/governance/retros/Sprint_38_Ontology_Chat_retro.md` |
 | **Governance / sprint gates** | `scripts/verify-sprint-close.ps1`, `docs/project/SIP_DEVELOPMENT_PLAYBOOK.md` §6 |
 | **Backend local setup** | `backend/README.md` |
 | **Cluster deploy** | `infra/README.md` |
