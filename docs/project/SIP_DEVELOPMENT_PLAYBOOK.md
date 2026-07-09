@@ -252,7 +252,8 @@ When the repository has a **single maintainer with write access**:
 | Self-approval | **Not possible** on GitHub — the PR author cannot Approve their own PR |
 | Review requirement | Set branch protection **required reviews = 0** on `develop` and `main`, then merge via PR without Approve |
 | Alternative | Add a second GitHub account as collaborator solely for PR review |
-| CI | Keep `Backend CI` and `Kustomize CI` as required status checks |
+| CI | Keep `Backend CI`, `Kustomize CI`, and `Sprint Governance CI` as required status checks |
+| Direct push | **Blocked** on `develop` and `main` — sprint closes must merge via PR (S37-01: `scripts/apply-branch-protection.ps1`) |
 | Auto-merge | Enable in repo Settings if desired after reviews are configured |
 
 Re-enable **required reviews = 1** when a second human reviewer joins the team.
@@ -490,7 +491,7 @@ powershell -File scripts/verify-sprint-board.ps1 -Sprint <N>
 
 ### Sprint governance CI (S36-01)
 
-GitHub Actions workflow **`Sprint Governance CI`** (`.github/workflows/sprint-governance-ci.yml`) enforces sprint-close documentation on merges to `develop`:
+GitHub Actions workflow **`Sprint Governance CI`** (`.github/workflows/sprint-governance-ci.yml`) enforces sprint-close documentation on **pull requests** to `develop` and `main` (S37-01 — no `push` trigger; direct pushes blocked by branch protection):
 
 | Behaviour | Detail |
 |-----------|--------|
@@ -500,7 +501,9 @@ GitHub Actions workflow **`Sprint Governance CI`** (`.github/workflows/sprint-go
 | **Board** | `verify_sprint_board.py` runs only when `end_of_sprint_*` is detected; requires `PROJECT_SYNC_TOKEN` in CI |
 | **Cluster** | DB + deploy gates remain **local only** via `verify-sprint-close.ps1` (no `kubectl` on GitHub-hosted runners) |
 
-Local parity: `verify-sprint-close.ps1` calls `scripts/verify_sprint_close_ci.py --sprint <N>` as its first gate.
+**Milestone reconcile (S37-01):** workflow `sprint-milestone-reconcile.yml` runs daily and on `workflow_dispatch`. Script `scripts/verify_sprint_milestone_reconcile.py` fails when a closed milestone (sprint ≥ `enforce_from_sprint` in `sprint_milestone_reconcile.json`) lacks `end_of_sprint_N:` on `develop` plus retro/health files. Waived sprints (e.g. 29, 30, 33) are listed in that JSON until S37-08 backfill.
+
+Local parity: `verify-sprint-close.ps1` calls `scripts/verify_sprint_close_ci.py --sprint <N>` and `verify_sprint_milestone_reconcile.py --sprint <N>`.
 
 ### Deferred-items ledger (S36-02)
 

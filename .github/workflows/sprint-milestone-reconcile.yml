@@ -1,0 +1,46 @@
+# Reconcile closed sprint milestones against end_of_sprint commits + retro/health (S37-01).
+#
+# Catches milestone closes that bypass PR governance (F-1). Runs daily and on demand.
+name: Sprint Milestone Reconcile
+
+on:
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    name: Sprint Milestone Reconcile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: develop
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify closed milestones vs develop close artifacts
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::PROJECT_SYNC_TOKEN is required for milestone reconcile."
+            exit 1
+          fi
+          python scripts/verify_sprint_milestone_reconcile.py
+
+      - name: Run milestone reconcile unit tests
+        working-directory: backend
+        run: |
+          pip install -e ".[dev]"
+          pytest tests/scripts/test_verify_sprint_milestone_reconcile.py -q
