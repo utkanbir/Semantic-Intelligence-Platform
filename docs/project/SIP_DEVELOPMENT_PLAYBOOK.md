@@ -527,6 +527,18 @@ From Sprint 36, architecture health reports must include **§9 Gate trigger #11-
 
 Local: `python scripts/verify_health_report_gate11.py --sprint <N>`
 
+### Retro delivery rate vs kickoff plan (S36-07)
+
+From Sprint 37, retros must report **Delivery rate** against the issue list frozen in the sprint **plan** at kickoff (`docs/project/Sprint_<N>_*_Plan.md` §3), not a re-scoped list at close.
+
+| Behaviour | Detail |
+|-----------|--------|
+| **Template** | `docs/governance/retros/TEMPLATE_sprint_retro.md` — **Kickoff plan** link + denominator rule |
+| **Enforcement** | `verify_sprint_retro_delivery.py` via `verify_sprint_close_ci.py` (Sprint ≥ 37) |
+| **Scope drift** | Document dropped/added issues in §1; denominator unchanged without plan amendment |
+
+Local: `python scripts/verify_sprint_retro_delivery.py --sprint <N>`
+
 **PMO manual (when GitHub CLI unavailable):** create milestone `Sprint 36 — Governance Remediation`, epic E-36, and issues S36-01…S36-07; add issue numbers to `sprint_board_expectations.json` before sprint close.
 
 ### Project board verification (details)

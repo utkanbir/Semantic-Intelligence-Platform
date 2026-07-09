@@ -6,7 +6,8 @@ Detects ``end_of_sprint_<N>:`` commit subjects and, when present, verifies:
   2. Sprint manifests exist in board/db/deploy expectation JSON files
   3. Deferred-items ledger and retro/health deferral hygiene (S36-02)
   4. Health-report gate-trigger-11-class checklist when sprint >= 36 (S36-03)
-  5. GitHub project board state (when GH_TOKEN is available)
+  5. Retro delivery rate vs kickoff plan when sprint >= 37 (S36-07)
+  6. GitHub project board state (when GH_TOKEN is available)
 
 When no ``end_of_sprint_*`` commit is detected, exits 0 immediately (no-op).
 
@@ -233,6 +234,21 @@ def verify_sprint_close(
             output = (result.stderr or result.stdout).strip()
             errors.append(
                 f"Health-report gate-trigger-11 verification failed for Sprint {sprint}: {output}"
+            )
+
+    retro_delivery_path = SCRIPTS_DIR / "verify_sprint_retro_delivery.py"
+    if retro_delivery_path.is_file():
+        result = subprocess.run(
+            [sys.executable, str(retro_delivery_path), "--sprint", str(sprint)],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=repo_root,
+        )
+        if result.returncode != 0:
+            output = (result.stderr or result.stdout).strip()
+            errors.append(
+                f"Retro delivery-rate verification failed for Sprint {sprint}: {output}"
             )
 
     if not skip_board:
