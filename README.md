@@ -4,7 +4,7 @@
 
 SIP is a modular, cloud-native platform that guides organizations through the full **Semantic Intelligence lifecycle**: structured discovery, blueprint-driven provisioning, curated data products, ontology-backed knowledge graphs, and policy-governed AI agents. Every significant action is traceable via **Semantic Transactions** and **Trace Steps**, so outcomes stay auditable and explainable by design.
 
-The current `develop` branch includes a working Platform Console for **Applications**, **Connectors**, **Ontology import to Fuseki**, and **Semantic Transaction** inspection on Kubernetes (`console.sip.local`, `api.sip.local`).
+The current `develop` branch includes a working Platform Console for **Applications**, **Connectors**, a **unified Ontology Creation Wizard** (Manual / Import / Generate), **LLM advisory semantic review**, and **Semantic Transaction** inspection on Kubernetes (`console.sip.local`, `api.sip.local`).
 
 ---
 
@@ -44,7 +44,7 @@ flowchart LR
 | Path | Purpose |
 |------|---------|
 | [`backend/`](backend/) | Python / FastAPI modular monolith — REST API at `/api/v1` |
-| [`frontend/`](frontend/) | React / TypeScript Platform Console for applications, connectors, ontology import, and semantic transactions |
+| [`frontend/`](frontend/) | React / TypeScript Platform Console — applications, connectors, ontology wizard, semantic transactions |
 | [`infra/`](infra/) | Kubernetes + Kustomize — primary runtime (`sip-dev` namespace) |
 | [`architecture/`](architecture/) | Canonical architecture specifications |
 | [`docs/`](docs/) | ADRs, governance, retros, and engineering playbooks |
@@ -93,6 +93,9 @@ API ingress: `http://api.sip.local`
 
 | Document | Description |
 |----------|-------------|
+| [**Project handoff**](docs/handoff.md) | Current state, live env, onboarding checklist |
+| [**Software architecture guide**](docs/architecture/SIP_Software_Architecture_Guide.md) | Backend/frontend layout, modules, ports, layering |
+| [Architecture supplements index](docs/architecture/README.md) | Per-domain contracts + staleness notes |
 | [Development Playbook](docs/project/SIP_DEVELOPMENT_PLAYBOOK.md) | Engineering process, quality gates, team conventions |
 | [GitHub Workflow](docs/project/SIP_GITHUB_WORKFLOW.md) | Issues, sprints, milestones, delivery workflow |
 | [ADR-001: Cloud Native Deployment](docs/adr/ADR-001-cloud-native-deployment-strategy.md) | Kubernetes-first runtime strategy |
@@ -120,14 +123,20 @@ SIP MVP is under active sprint delivery on the `develop` integration branch.
 | Console Deploy & Release (Sprint 12) | ✅ Closed |
 | Console Connectors UX v2 (Sprint 29) | ✅ Closed |
 | Fuseki Persistence & Semantic Transactions (Sprint 30) | ✅ Closed |
+| Ontology Wizard & Semantic Transactions v2 (Sprint 31) | ✅ Closed |
+| Semantic Transaction Realignment (Sprint 32) | ✅ Closed |
+| Ontology Creation Flow v2 (Sprint 34) | ✅ Closed |
+| Ontology Flow Polish (Sprint 35) | ✅ Closed |
 
-**Current:** Default branch `develop` · Console on K8s (`console.sip.local`) · Ontology import persists to Fuseki · Semantic Transaction detail UI live · Alembic `20260704_0018`
+**Current:** Default branch `develop` · Console on K8s (`console.sip.local`) · Unified ontology wizard (3 modes, draft-first) · LLM advisory review UI · Alembic `20260706_0019` · Images `sip-backend:s53` / `sip-console:s54`
 
 ### Recent delivery highlights
 
-- **Unified Connectors UX**: Platform hub, list-first connector registry, auto-generated connector keys, icon-based type/vendor selection, `vector_database` connector type.
-- **Fuseki persistence**: Ontology imports now persist RDF content to Fuseki instead of stub-only metadata writes.
-- **Semantic Transactions UI**: Console labels and flows now expose Semantic Transactions more directly, including per-transaction detail pages and post-import deep links.
+- **Ontology Creation Wizard (Sprint 34):** Manual forms, OWL/RDF import (file + paste), Generate from Sources; shared Validate → Connector → Review → Approve → Materialize lifecycle; graph write only after explicit approval.
+- **LLM semantic review (Sprint 34–35):** Advisory findings (suggestions, warnings, improvements) after deterministic validation; Accept/Ignore per suggestion; never auto-mutates the draft.
+- **Generate extensions (Sprint 35):** Web URL fetch, CSV/Excel client parse, relaxed connector gate for generate-only draft phase.
+- **Unified Connectors UX:** Platform hub, list-first connector registry, Fuseki persistence on materialize.
+- **Semantic Transactions UI:** Dedicated semantic lineage surface separate from operational audit trace.
 
 ---
 
