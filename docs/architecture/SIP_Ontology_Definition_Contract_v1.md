@@ -178,6 +178,17 @@ Creating an OntologyDefinition **must not** provision runtime semantic assets (F
 | `ontology/domain` | Models/enums; no FastAPI/SQLAlchemy |
 | Ports | `TraceRecorder` for audit (S7-06) |
 
+### 8.5 Draft wizard endpoints (Sprint 34–35)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `POST` | `/api/v1/ontologies/import` | Draft-only import (see §8.5 addendum) |
+| `POST` | `/api/v1/ontologies/generate` | Draft-only generate from sources (LLM extraction) |
+| `PUT` | `/api/v1/ontologies/{id}/connector` | Bind connector before materialize |
+| `POST` | `/api/v1/ontologies/{id}/materialize` | Write approved draft to graph store |
+| `POST` | `/api/v1/ontologies/{id}/suggestions/{finding_id}/decision` | Record accept/ignore on advisory finding |
+| `DELETE` | `/api/v1/ontologies/{id}` | Remove draft ontology row |
+
 ### 8.1 CRUD (S7-03)
 
 | Method | Path | Behavior |
