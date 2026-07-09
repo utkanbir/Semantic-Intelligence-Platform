@@ -131,7 +131,7 @@ Authoritative labels from SIP Asset Catalog v1:
 | `POST` | `/api/v1/ontologies/validate` | Pre-flight structural validation on submitted RDF content |
 | `POST` | `/api/v1/ontologies/{id}/validate` | Re-run validation for Draft ontology; persist report; emit `ontology.validation_run` |
 
-### 8.5 Draft import and materialize (Sprint 34 addendum — S34-01)
+### 5.1.2 Draft import and materialize (Sprint 34 addendum — S34-01)
 
 | Method | Path | Behavior |
 |--------|------|----------|
@@ -178,11 +178,11 @@ Creating an OntologyDefinition **must not** provision runtime semantic assets (F
 | `ontology/domain` | Models/enums; no FastAPI/SQLAlchemy |
 | Ports | `TraceRecorder` for audit (S7-06) |
 
-### 8.5 Draft wizard endpoints (Sprint 34–35)
+### 8.6 Draft wizard endpoints (Sprint 34–35)
 
 | Method | Path | Behavior |
 |--------|------|----------|
-| `POST` | `/api/v1/ontologies/import` | Draft-only import (see §8.5 addendum) |
+| `POST` | `/api/v1/ontologies/import` | Draft-only import (see §5.1.2) |
 | `POST` | `/api/v1/ontologies/generate` | Draft-only generate from sources (LLM extraction) |
 | `PUT` | `/api/v1/ontologies/{id}/connector` | Bind connector before materialize |
 | `POST` | `/api/v1/ontologies/{id}/materialize` | Write approved draft to graph store |

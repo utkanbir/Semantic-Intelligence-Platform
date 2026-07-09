@@ -159,13 +159,9 @@ Governance: `docs/governance/SIP_Architecture_Governance_Policy.md`
 
 ## 8. Known technical debt (active)
 
-| ID | Item | Severity |
-|----|------|----------|
-| TD-018 | `trace_audience` derived at read time; not persisted on write | S3 |
-| TD-019 | Ontology lifecycle = multiple SemanticTransaction rows per `resource_id`, not single row | S3 |
-| TD-021 | Legacy `.xls` Excel not supported in Generate mode (CSV/XLSX only) | S3 |
+**Authoritative register:** [`scripts/deferred_items_ledger.json`](../scripts/deferred_items_ledger.json) — human-readable index in [`docs/governance/SIP_Deferred_Items_Ledger.md`](governance/SIP_Deferred_Items_Ledger.md). Do not duplicate open items here; update the ledger and linked GitHub issues instead.
 
-See Sprint 35 health report for full register.
+At sprint close, `verify_sprint_deferrals.py` enforces ledger hygiene and retro/health deferral phrases.
 
 ---
 

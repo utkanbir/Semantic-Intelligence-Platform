@@ -185,3 +185,57 @@ def test_board_token_required_on_sprint_close(temp_repo: Path) -> None:
     errors = vsc.verify_board(36, gh_token=None)
     assert len(errors) == 1
     assert "GH_TOKEN" in errors[0] or "PROJECT_SYNC_TOKEN" in errors[0]
+
+
+def _init_git_repo(repo: Path) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True)
+
+
+def test_handoff_skipped_before_sprint_37(temp_repo: Path) -> None:
+    assert vsc.verify_handoff_updated(36, repo_root=temp_repo, git_range=None) == []
+
+
+def test_handoff_fails_when_close_commit_missing_handoff(temp_repo: Path) -> None:
+    import subprocess
+
+    _init_git_repo(temp_repo)
+    _write_docs(temp_repo, 37)
+    subprocess.run(
+        ["git", "add", "."],
+        cwd=temp_repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "end_of_sprint_37: close without handoff"],
+        cwd=temp_repo,
+        check=True,
+        capture_output=True,
+    )
+    errors = vsc.verify_handoff_updated(37, repo_root=temp_repo, git_range="HEAD")
+    assert errors
+    assert any("handoff.md" in item for item in errors)
+
+
+def test_handoff_passes_when_close_commit_updates_handoff(temp_repo: Path) -> None:
+    import subprocess
+
+    _init_git_repo(temp_repo)
+    _write_docs(temp_repo, 37)
+    handoff = temp_repo / "docs" / "handoff.md"
+    handoff.parent.mkdir(parents=True, exist_ok=True)
+    handoff.write_text("# handoff\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=temp_repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "end_of_sprint_37: close with handoff"],
+        cwd=temp_repo,
+        check=True,
+        capture_output=True,
+    )
+    assert vsc.verify_handoff_updated(37, repo_root=temp_repo, git_range="HEAD") == []
