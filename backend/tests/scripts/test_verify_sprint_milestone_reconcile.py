@@ -26,6 +26,18 @@ def _load_module():
 
 vmr = _load_module()
 
+RETRO_REL = Path("docs/governance/retros/Sprint_37_Gov_retro.md")
+HEALTH_REL = Path("docs/governance/health-reports/Sprint_37_Gov_health.md")
+
+
+def _write_sprint_docs(repo: Path) -> None:
+    retro = repo / RETRO_REL
+    health = repo / HEALTH_REL
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    health.parent.mkdir(parents=True, exist_ok=True)
+    retro.write_text("# retro", encoding="utf-8")
+    health.write_text("# health", encoding="utf-8")
+
 
 @pytest.fixture()
 def temp_repo(tmp_path: Path) -> Path:
@@ -81,28 +93,14 @@ def test_parse_sprint_from_milestone_title() -> None:
 
 
 def test_verify_sprint_artifacts_missing_commit(temp_repo: Path) -> None:
-    (temp_repo / "docs" / "governance" / "retros").mkdir(parents=True, exist_ok=True)
-    (temp_repo / "docs" / "governance" / "retros" / "Sprint_37_Governance_Hardening_retro.md").write_text(
-        "# retro", encoding="utf-8"
-    )
-    (temp_repo / "docs" / "governance" / "health-reports").mkdir(parents=True, exist_ok=True)
-    (
-        temp_repo / "docs" / "governance" / "health-reports" / "Sprint_37_Governance_Hardening_health.md"
-    ).write_text("# health", encoding="utf-8")
+    _write_sprint_docs(temp_repo)
 
     errors = vmr.verify_sprint_artifacts(37, repo_root=temp_repo, branch="develop")
     assert any("no end_of_sprint_37" in item for item in errors)
 
 
 def test_verify_sprint_artifacts_pass(temp_repo: Path) -> None:
-    (temp_repo / "docs" / "governance" / "retros").mkdir(parents=True, exist_ok=True)
-    (temp_repo / "docs" / "governance" / "retros" / "Sprint_37_Governance_Hardening_retro.md").write_text(
-        "# retro", encoding="utf-8"
-    )
-    (temp_repo / "docs" / "governance" / "health-reports").mkdir(parents=True, exist_ok=True)
-    (
-        temp_repo / "docs" / "governance" / "health-reports" / "Sprint_37_Governance_Hardening_health.md"
-    ).write_text("# health", encoding="utf-8")
+    _write_sprint_docs(temp_repo)
     subprocess.run(
         ["git", "commit", "--allow-empty", "-m", "end_of_sprint_37: close"],
         cwd=temp_repo,
