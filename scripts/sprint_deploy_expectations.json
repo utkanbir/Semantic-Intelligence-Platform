@@ -94,6 +94,21 @@
           "image": "sip-console:s54"
         }
       ]
+    },
+    "38": {
+      "label": "Ontology Chat",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s55"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s56"
+        }
+      ]
     }
   }
 }
