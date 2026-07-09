@@ -7,7 +7,7 @@ import json
 import httpx
 import pytest
 
-from app.infrastructure.adapters.llm_openai import OpenAILLMError, OpenAILLMAdapter
+from app.infrastructure.adapters.llm_openai import OpenAILLMAdapter, OpenAILLMError
 
 
 def test_ping_reports_provider_and_model() -> None:
