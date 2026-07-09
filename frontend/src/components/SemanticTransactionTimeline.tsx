@@ -30,10 +30,41 @@ export function SemanticTransactionTimeline({ steps }: SemanticTransactionTimeli
               Step {step.step_number}
             </span>
             <span className="semantic-transaction-timeline__type">{step.step_type}</span>
+            {step.layer && (
+              <span className="semantic-transaction-timeline__layer">{step.layer}</span>
+            )}
+            {step.status && (
+              <span
+                className={`semantic-transaction-timeline__status semantic-transaction-timeline__status--${step.status.toLowerCase()}`}
+              >
+                {step.status}
+              </span>
+            )}
+            {step.duration_ms != null && (
+              <span className="semantic-transaction-timeline__duration">
+                {step.duration_ms} ms
+              </span>
+            )}
             <time className="semantic-transaction-timeline__time" dateTime={step.created_at}>
               {formatDate(step.created_at)}
             </time>
           </div>
+          {(step.input_summary || step.output_summary) && (
+            <dl className="semantic-transaction-timeline__io">
+              {step.input_summary && (
+                <>
+                  <dt>Input</dt>
+                  <dd>{step.input_summary}</dd>
+                </>
+              )}
+              {step.output_summary && (
+                <>
+                  <dt>Output</dt>
+                  <dd>{step.output_summary}</dd>
+                </>
+              )}
+            </dl>
+          )}
           {step.message && (
             <p className="semantic-transaction-timeline__message">{step.message}</p>
           )}
