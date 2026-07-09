@@ -125,6 +125,25 @@ const passingValidationReport = {
   },
 };
 
+function fillImportPasteContent(
+  content: string,
+  options?: { format?: string; title?: string },
+) {
+  if (options?.title) {
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: options.title },
+    });
+  }
+  if (options?.format) {
+    fireEvent.change(screen.getByLabelText("Source format"), {
+      target: { value: options.format },
+    });
+  }
+  fireEvent.change(screen.getByLabelText("Ontology content"), {
+    target: { value: content },
+  });
+}
+
 async function goToReviewStep(options?: { createdBy?: string; approveImport?: boolean }) {
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
@@ -297,11 +316,10 @@ describe("OntologyStudioPage", () => {
       expect(materializeOntology).toHaveBeenCalledWith("onto-1");
     });
 
-    // After materialization the wizard redirects to the semantic transaction detail
-    // using the returned semantic_transaction_id.
+    // After materialization the wizard returns to the ontology list.
     await waitFor(() => {
       expect(screen.getByTestId("location-probe")).toHaveTextContent(
-        "/applications/app-1/semantic-transactions/txn-materialize-1",
+        "/applications/app-1/ontology",
       );
     });
   }, 15000);
@@ -475,7 +493,7 @@ describe("OntologyStudioPage", () => {
     });
   });
 
-  it("imports ontology RDF file through the draft-first flow", async () => {
+  it("imports ontology RDF content through the draft-first flow", async () => {
     vi.mocked(importOntology).mockResolvedValue({
       ...draftOntology,
       title: "Imported Ontology",
@@ -488,18 +506,9 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Title"), {
-      target: { value: "Imported Ontology" },
-    });
-    const file = new File(["<rdf:RDF></rdf:RDF>"], "vendor.rdf", {
-      type: "application/xml",
-    });
-    fireEvent.change(screen.getByLabelText("Ontology file"), {
-      target: { files: [file] },
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
+    fillImportPasteContent("<rdf:RDF></rdf:RDF>", {
+      title: "Imported Ontology",
+      format: "rdf",
     });
 
     await goToReviewStep({ approveImport: true });
@@ -537,17 +546,9 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Title"), {
-      target: { value: "Imported Ontology" },
-    });
-    const file = new File(["<rdf:RDF></rdf:RDF>"], "vendor.rdf", {
-      type: "application/xml",
-    });
-    fireEvent.change(screen.getByLabelText("Ontology file"), {
-      target: { files: [file] },
-    });
-    await waitFor(() => {
-      expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
+    fillImportPasteContent("<rdf:RDF></rdf:RDF>", {
+      title: "Imported Ontology",
+      format: "rdf",
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -562,26 +563,16 @@ describe("OntologyStudioPage", () => {
     expect(importOntology).not.toHaveBeenCalled();
   });
 
-  it("supports importing ontology content from a file upload", async () => {
+  it("supports importing ontology content by pasting text through the wizard", async () => {
     renderPage("/applications/app-1/ontology/create?mode=import");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
 
-    const file = new File(["@prefix ex: <https://example.com/> ."], "vendor.ttl", {
-      type: "text/turtle",
+    fillImportPasteContent("@prefix ex: <https://example.com/> .", {
+      title: "vendor",
     });
-    fireEvent.change(screen.getByLabelText("Ontology file"), {
-      target: { files: [file] },
-    });
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue("vendor")).toBeInTheDocument();
-    });
-
-    expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
-    expect(screen.getByText(/format: ttl/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => {
@@ -619,9 +610,6 @@ describe("OntologyStudioPage", () => {
       target: { value: "Pasted Ontology" },
     });
 
-    // Switch from the file tab to the paste tab.
-    fireEvent.click(screen.getByRole("tab", { name: "Paste text" }));
-
     const pastedContent = "@prefix ex: <https://example.com/> .\nex:Vendor a owl:Class .";
     fireEvent.change(screen.getByLabelText("Ontology content"), {
       target: { value: pastedContent },
@@ -651,17 +639,8 @@ describe("OntologyStudioPage", () => {
       ).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Title"), {
-      target: { value: "Imported Ontology" },
-    });
-    const file = new File(["@prefix ex: <https://example.com/> ."], "vendor.ttl", {
-      type: "text/turtle",
-    });
-    fireEvent.change(screen.getByLabelText("Ontology file"), {
-      target: { files: [file] },
-    });
-    await waitFor(() => {
-      expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
+    fillImportPasteContent("@prefix ex: <https://example.com/> .", {
+      title: "Imported Ontology",
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -711,17 +690,8 @@ describe("OntologyStudioPage", () => {
       ).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Title"), {
-      target: { value: "Imported Ontology" },
-    });
-    const file = new File(["@prefix ex: <https://example.com/> ."], "vendor.ttl", {
-      type: "text/turtle",
-    });
-    fireEvent.change(screen.getByLabelText("Ontology file"), {
-      target: { files: [file] },
-    });
-    await waitFor(() => {
-      expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
+    fillImportPasteContent("@prefix ex: <https://example.com/> .", {
+      title: "Imported Ontology",
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));

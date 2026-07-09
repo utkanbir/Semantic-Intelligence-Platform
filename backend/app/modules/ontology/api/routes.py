@@ -181,7 +181,7 @@ class _SqlAlchemyKnowledgeGraphPortResolver:
 def _get_service(db: Session) -> OntologyService:
     settings = get_settings()
     llm_port = resolve_llm_port()
-    llm_model = settings.llm_provider if settings.llm_enabled else None
+    llm_model = settings.llm_model if settings.llm_enabled else None
     return OntologyService(
         SqlAlchemyOntologyDefinitionRepository(db),
         SqlAlchemyApplicationRepository(db),
