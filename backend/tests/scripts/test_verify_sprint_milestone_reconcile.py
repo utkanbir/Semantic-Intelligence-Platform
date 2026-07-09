@@ -113,6 +113,6 @@ def test_verify_sprint_artifacts_pass(temp_repo: Path) -> None:
 
 
 def test_sprint_36_close_artifacts_on_real_repo() -> None:
-    """Real develop history includes Sprint 36 close commit and docs."""
-    errors = vmr.verify_sprint_artifacts(36, repo_root=REPO_ROOT, branch="develop")
+    """Sprint 36 close docs exist; end_of_sprint commit is on current branch history."""
+    errors = vmr.verify_sprint_artifacts(36, repo_root=REPO_ROOT, branch="HEAD")
     assert errors == []
