@@ -144,7 +144,7 @@
     },
     "36": {
       "label": "Governance Remediation",
-      "issues": [334]
+      "issues": [334, 337, 338, 339, 340, 341, 342]
     }
   }
 }

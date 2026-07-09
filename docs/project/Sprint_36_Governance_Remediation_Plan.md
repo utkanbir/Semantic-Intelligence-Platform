@@ -3,10 +3,8 @@
 **Role:** Delivery Manager (PMO)
 **Date:** 2026-07-09
 **Status:** Active  
-**Epic:** E-36 (#TBD — create manually via GitHub when `gh` available)  
-**Milestone:** Sprint 36 — Governance Remediation
-
-> **PMO manual:** If GitHub CLI is unavailable, create milestone, epic, and issues S36-01…S36-07 outside this repo; update `scripts/sprint_board_expectations.json` with issue numbers before sprint close.
+**Epic:** E-36 (#336)  
+**Milestone:** Sprint 36 — Governance Remediation (#38)
 
 ---
 
@@ -41,15 +39,15 @@ Make sprint-close status self-correcting instead of self-congratulatory: enforce
 
 ## 3. Committed scope
 
-| ID | Title | Surface | Gate | Depends |
-|----|-------|---------|------|---------|
-| S36-01 | Wire `verify_sprint_board.py` / `verify_sprint_db.py` / `verify-sprint-close.ps1` into a required CI check on `end_of_sprint_*` commits; fail if the commit is missing a matching retro or health-report file | DevOps | No | — |
-| S36-02 | Deferred-items ledger: every "deferred to Sprint N+1" line in a retro/health report must have a GitHub issue with a target milestone; sprint-close lint fails if a deferral has no linked issue. Seed the ledger now with: auth ADR, TraceStep orchestration ADR, real connector provisioning, TD-018 | PMO / process | No | S36-01 |
-| S36-03 | Health-report template change: require explicit pass/fail against architecture-gate trigger #11-class checks (e.g. "new UI label vs taxonomy contract") before a sprint can be rated Green | PMO / process | No | — |
-| S36-04 | Cut the release: create `main`, complete the Sprint 12 checklist items still Partial/Pending, tag `v1.0-mvp` | DevOps | Yes* | S36-01 |
-| S36-05 | Contract-sync check: script diffs live FastAPI `/api/v1` routes against `docs/architecture/*_Contract_*.md`; required CI check on backend PRs | Backend / DevOps | Yes* | S36-01 |
-| S36-06 | Correct the record: fix Sprint 32 retro §10 (product/agent records are not on the semantic surface — align with taxonomy contract and code), fix Ontology contract §5.1.1's stale "Sprint 33" reference, remove phantom `"33"` entry from `sprint_deploy_expectations.json`, and either wire a real LLM provider into `llm_resolver.py` or rename "LLM semantic review" until one exists | Docs / Backend | No | — |
-| S36-07 | Retro template change: delivery rate reported against the issue list frozen in the sprint **plan** at kickoff, not against scope as re-negotiated at close | PMO / process | No | — |
+| ID | Title | Surface | Gate | Depends | Issue |
+|----|-------|---------|------|---------|-------|
+| S36-01 | Wire `verify_sprint_board.py` / `verify_sprint_db.py` / `verify-sprint-close.ps1` into a required CI check on `end_of_sprint_*` commits; fail if the commit is missing a matching retro or health-report file | DevOps | No | — | #334 ✅ |
+| S36-02 | Deferred-items ledger: every "deferred to Sprint N+1" line in a retro/health report must have a GitHub issue with a target milestone; sprint-close lint fails if a deferral has no linked issue. Seed the ledger now with: auth ADR, TraceStep orchestration ADR, real connector provisioning, TD-018 | PMO / process | No | S36-01 | #337 |
+| S36-03 | Health-report template change: require explicit pass/fail against architecture-gate trigger #11-class checks (e.g. "new UI label vs taxonomy contract") before a sprint can be rated Green | PMO / process | No | — | #338 |
+| S36-04 | Cut the release: create `main`, complete the Sprint 12 checklist items still Partial/Pending, tag `v1.0-mvp` | DevOps | Yes* | S36-01 | #339 |
+| S36-05 | Contract-sync check: script diffs live FastAPI `/api/v1` routes against `docs/architecture/*_Contract_*.md`; required CI check on backend PRs | Backend / DevOps | Yes* | S36-01 | #340 |
+| S36-06 | Correct the record: fix Sprint 32 retro §10 (product/agent records are not on the semantic surface — align with taxonomy contract and code), fix Ontology contract §5.1.1's stale "Sprint 33" reference, remove phantom `"33"` entry from `sprint_deploy_expectations.json`, and either wire a real LLM provider into `llm_resolver.py` or rename "LLM semantic review" until one exists | Docs / Backend | No | — | #341 |
+| S36-07 | Retro template change: delivery rate reported against the issue list frozen in the sprint **plan** at kickoff, not against scope as re-negotiated at close | PMO / process | No | — | #342 |
 
 \* S36-04, S36-05: escalate to architecture gate if new CI infra or cross-module tooling is required.
 
