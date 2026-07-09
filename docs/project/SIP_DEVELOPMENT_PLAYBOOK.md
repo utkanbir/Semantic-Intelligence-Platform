@@ -515,6 +515,18 @@ At sprint close, `verify_sprint_close_ci.py` also runs `scripts/verify_sprint_de
 
 Local: `python scripts/verify_sprint_deferrals.py --sprint <N>`
 
+### Health-report gate-trigger-11 checklist (S36-03)
+
+From Sprint 36, architecture health reports must include **§9 Gate trigger #11-class checklist** (`TEMPLATE_architecture_health.md`). A **Green** summary is invalid if any checklist row is **Fail** or unset.
+
+| Behaviour | Detail |
+|-----------|--------|
+| **Template** | `docs/governance/health-reports/TEMPLATE_architecture_health.md` §9 |
+| **Enforcement** | `verify_health_report_gate11.py` via `verify_sprint_close_ci.py` (Sprint ≥ 36) |
+| **Incident guard** | Prevents Sprint 31-style Green ratings under semantic-surface drift (TD-017 class) |
+
+Local: `python scripts/verify_health_report_gate11.py --sprint <N>`
+
 **PMO manual (when GitHub CLI unavailable):** create milestone `Sprint 36 — Governance Remediation`, epic E-36, and issues S36-01…S36-07; add issue numbers to `sprint_board_expectations.json` before sprint close.
 
 ### Project board verification (details)

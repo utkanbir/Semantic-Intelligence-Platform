@@ -133,6 +133,7 @@ Separate from per-PR review. Conduct at Sprint Review or immediately after.
 | Namespaces | ApplicationWorkspace / K8s namespace issues? |
 | Domain model | Drift from `SIP_Domain_Model_v1`? |
 | Gate effectiveness | False positives/negatives on architecture gate? |
+| Gate trigger #11-class | Health report §9 checklist complete; Green only if all Pass/N/A (S36-03) |
 
 ---
 
