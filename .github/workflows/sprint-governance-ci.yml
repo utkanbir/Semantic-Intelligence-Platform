@@ -1,6 +1,7 @@
 # Enforce sprint-close governance when a merge includes end_of_sprint_* commits (S36-01).
+# S37-01: PR-only on develop/main — direct pushes are blocked by branch protection.
 #
-# Runs on every develop PR/push; no-op (exit 0) unless end_of_sprint_* commit subjects are found.
+# Runs on develop/main pull requests; no-op (exit 0) unless end_of_sprint_* commit subjects are found.
 # When end_of_sprint_* is detected:
 #   - Requires matching retro + health-report files
 #   - Requires sprint manifests in scripts/sprint_*_expectations.json
@@ -11,9 +12,7 @@ name: Sprint Governance CI
 
 on:
   pull_request:
-    branches: [develop]
-  push:
-    branches: [develop]
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -42,19 +41,9 @@ jobs:
           GH_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-            HEAD="${{ github.event.pull_request.head.sha }}"
-            RANGE="${BASE}..${HEAD}"
-          else
-            BEFORE="${{ github.event.before }}"
-            HEAD="${{ github.sha }}"
-            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-              RANGE="-1"
-            else
-              RANGE="${BEFORE}..${HEAD}"
-            fi
-          fi
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          RANGE="${BASE}..${HEAD}"
           echo "Scanning commit subjects in range: ${RANGE}"
           python scripts/verify_sprint_close_ci.py --ci-mode --git-range "${RANGE}"
 

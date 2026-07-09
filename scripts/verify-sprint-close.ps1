@@ -26,6 +26,15 @@ $gates = @(
         )
     },
     @{
+        Name = "Milestone close artifacts"
+        Script = $null
+        Python = @(
+            "python",
+            (Join-Path $scriptDir "verify_sprint_milestone_reconcile.py"),
+            "--sprint", $Sprint
+        )
+    },
+    @{
         Name = "Cluster DB"
         Script = Join-Path $scriptDir "verify-sprint-db.ps1"
     },
