@@ -21,6 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_ROOT = REPO_ROOT / "backend"
 CONTRACT_DIR = REPO_ROOT / "docs" / "architecture"
 BASELINE_PATH = Path(__file__).resolve().parent / "contract_sync_baseline.json"
+ROUTE_DEBT_PATH = Path(__file__).resolve().parent / "contract_sync_route_debt.json"
+BASELINE_FROZEN_ROUTE_COUNT = 21
 
 TABLE_ROUTE_RE = re.compile(
     r"\|\s*`(GET|POST|PUT|PATCH|DELETE)`\s*\|\s*`(/api/v1[^`]+)`",
@@ -71,6 +73,69 @@ def load_baseline(path: Path = BASELINE_PATH) -> set[tuple[str, str]]:
         if method and route_path:
             routes.add((method, route_path))
     return routes
+
+
+def verify_baseline_frozen(
+    *,
+    baseline_path: Path = BASELINE_PATH,
+    route_debt_path: Path = ROUTE_DEBT_PATH,
+    frozen_count: int = BASELINE_FROZEN_ROUTE_COUNT,
+) -> list[str]:
+    """Fail when baseline grows beyond the frozen count (S37-05)."""
+    errors: list[str] = []
+    if not baseline_path.is_file():
+        return [f"Baseline missing: {baseline_path}"]
+
+    payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    routes = payload.get("routes", [])
+    count = len(routes)
+    if count > frozen_count:
+        errors.append(
+            f"contract_sync_baseline.json has {count} routes; frozen maximum is {frozen_count}. "
+            "Document routes in architecture contracts instead of growing the baseline."
+        )
+
+    if not route_debt_path.is_file():
+        errors.append(f"Route debt registry missing: {route_debt_path}")
+        return errors
+
+    debt = json.loads(route_debt_path.read_text(encoding="utf-8"))
+    registry_count = int(debt.get("frozen_route_count", frozen_count))
+    if registry_count != frozen_count:
+        errors.append(
+            f"contract_sync_route_debt.json frozen_route_count={registry_count} "
+            f"!= expected {frozen_count}"
+        )
+
+    baseline_set = load_baseline(baseline_path)
+    covered: set[tuple[str, str]] = set()
+    for group in debt.get("groups", []):
+        group_id = group.get("id", "?")
+        if not group.get("github_issue"):
+            errors.append(f"Route debt group {group_id}: missing github_issue")
+        if not group.get("target_milestone"):
+            errors.append(f"Route debt group {group_id}: missing target_milestone")
+        for item in group.get("routes", []):
+            method = str(item.get("method", "")).upper()
+            route_path = normalize_path(str(item.get("path", "")))
+            if method and route_path:
+                covered.add((method, route_path))
+
+    if covered != baseline_set:
+        missing = sorted(baseline_set - covered)
+        extra = sorted(covered - baseline_set)
+        if missing:
+            errors.append(
+                "Route debt registry missing baseline routes: "
+                + ", ".join(f"{m} {p}" for m, p in missing)
+            )
+        if extra:
+            errors.append(
+                "Route debt registry has routes not in baseline: "
+                + ", ".join(f"{m} {p}" for m, p in extra)
+            )
+
+    return errors
 
 
 def collect_live_routes() -> set[tuple[str, str]]:
@@ -124,6 +189,12 @@ def main() -> int:
     errors = verify_contract_sync(
         contract_dir=args.contract_dir,
         baseline_path=args.baseline,
+    )
+    errors.extend(
+        verify_baseline_frozen(
+            baseline_path=args.baseline,
+            route_debt_path=ROUTE_DEBT_PATH,
+        )
     )
     if errors:
         print("Contract sync verification FAILED:", file=sys.stderr)
