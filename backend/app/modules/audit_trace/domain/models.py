@@ -15,6 +15,19 @@ from app.modules.audit_trace.domain.enums import (
 
 
 @dataclass(slots=True)
+class LayeredTraceStepSpec:
+    """Input for a typed trace step on a layered semantic transaction (S38-05)."""
+
+    step_type: str
+    layer: TraceLayer
+    status: TraceStepStatus = TraceStepStatus.COMPLETED
+    message: str | None = None
+    input_summary: str | None = None
+    output_summary: str | None = None
+    duration_ms: int | None = None
+
+
+@dataclass(slots=True)
 class TraceStep:
     """Trace step row linked to a SemanticTransaction (R-014, DM-006 stub)."""
 
