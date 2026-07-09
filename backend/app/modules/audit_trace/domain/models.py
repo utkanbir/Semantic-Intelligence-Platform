@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 from uuid import UUID
+
+from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionStatus,
+    TraceLayer,
+    TraceStepStatus,
+)
 
 
 @dataclass(slots=True)
@@ -17,6 +24,11 @@ class TraceStep:
     step_type: str
     created_at: datetime
     message: str | None = None
+    layer: TraceLayer | None = None
+    status: TraceStepStatus | None = None
+    input_summary: str | None = None
+    output_summary: str | None = None
+    duration_ms: int | None = None
 
 
 @dataclass(slots=True)
@@ -30,3 +42,6 @@ class SemanticTransactionRecord:
     created_at: datetime
     trace_steps: list[TraceStep]
     application_id: UUID | None = None
+    status: SemanticTransactionStatus | None = None
+    initiated_by: str | None = None
+    participating_assets: dict[str, Any] | None = None

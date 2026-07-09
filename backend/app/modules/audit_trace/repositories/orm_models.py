@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -32,6 +32,14 @@ class SemanticTransaction(Base):
         ForeignKey("applications.id", ondelete="SET NULL"),
         nullable=True,
     )
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="Completed",
+        server_default="Completed",
+    )
+    initiated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    participating_assets: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -51,6 +59,11 @@ class TraceStep(Base):
     step_number: Mapped[int] = mapped_column(Integer, nullable=False)
     step_type: Mapped[str] = mapped_column(String(100), nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    layer: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    input_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    output_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -10,6 +10,11 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionStatus,
+    TraceLayer,
+    TraceStepStatus,
+)
 from app.modules.audit_trace.domain.models import SemanticTransactionRecord, TraceStep
 from app.modules.audit_trace.domain.trace_audience import (
     OPERATIONAL_AUDIT_TRANSACTION_TYPES,
@@ -26,6 +31,18 @@ from app.modules.audit_trace.repositories.orm_models import (
 )
 
 
+def _parse_trace_layer(value: str | None) -> TraceLayer | None:
+    return TraceLayer(value) if value else None
+
+
+def _parse_trace_step_status(value: str | None) -> TraceStepStatus | None:
+    return TraceStepStatus(value) if value else None
+
+
+def _parse_transaction_status(value: str | None) -> SemanticTransactionStatus | None:
+    return SemanticTransactionStatus(value) if value else None
+
+
 def _to_domain(trace_step_orm: TraceStepORM) -> TraceStep:
     return TraceStep(
         id=trace_step_orm.id,
@@ -34,6 +51,11 @@ def _to_domain(trace_step_orm: TraceStepORM) -> TraceStep:
         step_type=trace_step_orm.step_type,
         message=trace_step_orm.message,
         created_at=trace_step_orm.created_at,
+        layer=_parse_trace_layer(trace_step_orm.layer),
+        status=_parse_trace_step_status(trace_step_orm.status),
+        input_summary=trace_step_orm.input_summary,
+        output_summary=trace_step_orm.output_summary,
+        duration_ms=trace_step_orm.duration_ms,
     )
 
 
@@ -121,6 +143,11 @@ class SqlAlchemyTraceStepRepository(TraceStepRepository):
             step_type=trace_step.step_type,
             message=trace_step.message,
             created_at=trace_step.created_at,
+            layer=trace_step.layer.value if trace_step.layer else None,
+            status=trace_step.status.value if trace_step.status else None,
+            input_summary=trace_step.input_summary,
+            output_summary=trace_step.output_summary,
+            duration_ms=trace_step.duration_ms,
         )
         self._session.add(trace_step_orm)
         self._session.commit()
@@ -148,6 +175,9 @@ def _to_transaction_record(
         created_at=transaction_orm.created_at,
         trace_steps=list(steps),
         application_id=transaction_orm.application_id,
+        status=_parse_transaction_status(transaction_orm.status),
+        initiated_by=transaction_orm.initiated_by,
+        participating_assets=transaction_orm.participating_assets,
     )
 
 
