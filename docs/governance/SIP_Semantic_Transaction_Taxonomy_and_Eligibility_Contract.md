@@ -93,6 +93,10 @@ Platform and application **Semantic Transactions** surfaces expose ontology line
 | `ontology.version_forked` | `OntologyDefinition` | Lineage branch of semantic asset |
 | `ontology.published` | `OntologyDefinition` | Semantic asset publication |
 | `ontology.validation_run` | `OntologyDefinition` | Structural validation journey |
+| `ontology.generated` | `OntologyDefinition` | Generate-from-Sources draft creation |
+| `ontology.suggestion_reviewed` | `OntologyDefinition` | Advisory semantic review decision |
+| `ontology.connector_selected` | `OntologyDefinition` | Graph store connector selection |
+| `ontology.materialized` | `OntologyDefinition` | Draft materialization to knowledge graph |
 
 ### 6.2 Operational audit (`operational_audit`)
 

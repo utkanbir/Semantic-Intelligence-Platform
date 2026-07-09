@@ -32,6 +32,7 @@ Prevent "deferred to next sprint" commitments from disappearing without trace. E
 | TD-018 | #346 | Persist trace_audience on write |
 | TD-019 | #366 | Multi-row semantic transactions per resource_id |
 | TD-021 | #367 | Legacy `.xls` unsupported in Generate mode |
+| TD-022 | #369 | Wire real LLM provider adapter |
 
 **Target milestone:** Technical Debt Backlog (#39). **Expiry:** `expires_sprint` on each open item (S37-06); close gate fails when past expiry.
 
