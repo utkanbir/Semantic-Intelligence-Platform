@@ -24,6 +24,7 @@ SIP development uses AI-assisted engineering offices (Backend, DevOps, Frontend)
 | [SIP_Architecture_Governance_Policy.md](./SIP_Architecture_Governance_Policy.md) | Event-driven PR architecture gate |
 | [retros/](./retros/) | Sprint retrospective records |
 | [health-reports/](./health-reports/) | Sprint-end architecture health reports |
+| [SIP_Deferred_Items_Ledger.md](./SIP_Deferred_Items_Ledger.md) | Open deferrals linked to GitHub issues (S36-02) |
 
 ---
 

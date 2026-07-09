@@ -502,6 +502,19 @@ GitHub Actions workflow **`Sprint Governance CI`** (`.github/workflows/sprint-go
 
 Local parity: `verify-sprint-close.ps1` calls `scripts/verify_sprint_close_ci.py --sprint <N>` as its first gate.
 
+### Deferred-items ledger (S36-02)
+
+At sprint close, `verify_sprint_close_ci.py` also runs `scripts/verify_sprint_deferrals.py`:
+
+| Behaviour | Detail |
+|-----------|--------|
+| **Ledger** | `scripts/deferred_items_ledger.json` — every open deferral has `github_issue` + `target_milestone` |
+| **Document scan** | Sprint `N` retro + health report: lines with deferral language must reference `#NNN` or a ledger id (e.g. `TD-018`) |
+| **GitHub** | When `GH_TOKEN` / `PROJECT_SYNC_TOKEN` is set, linked issues must be open with the expected milestone |
+| **Docs** | `docs/governance/SIP_Deferred_Items_Ledger.md` |
+
+Local: `python scripts/verify_sprint_deferrals.py --sprint <N>`
+
 **PMO manual (when GitHub CLI unavailable):** create milestone `Sprint 36 — Governance Remediation`, epic E-36, and issues S36-01…S36-07; add issue numbers to `sprint_board_expectations.json` before sprint close.
 
 ### Project board verification (details)
