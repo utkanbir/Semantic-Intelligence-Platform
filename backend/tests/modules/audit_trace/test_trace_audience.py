@@ -16,6 +16,7 @@ from app.modules.audit_trace.domain.trace_audience import (
         ("ontology.created", TraceAudience.SEMANTIC_LINEAGE),
         ("ontology.imported", TraceAudience.SEMANTIC_LINEAGE),
         ("ontology.validation_run", TraceAudience.SEMANTIC_LINEAGE),
+        ("ontology.question_answered", TraceAudience.SEMANTIC_LINEAGE),
         ("product.created", TraceAudience.OPERATIONAL_AUDIT),
         ("agent.run.started", TraceAudience.OPERATIONAL_AUDIT),
         ("adapter.registered", TraceAudience.OPERATIONAL_AUDIT),

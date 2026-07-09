@@ -189,6 +189,12 @@ Creating an OntologyDefinition **must not** provision runtime semantic assets (F
 | `POST` | `/api/v1/ontologies/{id}/suggestions/{finding_id}/decision` | Record accept/ignore on advisory finding |
 | `DELETE` | `/api/v1/ontologies/{id}` | Remove draft ontology row |
 
+### 8.7 Ontology chat (Sprint 38 — S38-04)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `POST` | `/api/v1/chat/ontology` | Ask a natural-language question grounded in a selected ontology's structure (classes, properties, labels, relationships). Creates a `SemanticTransaction` with `transaction_type=ontology.question_answered`, layered `TraceStep` rows (§ taxonomy contract §4.1), and returns the answer. Implementation: S38-05. |
+
 ### 8.1 CRUD (S7-03)
 
 | Method | Path | Behavior |

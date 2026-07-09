@@ -57,6 +57,19 @@ Every trace record MUST be classifiable into exactly one **trace audience**:
 
 **Sprint 32 note:** Classification may initially be derived from this contract table at read time (#293). A persisted column or enum may follow in a later migration; the eligibility rules below are normative regardless of storage mechanism.
 
+### 4.1 Trace layers (`TraceLayer`, S38-01)
+
+Multi-step semantic journeys persist each `TraceStep.layer` using the normative enum values below (see `audit_trace/domain/enums.py`):
+
+| `TraceLayer` | Scope | Examples |
+|--------------|-------|----------|
+| `ExperienceLayer` | User-facing inputs and rendered answers | Question received, answer returned to Console |
+| `SemanticLayer` | Intent, routing, and LLM orchestration over semantic assets | Intent analysis, LLM response generation, transaction completion |
+| `KnowledgeLayer` | Ontology / graph context retrieval | Ontology class/property context loaded for grounding |
+| `OperationalLayer` | Platform or connector execution only | Connector ping, pod restart — not standalone semantic lineage |
+
+**Rule:** Semantic Transactions surfaces show steps from all layers when they explain a semantic journey; `OperationalLayer` steps alone do not create `semantic_lineage` eligibility.
+
 ---
 
 ## 5. Semantic layers and routing (eligibility context)
@@ -97,6 +110,7 @@ Platform and application **Semantic Transactions** surfaces expose ontology line
 | `ontology.suggestion_reviewed` | `OntologyDefinition` | Advisory semantic review decision |
 | `ontology.connector_selected` | `OntologyDefinition` | Graph store connector selection |
 | `ontology.materialized` | `OntologyDefinition` | Draft materialization to knowledge graph |
+| `ontology.question_answered` | `OntologyDefinition` | Grounded ontology Q&A (chat over structure; S38) |
 
 ### 6.2 Operational audit (`operational_audit`)
 
@@ -158,7 +172,8 @@ Ontology Wizard success links may deep-link to **Semantic Transactions** for the
 
 Semantic lineage transactions SHOULD include ordered trace steps that name:
 
-- Semantic layer or routing decision
+- **`TraceStep.layer`** — one of §4.1 (`ExperienceLayer`, `SemanticLayer`, `KnowledgeLayer`, `OperationalLayer`)
+- **`TraceStep.status`**, **`input_summary`**, **`output_summary`**, **`duration_ms`** when the journey is multi-step (S38-01 schema)
 - Semantic asset reference (ontology IRI, product id, agent id)
 - Connector reference **as a step**, when a physical system was involved
 - Input/output artifact references where applicable
