@@ -42,7 +42,7 @@ Make sprint-close status self-correcting instead of self-congratulatory: enforce
 | ID | Title | Surface | Gate | Depends | Issue |
 |----|-------|---------|------|---------|-------|
 | S36-01 | Wire `verify_sprint_board.py` / `verify_sprint_db.py` / `verify-sprint-close.ps1` into a required CI check on `end_of_sprint_*` commits; fail if the commit is missing a matching retro or health-report file | DevOps | No | — | #334 ✅ |
-| S36-02 | Deferred-items ledger: every "deferred to Sprint N+1" line in a retro/health report must have a GitHub issue with a target milestone; sprint-close lint fails if a deferral has no linked issue. Seed the ledger now with: auth ADR, TraceStep orchestration ADR, real connector provisioning, TD-018 | PMO / process | No | S36-01 | #337 |
+| S36-02 | Deferred-items ledger: every "deferred to Sprint N+1" line in a retro/health report must have a GitHub issue with a target milestone; sprint-close lint fails if a deferral has no linked issue. Seed the ledger now with: auth ADR, TraceStep orchestration ADR, real connector provisioning, TD-018 | PMO / process | No | S36-01 | #337 ✅ |
 | S36-03 | Health-report template change: require explicit pass/fail against architecture-gate trigger #11-class checks (e.g. "new UI label vs taxonomy contract") before a sprint can be rated Green | PMO / process | No | — | #338 |
 | S36-04 | Cut the release: create `main`, complete the Sprint 12 checklist items still Partial/Pending, tag `v1.0-mvp` | DevOps | Yes* | S36-01 | #339 |
 | S36-05 | Contract-sync check: script diffs live FastAPI `/api/v1` routes against `docs/architecture/*_Contract_*.md`; required CI check on backend PRs | Backend / DevOps | Yes* | S36-01 | #340 |
@@ -65,8 +65,8 @@ Make sprint-close status self-correcting instead of self-congratulatory: enforce
 
 ## 5. Definition of done
 
-- [ ] CI fails a PR that closes a sprint without a matching retro **and** health-report file (S36-01)
-- [ ] Every open deferral (auth ADR, TraceStep ADR, real provisioning, TD-018) has a linked GitHub issue with a milestone (S36-02)
+- [x] CI fails a PR that closes a sprint without a matching retro **and** health-report file (S36-01)
+- [x] Every open deferral (auth ADR, TraceStep ADR, real provisioning, TD-018) has a linked GitHub issue with a milestone (S36-02)
 - [ ] Health-report template includes a gate-trigger-11 checklist section; Sprint 31's incident could not recur silently (S36-03)
 - [ ] `main` exists, Sprint 12 checklist is 100% complete, `v1.0-mvp` tag exists (S36-04)
 - [ ] Contract-sync script runs in CI and fails on an undocumented route (verify against `ontologies/generate` as the known gap) (S36-05)

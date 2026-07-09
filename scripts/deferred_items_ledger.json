@@ -1,0 +1,40 @@
+{
+  "$schema_note": "PMO: every open deferral from audit/retros must have github_issue + target_milestone. verify_sprint_deferrals.py enforces at sprint close.",
+  "target_milestone_default": "Technical Debt Backlog",
+  "items": [
+    {
+      "id": "TD-007",
+      "title": "MVP authentication stub ADR",
+      "source": "Sprint 1 architecture clarification deferral; audit Deep Dive 1",
+      "github_issue": 343,
+      "target_milestone": "Technical Debt Backlog",
+      "status": "open"
+    },
+    {
+      "id": "TD-006-ADR",
+      "title": "TraceStep orchestration ADR (cross-module)",
+      "source": "Sprint 1–5 health reports; audit Deep Dive 1",
+      "github_issue": 344,
+      "target_milestone": "Technical Debt Backlog",
+      "status": "open",
+      "aliases": ["TD-006", "trace orchestration ADR", "SemanticTransaction orchestration"]
+    },
+    {
+      "id": "connector-provisioning-real",
+      "title": "Real in-cluster connector provisioning (beyond S28 stub)",
+      "source": "Audit scope creep / Sprint 28 stub",
+      "github_issue": 345,
+      "target_milestone": "Technical Debt Backlog",
+      "status": "open",
+      "aliases": ["real connector provisioning", "provision_in_cluster"]
+    },
+    {
+      "id": "TD-018",
+      "title": "Persist trace_audience on SemanticTransaction write",
+      "source": "Sprint 32 semantic transaction realignment; audit residual 1",
+      "github_issue": 346,
+      "target_milestone": "Technical Debt Backlog",
+      "status": "open"
+    }
+  ]
+}

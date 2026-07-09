@@ -4,7 +4,8 @@
 Detects ``end_of_sprint_<N>:`` commit subjects and, when present, verifies:
   1. Matching retro and health-report markdown files exist
   2. Sprint manifests exist in board/db/deploy expectation JSON files
-  3. GitHub project board state (when GH_TOKEN is available)
+  3. Deferred-items ledger and retro/health deferral hygiene (S36-02)
+  4. GitHub project board state (when GH_TOKEN is available)
 
 When no ``end_of_sprint_*`` commit is detected, exits 0 immediately (no-op).
 
@@ -200,6 +201,23 @@ def verify_sprint_close(
     errors: list[str] = []
     errors.extend(verify_documents(repo_root, sprint))
     errors.extend(verify_manifests(sprint))
+
+    defer_path = SCRIPTS_DIR / "verify_sprint_deferrals.py"
+    if defer_path.is_file():
+        env = os.environ.copy()
+        if gh_token:
+            env["GH_TOKEN"] = gh_token
+        result = subprocess.run(
+            [sys.executable, str(defer_path), "--sprint", str(sprint)],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=repo_root,
+            env=env,
+        )
+        if result.returncode != 0:
+            output = (result.stderr or result.stdout).strip()
+            errors.append(f"Deferral verification failed for Sprint {sprint}: {output}")
 
     if not skip_board:
         errors.extend(verify_board(sprint, gh_token=gh_token))
