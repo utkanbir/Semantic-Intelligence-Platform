@@ -28,8 +28,9 @@ def test_real_repo_semantic_lineage_parity() -> None:
 
 
 def test_detects_missing_contract_type(tmp_path: Path) -> None:
-    contract = tmp_path / "docs" / "governance" / "SIP_Semantic_Transaction_Taxonomy_and_Eligibility_Contract.md"
-    contract.parent.mkdir(parents=True)
+    contract_dir = tmp_path / "docs" / "governance"
+    contract_dir.mkdir(parents=True)
+    contract = contract_dir / "taxonomy_contract.md"
     contract.write_text(
         """### 6.1 Semantic lineage (`semantic_lineage`)
 

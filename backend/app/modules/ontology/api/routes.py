@@ -9,12 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.infrastructure.adapters.fuseki import FusekiImportError
 from app.infrastructure.adapters.knowledge_graph_resolver import (
     UnsupportedKnowledgeGraphVendorError,
     resolve_knowledge_graph_port,
 )
-from app.core.config import get_settings
 from app.infrastructure.adapters.llm_resolver import resolve_llm_port
 from app.infrastructure.adapters.web_content_resolver import resolve_web_content_port
 from app.infrastructure.database import get_db
