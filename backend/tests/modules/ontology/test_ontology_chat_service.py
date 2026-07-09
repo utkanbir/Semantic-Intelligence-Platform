@@ -1,8 +1,8 @@
 """Unit tests for ontology chat helpers (S38-05)."""
 
 from app.modules.ontology.services.ontology_chat_service import (
-    format_ontology_context,
     OntologyChatService,
+    format_ontology_context,
 )
 
 
