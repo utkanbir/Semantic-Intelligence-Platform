@@ -2,7 +2,7 @@
 
 **Role:** Delivery Manager (PMO)
 **Date:** 2026-07-09
-**Status:** Active
+**Status:** Closed
 **Epic:** E-38 (#380)  
 **Milestone:** Sprint 38 — Ontology Chat (#41)
 

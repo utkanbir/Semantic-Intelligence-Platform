@@ -560,7 +560,7 @@ describe("OntologyStudioPage · Generate from Sources", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("location-probe")).toHaveTextContent(
-        "/applications/app-1/semantic-transactions/txn-materialize-gen-1",
+        "/applications/app-1/ontology",
       );
     });
   }, 15000);
