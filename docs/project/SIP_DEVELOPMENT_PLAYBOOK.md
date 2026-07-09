@@ -539,6 +539,18 @@ From Sprint 37, retros must report **Delivery rate** against the issue list froz
 
 Local: `python scripts/verify_sprint_retro_delivery.py --sprint <N>`
 
+### Contract-sync CI (S36-05)
+
+Backend PRs run `scripts/verify_contract_sync.py` — live `/api/v1` routes must appear in `docs/architecture/*_Contract_*.md` or `scripts/contract_sync_baseline.json` (grandfathered only).
+
+| Behaviour | Detail |
+|-----------|--------|
+| **Script** | `verify_contract_sync.py` — OpenAPI vs contract markdown |
+| **Baseline** | `contract_sync_baseline.json` — pre-S36-05 gaps; do not add new routes here |
+| **CI** | `Backend CI` workflow step after dependency install |
+
+Local: `PYTHONPATH=backend python scripts/verify_contract_sync.py`
+
 **PMO manual (when GitHub CLI unavailable):** create milestone `Sprint 36 — Governance Remediation`, epic E-36, and issues S36-01…S36-07; add issue numbers to `sprint_board_expectations.json` before sprint close.
 
 ### Project board verification (details)
