@@ -79,6 +79,21 @@
           "image": "sip-console:s54"
         }
       ]
+    },
+    "36": {
+      "label": "Governance Remediation",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s53"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s54"
+        }
+      ]
     }
   }
 }

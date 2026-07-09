@@ -1,0 +1,65 @@
+# Enforce sprint-close governance when a merge includes end_of_sprint_* commits (S36-01).
+#
+# Runs on every develop PR/push; no-op (exit 0) unless end_of_sprint_* commit subjects are found.
+# When end_of_sprint_* is detected:
+#   - Requires matching retro + health-report files
+#   - Requires sprint manifests in scripts/sprint_*_expectations.json
+#   - Runs board verification when PROJECT_SYNC_TOKEN is set
+#
+# Cluster DB/deploy gates remain local (verify-sprint-close.ps1).
+name: Sprint Governance CI
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sprint-governance-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sprint-governance:
+    name: Sprint Governance CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Detect end_of_sprint commits and run governance gates
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            RANGE="${BASE}..${HEAD}"
+          else
+            BEFORE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              RANGE="-1"
+            else
+              RANGE="${BEFORE}..${HEAD}"
+            fi
+          fi
+          echo "Scanning commit subjects in range: ${RANGE}"
+          python scripts/verify_sprint_close_ci.py --ci-mode --git-range "${RANGE}"
+
+      - name: Run sprint-close CI unit tests
+        working-directory: backend
+        run: |
+          pip install -e ".[dev]"
+          pytest tests/scripts/test_verify_sprint_close_ci.py -q

@@ -488,6 +488,22 @@ powershell -File scripts/verify-sprint-board.ps1 -Sprint <N>
 
 **Manifest:** `scripts/sprint_board_expectations.json` — PMO adds sprint issue list when milestone is created.
 
+### Sprint governance CI (S36-01)
+
+GitHub Actions workflow **`Sprint Governance CI`** (`.github/workflows/sprint-governance-ci.yml`) enforces sprint-close documentation on merges to `develop`:
+
+| Behaviour | Detail |
+|-----------|--------|
+| **No-op** | Ordinary PRs without an `end_of_sprint_<N>:` commit subject exit 0 — no failure |
+| **Hard fail** | `end_of_sprint_*` commit without matching `docs/governance/retros/Sprint_<N>_*_retro.md` **and** `docs/governance/health-reports/Sprint_<N>_*_health.md` |
+| **Manifests** | Sprint `N` must exist in `sprint_board_expectations.json`, `sprint_db_expectations.json`, and (when `N >= enforce_from_sprint`) `sprint_deploy_expectations.json` |
+| **Board** | `verify_sprint_board.py` runs only when `end_of_sprint_*` is detected; requires `PROJECT_SYNC_TOKEN` in CI |
+| **Cluster** | DB + deploy gates remain **local only** via `verify-sprint-close.ps1` (no `kubectl` on GitHub-hosted runners) |
+
+Local parity: `verify-sprint-close.ps1` calls `scripts/verify_sprint_close_ci.py --sprint <N>` as its first gate.
+
+**PMO manual (when GitHub CLI unavailable):** create milestone `Sprint 36 — Governance Remediation`, epic E-36, and issues S36-01…S36-07; add issue numbers to `sprint_board_expectations.json` before sprint close.
+
 ### Project board verification (details)
 
 | Check | Failure means |

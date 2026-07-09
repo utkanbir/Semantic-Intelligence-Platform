@@ -141,6 +141,10 @@
     "35": {
       "label": "Ontology Flow Polish & Generate Extensions",
       "issues": [325, 326, 327, 328]
+    },
+    "36": {
+      "label": "Governance Remediation",
+      "issues": [334]
     }
   }
 }
