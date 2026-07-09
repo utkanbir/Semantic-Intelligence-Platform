@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AgentRunDetailPage } from "./AgentRunDetailPage";
 import { ApiError } from "../api";
 import {
@@ -9,14 +9,17 @@ import {
 import { ApplicationShell } from "../components/ApplicationShell";
 import { AgentsPage } from "./AgentsPage";
 import { AgentRunsPage } from "./AgentRunsPage";
+import { ApplicationAuditTraceDetailPage } from "./ApplicationAuditTraceDetailPage";
 import { ApplicationAuditTracePage } from "./ApplicationAuditTracePage";
 import { ApplicationSemanticTransactionDetailPage } from "./ApplicationSemanticTransactionDetailPage";
+import { ApplicationSemanticTransactionsPage } from "./ApplicationSemanticTransactionsPage";
 import { AssetsPage } from "./AssetsPage";
 import { BlueprintPage } from "./BlueprintPage";
 import { DiscoveryPage } from "./DiscoveryPage";
 import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
 import { OntologiesPage } from "./OntologiesPage";
 import { OntologyStudioPage } from "./OntologyStudioPage";
+import { OntologyValidationPage } from "./OntologyValidationPage";
 import { ProductsPage } from "./ProductsPage";
 
 type PageState =
@@ -115,6 +118,25 @@ function AgentRunDetailRoute({ applicationId }: { applicationId: string }) {
   return <AgentRunDetailPage applicationId={applicationId} runId={runId} />;
 }
 
+function AuditTraceDetailRoute({ applicationId }: { applicationId: string }) {
+  const { transactionId } = useParams<{ transactionId: string }>();
+
+  if (!transactionId) {
+    return (
+      <div className="agent-runs-page__error" role="alert">
+        Transaction ID is required
+      </div>
+    );
+  }
+
+  return (
+    <ApplicationAuditTraceDetailPage
+      applicationId={applicationId}
+      transactionId={transactionId}
+    />
+  );
+}
+
 function SemanticTransactionDetailRoute({ applicationId }: { applicationId: string }) {
   const { transactionId } = useParams<{ transactionId: string }>();
 
@@ -131,6 +153,22 @@ function SemanticTransactionDetailRoute({ applicationId }: { applicationId: stri
       applicationId={applicationId}
       transactionId={transactionId}
     />
+  );
+}
+
+function OntologyValidationRoute({ applicationId }: { applicationId: string }) {
+  const { ontologyId } = useParams<{ ontologyId: string }>();
+
+  if (!ontologyId) {
+    return (
+      <div className="agent-runs-page__error" role="alert">
+        Ontology ID is required
+      </div>
+    );
+  }
+
+  return (
+    <OntologyValidationPage applicationId={applicationId} ontologyId={ontologyId} />
   );
 }
 
@@ -205,8 +243,18 @@ export function ApplicationDetailPage() {
           element={<OntologiesPage applicationId={application.id} />}
         />
         <Route
-          path="ontology-studio"
+          path="ontology/create"
           element={<OntologyStudioPage applicationId={application.id} />}
+        />
+        <Route
+          path="ontology/:ontologyId/validate"
+          element={<OntologyValidationRoute applicationId={application.id} />}
+        />
+        <Route
+          path="ontology-studio"
+          element={
+            <Navigate to={`/applications/${application.id}/ontology/create`} replace />
+          }
         />
         <Route
           path="knowledge-graph"
@@ -228,12 +276,20 @@ export function ApplicationDetailPage() {
           }
         />
         <Route
+          path="semantic-transactions"
+          element={<ApplicationSemanticTransactionsPage applicationId={application.id} />}
+        />
+        <Route
+          path="semantic-transactions/:transactionId"
+          element={<SemanticTransactionDetailRoute applicationId={application.id} />}
+        />
+        <Route
           path="audit-trace"
           element={<ApplicationAuditTracePage applicationId={application.id} />}
         />
         <Route
           path="audit-trace/:transactionId"
-          element={<SemanticTransactionDetailRoute applicationId={application.id} />}
+          element={<AuditTraceDetailRoute applicationId={application.id} />}
         />
       </Routes>
     </ApplicationShell>

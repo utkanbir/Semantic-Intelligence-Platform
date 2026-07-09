@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -80,6 +81,10 @@ def _create_connector(
     return response.json()["id"]
 
 
+def _mock_fuseki_ping():
+    return patch("app.infrastructure.adapters.fuseki.urlopen")
+
+
 def test_provision_minio_connector_happy_path(client: TestClient, db_engine: Engine) -> None:
     connector_id = _create_connector(
         client,
@@ -101,6 +106,7 @@ def test_provision_minio_connector_happy_path(client: TestClient, db_engine: Eng
     provision = get_response.json()["connector_configuration"]["provision"]
     assert provision["status"] == "provisioned"
     assert provision["endpoint"] == body["endpoint"]
+    assert get_response.json()["status"] == "Active"
 
     with Session(db_engine) as session:
         transaction = session.scalar(
@@ -126,9 +132,14 @@ def test_provision_fuseki_connector_happy_path(client: TestClient) -> None:
         connection_method="provision_in_cluster",
     )
 
-    response = client.post(f"/api/v1/connectors/{connector_id}/provision")
+    with _mock_fuseki_ping() as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 200
+        response = client.post(f"/api/v1/connectors/{connector_id}/provision")
     assert response.status_code == 200
     assert response.json()["endpoint"] == "http://sip-fuseki.sip-dev.svc.cluster.local:3030"
+
+    get_response = client.get(f"/api/v1/connectors/{connector_id}")
+    assert get_response.json()["status"] == "Active"
 
 
 def test_provision_is_idempotent(client: TestClient, db_engine: Engine) -> None:

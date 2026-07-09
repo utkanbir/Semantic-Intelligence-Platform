@@ -22,3 +22,10 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Working scratch (PR/issue bodies, dev copies, build artifacts)
+.tmp/
+
+# Local dev infra fixes (docker-desktop, not cluster config)
+infra/kubernetes/patches/
+scripts/fix-docker-desktop-ingress.ps1

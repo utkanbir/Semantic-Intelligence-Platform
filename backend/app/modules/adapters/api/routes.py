@@ -13,6 +13,7 @@ from app.infrastructure.database import get_db
 from app.modules.adapters.api.schemas import (
     AdapterPingResponse,
     ConnectorProvisionResponse,
+    ConnectorTestRequest,
     TechnologyAdapterCreateRequest,
     TechnologyAdapterResponse,
     TechnologyAdapterStatusUpdateRequest,
@@ -27,6 +28,7 @@ from app.modules.adapters.services.adapters_service import (
     UNSET,
     AdapterNotActiveError,
     AdaptersService,
+    ConnectorConnectionTestError,
     ConnectorProvisionNotAllowedError,
     DuplicateAdapterKeyError,
     ImmutableTechnologyAdapterError,
@@ -103,7 +105,30 @@ def create_adapter(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
         ) from error
+    except ConnectorConnectionTestError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     return to_technology_adapter_response(adapter)
+
+
+@router.post("/test", response_model=AdapterPingResponse)
+def test_connector_configuration(
+    payload: ConnectorTestRequest, db: DbSession
+) -> AdapterPingResponse:
+    service = _get_service(db)
+    try:
+        result = service.test_connector_configuration(
+            technology_type=payload.connector_type,
+            adapter_configuration=payload.connector_configuration,
+        )
+    except ConnectorConnectionTestError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    return AdapterPingResponse(**result)
 
 
 @router.get("", response_model=list[TechnologyAdapterResponse])
@@ -179,6 +204,11 @@ def ping_adapter(adapter_id: UUID, db: DbSession) -> AdapterPingResponse:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
         ) from error
+    except ConnectorConnectionTestError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     return AdapterPingResponse(**result)
 
 
@@ -192,6 +222,7 @@ def provision_connector(adapter_id: UUID, db: DbSession) -> ConnectorProvisionRe
     except (
         ConnectorProvisionNotAllowedError,
         UnsupportedProvisionVendorError,
+        ConnectorConnectionTestError,
     ) as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

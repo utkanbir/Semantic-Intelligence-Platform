@@ -13,12 +13,12 @@ const SECTIONS = [
   { segment: "blueprint", label: "Blueprint", end: false },
   { segment: "assets", label: "Assets", end: false },
   { segment: "ontology", label: "Ontology", end: false },
-  { segment: "ontology-studio", label: "Ontology Studio", end: false },
   { segment: "knowledge-graph", label: "Knowledge graph", end: false },
   { segment: "products", label: "Products", end: false },
   { segment: "agents", label: "Agents", end: false },
   { segment: "agent-runs", label: "Agent runs", end: false },
-  { segment: "audit-trace", label: "Semantic transactions", end: false },
+  { segment: "semantic-transactions", label: "Semantic transactions", end: false },
+  { segment: "audit-trace", label: "Audit trace", end: false },
 ] as const;
 
 function statusLabel(status: ApplicationResponse["status"]): string {

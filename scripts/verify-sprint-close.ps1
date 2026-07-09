@@ -17,8 +17,21 @@ Write-Host "=== Sprint $Sprint close gates ===" -ForegroundColor Cyan
 
 $gates = @(
     @{
+        Name = "Sprint close docs (CI parity)"
+        Script = $null
+        Python = @(
+            "python",
+            (Join-Path $scriptDir "verify_sprint_close_ci.py"),
+            "--sprint", $Sprint
+        )
+    },
+    @{
         Name = "Cluster DB"
         Script = Join-Path $scriptDir "verify-sprint-db.ps1"
+    },
+    @{
+        Name = "sip-dev deploy"
+        Script = Join-Path $scriptDir "verify-sprint-deploy.ps1"
     },
     @{
         Name = "Project board"
@@ -31,8 +44,23 @@ $failures = @()
 foreach ($gate in $gates) {
     Write-Host ""
     Write-Host "--- Gate: $($gate.Name) ---" -ForegroundColor Yellow
-    & $gate.Script -Sprint $Sprint
-    if ($LASTEXITCODE -ne 0) {
+    $gateExitCode = 0
+    try {
+        if ($gate.Python) {
+            & $gate.Python[0] $gate.Python[1..($gate.Python.Length - 1)]
+            $gateExitCode = $LASTEXITCODE
+        }
+        else {
+            & $gate.Script -Sprint $Sprint
+            $gateExitCode = $LASTEXITCODE
+        }
+    }
+    catch {
+        $gateExitCode = 1
+        Write-Host $_.Exception.Message -ForegroundColor Red
+    }
+
+    if ($gateExitCode -ne 0) {
         $failures += $gate.Name
     }
 }

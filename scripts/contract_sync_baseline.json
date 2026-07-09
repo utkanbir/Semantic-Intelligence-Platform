@@ -1,0 +1,26 @@
+{
+  "$schema_note": "S36-05 baseline: routes live on develop before contract-sync CI. New routes must be added to docs/architecture/*_Contract_*.md — not here.",
+  "routes": [
+    { "method": "GET", "path": "/api/v1/health", "reason": "Platform bootstrap — no module contract" },
+    { "method": "GET", "path": "/api/v1/health/live", "reason": "Platform bootstrap — no module contract" },
+    { "method": "GET", "path": "/api/v1/health/ready", "reason": "Platform bootstrap — no module contract" },
+    { "method": "GET", "path": "/api/v1/applications", "reason": "Applications list — contract docs partial (Sprint 36 baseline)" },
+    { "method": "PUT", "path": "/api/v1/applications/{id}", "reason": "Applications update — contract docs partial (Sprint 36 baseline)" },
+    { "method": "DELETE", "path": "/api/v1/applications/{id}", "reason": "Applications delete — contract docs partial (Sprint 36 baseline)" },
+    { "method": "PATCH", "path": "/api/v1/applications/{id}/status", "reason": "Applications status — contract docs partial (Sprint 36 baseline)" },
+    { "method": "GET", "path": "/api/v1/audit-traces", "reason": "Audit trace read surface — taxonomy contract §7 (Sprint 36 baseline)" },
+    { "method": "GET", "path": "/api/v1/audit-traces/{id}", "reason": "Audit trace detail — taxonomy contract §7 (Sprint 36 baseline)" },
+    { "method": "GET", "path": "/api/v1/semantic-transactions", "reason": "Semantic lineage read surface — taxonomy contract §7 (Sprint 36 baseline)" },
+    { "method": "GET", "path": "/api/v1/semantic-transactions/{id}", "reason": "Semantic lineage detail — taxonomy contract §7 (Sprint 36 baseline)" },
+    { "method": "POST", "path": "/api/v1/adapters/test", "reason": "Adapter test connection — connector supplement (Sprint 36 baseline)" },
+    { "method": "POST", "path": "/api/v1/adapters/{id}/provision", "reason": "Connector provision stub — supplement (Sprint 36 baseline)" },
+    { "method": "GET", "path": "/api/v1/connectors", "reason": "Connectors alias of adapters — supplement (Sprint 36 baseline)" },
+    { "method": "POST", "path": "/api/v1/connectors", "reason": "Connectors alias of adapters — supplement (Sprint 36 baseline)" },
+    { "method": "GET", "path": "/api/v1/connectors/{id}", "reason": "Connectors alias of adapters — supplement (Sprint 36 baseline)" },
+    { "method": "PATCH", "path": "/api/v1/connectors/{id}", "reason": "Connectors alias of adapters — supplement (Sprint 36 baseline)" },
+    { "method": "PATCH", "path": "/api/v1/connectors/{id}/status", "reason": "Connectors alias of adapters — supplement (Sprint 36 baseline)" },
+    { "method": "POST", "path": "/api/v1/connectors/test", "reason": "Connectors alias of adapters — supplement (Sprint 36 baseline)" },
+    { "method": "POST", "path": "/api/v1/connectors/{id}/ping", "reason": "Connectors alias of adapters — supplement (Sprint 36 baseline)" },
+    { "method": "POST", "path": "/api/v1/connectors/{id}/provision", "reason": "Connector provision stub — supplement (Sprint 36 baseline)" }
+  ]
+}

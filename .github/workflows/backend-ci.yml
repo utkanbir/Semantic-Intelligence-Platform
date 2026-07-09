@@ -35,6 +35,11 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      - name: Contract sync (S36-05)
+        run: python ../scripts/verify_contract_sync.py
+        env:
+          PYTHONPATH: .
+
       - name: Ruff lint
         run: ruff check .
 

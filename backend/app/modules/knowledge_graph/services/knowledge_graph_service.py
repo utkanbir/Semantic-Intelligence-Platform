@@ -23,6 +23,7 @@ DEFAULT_GRAPH_METADATA: dict[str, Any] = {
 }
 
 BINDABLE_ONTOLOGY_STATUSES = {
+    OntologyDefinitionStatus.APPROVED.value,
     OntologyDefinitionStatus.PUBLISHED.value,
     OntologyDefinitionStatus.VERSIONED.value,
 }

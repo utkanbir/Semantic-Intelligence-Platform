@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import {
-  getAuditTrace,
+  getSemanticTransaction,
   type SemanticTransactionResponse,
 } from "../api/auditTrace";
 import { SemanticTransactionTimeline } from "../components/SemanticTransactionTimeline";
@@ -39,7 +39,7 @@ export function ApplicationSemanticTransactionDetailPage({
 
     setState({ kind: "loading" });
 
-    getAuditTrace(transactionId)
+    getSemanticTransaction(transactionId)
       .then((transaction) => {
         if (!cancelled) {
           if (
@@ -73,7 +73,7 @@ export function ApplicationSemanticTransactionDetailPage({
     };
   }, [applicationId, transactionId]);
 
-  const backHref = `/applications/${applicationId}/audit-trace`;
+  const backHref = `/applications/${applicationId}/semantic-transactions`;
 
   return (
     <section

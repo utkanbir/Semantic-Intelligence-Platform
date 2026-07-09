@@ -431,6 +431,8 @@ chore/<short-description>
 | **Linked issues** | `Closes #<issue>` or `Refs #<issue>` |
 | **Draft PR** | Encouraged for early feedback on features > 3 days |
 
+New PRs are pre-filled from `.github/pull_request_template.md`; the **`Closes #NNN`** line is mandatory for issue auto-close and board hygiene (TD-020).
+
 ### Required PR body sections
 
 ```markdown

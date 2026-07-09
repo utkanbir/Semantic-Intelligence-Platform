@@ -66,18 +66,20 @@ powershell -File scripts/verify-sprint-close.ps1 -Sprint <N>
 | Gate | Script (via verify-sprint-close) | Fail = |
 |------|----------------------------------|--------|
 | Cluster DB | `verify-sprint-db.ps1` | Repair migrations/image on `sip-dev`, re-run |
+| `sip-dev` deploy | `verify-sprint-deploy.ps1` | Rebuild/publish expected images, apply dev overlay, wait for rollout, re-run |
 | Project board | `verify-sprint-board.ps1` | Repair Workflow Status, re-run |
 
-**On any exit 1:** fix the failure yourself (DevOps subagent for cluster DB; `set-board-status.ps1` / `fix-project-board.ps1` for board). **Do not ask the PO to accept partial delivery.** Re-run until exit 0.
+**On any exit 1:** fix the failure yourself (DevOps subagent for cluster DB / `sip-dev` deploy; `set-board-status.ps1` / `fix-project-board.ps1` for board). **Do not ask the PO to accept partial delivery.** Re-run until exit 0.
 
 **PO-facing sprint summary MUST include** the literal line `verify-sprint-close.ps1 -Sprint <N>` **passed** (or paste gate output). Omitting gate proof is a process violation.
 
-- **Auto sprint close (PO directive):** when all committed implementation issues on the active milestone are **Done** (and CI green on `develop`), PMO MUST without user prompt: run **`verify-sprint-close.ps1` until exit 0** → write retro + health report (§10–§12 with **full** cumulative DB list, not "prior N tables") → close epic/milestone → push `develop`. **Never** close milestone or publish retro before gates pass. Do not close GitHub issues before PR merge + CI green.
+- **Auto sprint close (PO directive):** when all committed implementation issues on the active milestone are **Done** (and CI green on `develop`), PMO MUST without user prompt: run **`verify-sprint-close.ps1` until exit 0** → write retro + health report (§10–§12 with **full** cumulative DB list, not "prior N tables") → close epic/milestone → push `develop`. **Never** close milestone or publish retro before gates pass. Do not close GitHub issues before PR merge + CI green. A sprint is not complete if the live `sip-dev` UI/API rollout is stale.
 - **Sprint-close commit subject (PO directive):** the final sprint-close commit on `develop` MUST start with **`end_of_sprint_<N>:`** (e.g. `end_of_sprint_13: Close Sprint 13 with retro, health report, and board batch`).
 - **End-user release notes (PO directive):** at sprint close, include retro **§10 End-user release notes** — plain-language summary for Console/MVP users; if none shipped, state **"Bu sprintte son kullanıcı için görünür bir değişiklik yok."** See playbook §9.
 - **Technical deliverables (PO directive):** at sprint close, include retro **§11 Technical deliverables** — REST endpoints, data models, reports, infrastructure created this sprint; use **Yok** per empty category. See playbook §9.
 - **Database schema report (PO directive):** at sprint close, include retro **§12 Database schema** — Alembic migrations added this sprint (revision id, tables/columns), cumulative table inventory, and FK/relation diagram or bullet list; use **Yok** if no migration landed. See playbook §9.
 - **Cluster DB verification (PO directive):** enforced by `verify-sprint-close.ps1` → `verify-sprint-db.ps1`. **Exit 1 = no PO handoff.** Missing sprint tables or alembic head mismatch on `sip-dev` is an error; DevOps applies `alembic upgrade head` + backend image rollout, then re-run until pass. Do not claim §12 cluster parity without a green verify.
+- **`sip-dev` deploy verification (PO directive):** enforced by `verify-sprint-close.ps1` → `verify-sprint-deploy.ps1`. **Exit 1 = no PO handoff.** If live `sip-console` / `sip-backend` workloads are not running the sprint's expected images, PMO/DevOps must rebuild/publish tags, apply `infra/kubernetes/overlays/dev`, wait for rollout, and re-run until pass.
 - **Board verification (PO directive):** enforced by `verify-sprint-close.ps1` → `verify-sprint-board.ps1`. **Exit 1 = no PO handoff.** Any sprint issue missing from project, with no Workflow Status, or not **Done** is an error; repair with `set-board-status.ps1` or `fix-project-board.ps1`, then re-run until pass.
 - **Live board (PO directive Sprint 2):** PMO MUST set **In Progress** when picking work; rely on GitHub Action for **In Review** / **Done** on PR open/merge. Sprint close must not be the first time cards move off Backlog.
 

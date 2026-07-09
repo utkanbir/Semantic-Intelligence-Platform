@@ -27,14 +27,12 @@ interface ApplicationAuditTracePageProps {
 
 export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTracePageProps) {
   const [state, setState] = useState<PageState>({ kind: "loading" });
-  const [ontologyOnly, setOntologyOnly] = useState(false);
+  const [operationalOnly, setOperationalOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const query = ontologyOnly
-      ? { resourceType: "OntologyDefinition", transactionTypePrefix: "ontology" }
-      : {};
+    const query = operationalOnly ? { traceAudience: "operational_audit" as const } : {};
 
     listApplicationAuditTraces(applicationId, query)
       .then((transactions) => {
@@ -49,7 +47,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
               ? error.message
               : error instanceof Error
                 ? error.message
-                : "Failed to load semantic transactions";
+                : "Failed to load audit trace records";
           setState({ kind: "error", message });
         }
       });
@@ -57,36 +55,34 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
     return () => {
       cancelled = true;
     };
-  }, [applicationId, ontologyOnly]);
+  }, [applicationId, operationalOnly]);
 
   const isEmpty = state.kind === "success" && state.transactions.length === 0;
   const hasTransactions = state.kind === "success" && state.transactions.length > 0;
 
   return (
-    <section
-      className="agent-runs-page"
-      aria-labelledby="application-semantic-transactions-heading"
-    >
+    <section className="agent-runs-page" aria-labelledby="application-audit-trace-heading">
       <div className="agent-runs-page__header">
         <div>
-          <h2 id="application-semantic-transactions-heading">Semantic transactions</h2>
+          <h2 id="application-audit-trace-heading">Audit trace</h2>
           <p className="agent-runs-page__lead">
-            Recorded operations and trace steps for this application.
+            Operational and platform trace records for this application, including connector
+            events.
           </p>
         </div>
         <label className="agent-runs-page__filter">
           <input
             type="checkbox"
-            checked={ontologyOnly}
-            onChange={(event) => setOntologyOnly(event.target.checked)}
+            checked={operationalOnly}
+            onChange={(event) => setOperationalOnly(event.target.checked)}
           />
-          Ontology transactions only
+          Operational audit only
         </label>
       </div>
 
       {state.kind === "loading" && (
         <p className="agent-runs-page__status" role="status" aria-live="polite">
-          Loading semantic transactions…
+          Loading audit trace records…
         </p>
       )}
 
@@ -98,7 +94,7 @@ export function ApplicationAuditTracePage({ applicationId }: ApplicationAuditTra
 
       {isEmpty && (
         <div className="agent-runs-page__empty" role="status">
-          <p>No semantic transactions yet.</p>
+          <p>No audit trace records yet.</p>
         </div>
       )}
 

@@ -7,6 +7,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.modules.audit_trace.domain.models import SemanticTransactionRecord, TraceStep
+from app.modules.audit_trace.domain.trace_audience import TraceAudience
 
 
 class TraceStepRepository(Protocol):
@@ -24,6 +25,18 @@ class AuditTraceQueryRepository(Protocol):
 
     def get_transaction(self, transaction_id: UUID) -> SemanticTransactionRecord | None:
         """Return one semantic transaction with trace steps."""
+
+    def list_transactions(
+        self,
+        *,
+        resource_id: str | None = None,
+        application_id: UUID | None = None,
+        resource_type: str | None = None,
+        transaction_type_prefix: str | None = None,
+        trace_audience: TraceAudience | None = None,
+        limit: int | None = None,
+    ) -> Sequence[SemanticTransactionRecord]:
+        """Return semantic transactions using the supplied optional filters."""
 
     def list_by_resource_id(self, resource_id: str) -> Sequence[SemanticTransactionRecord]:
         """Return semantic transactions for a resource id with trace steps."""

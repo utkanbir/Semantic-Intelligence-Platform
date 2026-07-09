@@ -90,7 +90,7 @@ ApplicationWorkspace (DM-002)
 }
 ```
 
-Create may persist `{}` or the stub above. Rich OWL validation is deferred.
+Create may persist `{}` or the stub above. Structural RDF/OWL validation is enforced at import and before `Validated` for materialized ontologies; optional AI advisory review may augment reports.
 
 ---
 
@@ -121,6 +121,24 @@ Authoritative labels from SIP Asset Catalog v1:
 - Invalid transitions return **422**.
 - `validated_at`, `approved_at`, `published_at` set on first entry to respective states.
 - Entering `Versioned` locks `ontology_definition` (§6).
+- Transition to `Validated` requires a stored validation report with `error_count = 0` when `artifact_uri` is set (imported/materialized ontologies).
+- Validation report snapshot is stored at `ontology_definition.metadata.validation`.
+
+### 5.1.1 Validation runs (Sprint 34)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `POST` | `/api/v1/ontologies/validate` | Pre-flight structural validation on submitted RDF content |
+| `POST` | `/api/v1/ontologies/{id}/validate` | Re-run validation for Draft ontology; persist report; emit `ontology.validation_run` |
+
+### 8.5 Draft import and materialize (Sprint 34 addendum — S34-01)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `POST` | `/api/v1/ontologies/import` | Create **Draft** only: validate RDF, persist `source_content` in `ontology_definition.metadata.import`, set `connector_id`, **`artifact_uri` null**, **no graph store write** |
+| `POST` | `/api/v1/ontologies/{id}/materialize` | Requires `Approved` status and passing validation report (`error_count=0`); writes RDF to named graph `urn:sip:ontology:{id}` via `KnowledgeGraphPort`; sets `artifact_uri`; emits `ontology.materialized` |
+
+Blocking rule: materialize fails when validation report has errors or status is not `Approved`.
 
 ### 5.2 Version fork (S7-05)
 
@@ -159,6 +177,17 @@ Creating an OntologyDefinition **must not** provision runtime semantic assets (F
 | `ontology/repositories` | Persist OntologyDefinition rows |
 | `ontology/domain` | Models/enums; no FastAPI/SQLAlchemy |
 | Ports | `TraceRecorder` for audit (S7-06) |
+
+### 8.5 Draft wizard endpoints (Sprint 34–35)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `POST` | `/api/v1/ontologies/import` | Draft-only import (see §8.5 addendum) |
+| `POST` | `/api/v1/ontologies/generate` | Draft-only generate from sources (LLM extraction) |
+| `PUT` | `/api/v1/ontologies/{id}/connector` | Bind connector before materialize |
+| `POST` | `/api/v1/ontologies/{id}/materialize` | Write approved draft to graph store |
+| `POST` | `/api/v1/ontologies/{id}/suggestions/{finding_id}/decision` | Record accept/ignore on advisory finding |
+| `DELETE` | `/api/v1/ontologies/{id}` | Remove draft ontology row |
 
 ### 8.1 CRUD (S7-03)
 
@@ -229,3 +258,62 @@ Creating an OntologyDefinition **must not** provision runtime semantic assets (F
 - SIP Asset Catalog v1 — Ontology lifecycle
 - [SIP_ApplicationWorkspace_Provisioning_Contract_v1.md](./SIP_ApplicationWorkspace_Provisioning_Contract_v1.md) — `ontology_namespace`
 - [SIP_Blueprint_Lifecycle_Contract_v1.md](./SIP_Blueprint_Lifecycle_Contract_v1.md) — `semantic_concepts` stub
+
+---
+
+## Addendum S34–S35 (2026-07-08) — Draft-first creation wizard
+
+**Supersedes for Console/API behavior:** import-centric materialize-on-import flow described implicitly in early Sprint 7–31 docs. **Core aggregate fields (§4) and ARR-002 status enum (§5) remain binding.**
+
+### A. Draft-first lifecycle (Sprint 34)
+
+| Rule | Implementation |
+|------|----------------|
+| Create / import / generate produce **Draft** only | No Fuseki/graph write until explicit **Materialize** |
+| Materialize requires **Approved** + connector + passing validation | `POST /ontologies/{id}/materialize` |
+| Connector selection | `PUT /ontologies/{id}/connector` (may occur after draft creation) |
+
+### B. Three Console entry modes
+
+| Mode | API entry | Notes |
+|------|-----------|-------|
+| Manual | `POST /ontologies` + structured `ontology_definition` | Forms → TTL preview |
+| Import | `POST /ontologies/import` | File or paste; parse review; draft-only |
+| Generate | `POST /ontologies/generate` | Sources → LLM extraction → editable draft |
+
+Console route: `/applications/:id/ontology/create` (legacy `/ontology-studio` redirects).
+
+### C. Validation + advisory LLM review (Sprint 34–35)
+
+| Step | Endpoint | Blocking? |
+|------|----------|-----------|
+| Deterministic validation | `POST /ontologies/{id}/validate` | Errors block approve/materialize |
+| Advisory semantic review | Same response includes `semantic_review` | **Non-blocking** — advisory only (stub LLM until provider wired) |
+| Suggestion decision | `POST /ontologies/{id}/suggestions/{finding_id}/decision` | Records Accept/Ignore; **does not mutate** `ontology_definition` |
+
+Finding kinds: `suggestion`, `warning`, `improvement`. Accept/Ignore UI applies to **suggestions** only.
+
+### D. Extended `ontology_definition` shape (informative)
+
+Beyond §4.2 stub, production payloads may include:
+
+```json
+{
+  "schema_version": "1",
+  "classes": [{"name": "...", "label": "...", "description": "..."}],
+  "properties": [{"name": "...", "domain": "...", "datatype": "..."}],
+  "relationships": [{"name": "...", "domain": "...", "range": "..."}],
+  "metadata": {
+    "mode": "manual|import|generate",
+    "validation": { "...": "deterministic report snapshot" },
+    "semantic_review": { "...": "LLM findings snapshot" },
+    "generate": { "...": "extraction lineage" }
+  }
+}
+```
+
+### E. Trace steps (ontology creation run)
+
+Per Sprint 34 plan §6: `ModeSelected`, `DraftCreated`, `DeterministicValidationExecuted`, `LLMSemanticReviewExecuted`, `ConnectorSelected`, `OntologyApproved`, `OntologyMaterialized`, `SuggestionAccepted`, `SuggestionIgnored`.
+
+See [handoff.md](../handoff.md) and [SIP_Software_Architecture_Guide.md](./SIP_Software_Architecture_Guide.md).

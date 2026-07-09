@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
@@ -10,6 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.audit_trace.domain.models import SemanticTransactionRecord, TraceStep
+from app.modules.audit_trace.domain.trace_audience import (
+    OPERATIONAL_AUDIT_TRANSACTION_TYPES,
+    PLATFORM_PROVISIONING_TRANSACTION_TYPES,
+    SEMANTIC_LINEAGE_TRANSACTION_TYPES,
+    TraceAudience,
+)
 from app.modules.audit_trace.repositories.interfaces import TraceStepRepository
 from app.modules.audit_trace.repositories.orm_models import (
     SemanticTransaction,
@@ -28,6 +35,14 @@ def _to_domain(trace_step_orm: TraceStepORM) -> TraceStep:
         message=trace_step_orm.message,
         created_at=trace_step_orm.created_at,
     )
+
+
+def _transaction_types_for_audience(trace_audience: TraceAudience) -> frozenset[str]:
+    if trace_audience is TraceAudience.SEMANTIC_LINEAGE:
+        return SEMANTIC_LINEAGE_TRANSACTION_TYPES
+    if trace_audience is TraceAudience.OPERATIONAL_AUDIT:
+        return OPERATIONAL_AUDIT_TRANSACTION_TYPES
+    return PLATFORM_PROVISIONING_TRANSACTION_TYPES
 
 
 class SqlAlchemyAuditTraceRepository:
@@ -150,17 +165,75 @@ class SqlAlchemyAuditTraceQueryRepository:
         steps = self._trace_steps.list_by_transaction(transaction_id)
         return _to_transaction_record(transaction_orm, steps)
 
-    def list_by_resource_id(self, resource_id: str) -> Sequence[SemanticTransactionRecord]:
+    def _load_records(
+        self,
+        statement,
+    ) -> Sequence[SemanticTransactionRecord]:
+        transactions = self._session.scalars(statement).all()
+        if not transactions:
+            return []
+
+        transaction_ids = [transaction.id for transaction in transactions]
+        trace_steps_by_transaction = self._list_trace_steps_by_transaction_ids(transaction_ids)
+        return [
+            _to_transaction_record(
+                transaction,
+                trace_steps_by_transaction.get(transaction.id, []),
+            )
+            for transaction in transactions
+        ]
+
+    def _list_trace_steps_by_transaction_ids(
+        self,
+        transaction_ids: Sequence[UUID],
+    ) -> dict[UUID, list[TraceStep]]:
         statement = (
-            select(SemanticTransaction)
-            .where(SemanticTransaction.resource_id == resource_id)
-            .order_by(SemanticTransaction.created_at.desc())
+            select(TraceStepORM)
+            .where(TraceStepORM.semantic_transaction_id.in_(transaction_ids))
+            .order_by(TraceStepORM.semantic_transaction_id.asc(), TraceStepORM.step_number.asc())
         )
-        records: list[SemanticTransactionRecord] = []
-        for transaction_orm in self._session.scalars(statement).all():
-            steps = self._trace_steps.list_by_transaction(transaction_orm.id)
-            records.append(_to_transaction_record(transaction_orm, steps))
-        return records
+        trace_steps_by_transaction: dict[UUID, list[TraceStep]] = defaultdict(list)
+        for trace_step_orm in self._session.scalars(statement).all():
+            trace_steps_by_transaction[trace_step_orm.semantic_transaction_id].append(
+                _to_domain(trace_step_orm)
+            )
+        return dict(trace_steps_by_transaction)
+
+    def list_transactions(
+        self,
+        *,
+        resource_id: str | None = None,
+        application_id: UUID | None = None,
+        resource_type: str | None = None,
+        transaction_type_prefix: str | None = None,
+        trace_audience: TraceAudience | None = None,
+        limit: int | None = None,
+    ) -> Sequence[SemanticTransactionRecord]:
+        statement = select(SemanticTransaction).order_by(SemanticTransaction.created_at.desc())
+        if resource_id is not None:
+            statement = statement.where(SemanticTransaction.resource_id == resource_id)
+        if application_id is not None:
+            statement = statement.where(SemanticTransaction.application_id == application_id)
+        if resource_type is not None:
+            statement = statement.where(SemanticTransaction.resource_type == resource_type)
+        if transaction_type_prefix is not None:
+            statement = statement.where(
+                SemanticTransaction.transaction_type.startswith(transaction_type_prefix)
+            )
+        if trace_audience is not None:
+            statement = statement.where(
+                SemanticTransaction.transaction_type.in_(
+                    _transaction_types_for_audience(trace_audience)
+                )
+            )
+        if limit is not None:
+            statement = statement.limit(limit)
+        return self._load_records(statement)
+
+    def list_by_resource_id(self, resource_id: str) -> Sequence[SemanticTransactionRecord]:
+        return self.list_transactions(
+            resource_id=resource_id,
+        )
 
     def list_by_application_id(
         self,
@@ -169,19 +242,8 @@ class SqlAlchemyAuditTraceQueryRepository:
         resource_type: str | None = None,
         transaction_type_prefix: str | None = None,
     ) -> Sequence[SemanticTransactionRecord]:
-        statement = (
-            select(SemanticTransaction)
-            .where(SemanticTransaction.application_id == application_id)
-            .order_by(SemanticTransaction.created_at.desc())
+        return self.list_transactions(
+            application_id=application_id,
+            resource_type=resource_type,
+            transaction_type_prefix=transaction_type_prefix,
         )
-        if resource_type is not None:
-            statement = statement.where(SemanticTransaction.resource_type == resource_type)
-        if transaction_type_prefix is not None:
-            statement = statement.where(
-                SemanticTransaction.transaction_type.startswith(transaction_type_prefix)
-            )
-        records: list[SemanticTransactionRecord] = []
-        for transaction_orm in self._session.scalars(statement).all():
-            steps = self._trace_steps.list_by_transaction(transaction_orm.id)
-            records.append(_to_transaction_record(transaction_orm, steps))
-        return records

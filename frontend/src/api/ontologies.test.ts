@@ -4,7 +4,9 @@ import {
   getNextOntologyStatuses,
   getOntology,
   getOntologyStatusActionLabel,
+  importOntology,
   listOntologies,
+  materializeOntology,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
 } from "./ontologies";
@@ -117,13 +119,147 @@ describe("ontologies API", () => {
     );
   });
 
+  it("importOntology calls POST with import payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockOntology), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const payload = {
+      application_id: "app-1",
+      title: "Imported Ontology",
+      connector_id: "connector-1",
+      source_format: "ttl",
+      source_content: "@prefix ex: <https://example.com/> .",
+      created_by: "alice@example.com",
+    };
+
+    await expect(importOntology(payload)).resolves.toEqual(mockOntology);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/import",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("generateOntology calls POST with generate payload", async () => {
+    const generateResponse = {
+      ontology: mockOntology,
+      extraction: {
+        available: true,
+        extracted_at: "2025-06-01T10:00:00Z",
+        extraction_id: "ext-1",
+        model: "stub-model",
+        summary: "Extracted 1 class",
+        classes: [],
+        properties: [],
+        relationships: [],
+        sources: [],
+      },
+      semantic_transaction_id: "txn-generate-1",
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(generateResponse), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const { generateOntology } = await import("./ontologies");
+    const payload = {
+      application_id: "app-1",
+      title: "Generated Ontology",
+      sources: [{ kind: "paste" as const, content: "vendors supply goods", name: "notes" }],
+      created_by: "alice@example.com",
+    };
+
+    await expect(generateOntology(payload)).resolves.toEqual(generateResponse);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/generate",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("generateOntology sends url sources without inline content", async () => {
+    const generateResponse = {
+      ontology: mockOntology,
+      extraction: {
+        available: true,
+        extracted_at: "2025-06-01T10:00:00Z",
+        extraction_id: "ext-url-1",
+        model: "stub-model",
+        summary: null,
+        classes: [],
+        properties: [],
+        relationships: [],
+        sources: [{ kind: "url", name: "https://example.com", reference_id: null, content_length: 0 }],
+      },
+      semantic_transaction_id: "txn-generate-url-1",
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(generateResponse), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const { generateOntology } = await import("./ontologies");
+    const payload = {
+      application_id: "app-1",
+      title: "Generated Ontology",
+      sources: [{ kind: "url" as const, url: "https://example.com/glossary", name: "Glossary" }],
+    };
+
+    await expect(generateOntology(payload)).resolves.toEqual(generateResponse);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/generate",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("materializeOntology calls POST for ontology materialization", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockOntology), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(materializeOntology("onto-1")).resolves.toEqual(mockOntology);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/onto-1/materialize",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({}),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
   it("getNextOntologyStatuses matches backend transitions", () => {
     expect(getNextOntologyStatuses("Draft")).toEqual(["Validated"]);
     expect(getNextOntologyStatuses("Validated")).toEqual(["Approved", "Draft"]);
-    expect(getNextOntologyStatuses("Approved")).toEqual(["Published"]);
-    expect(getNextOntologyStatuses("Published")).toEqual(["Versioned"]);
-    expect(getNextOntologyStatuses("Versioned")).toEqual(["Retired"]);
-    expect(getNextOntologyStatuses("Retired")).toEqual([]);
+    expect(getNextOntologyStatuses("Approved")).toEqual([]);
+    expect(getNextOntologyStatuses("Published")).toEqual([]);
+  });
+
+  it("normalizeOntologyLifecycleStatus maps legacy states to Approved", async () => {
+    const { normalizeOntologyLifecycleStatus } = await import("./ontologies");
+    expect(normalizeOntologyLifecycleStatus("Published")).toBe("Approved");
+    expect(normalizeOntologyLifecycleStatus("Draft")).toBe("Draft");
   });
 
   it("getOntologyStatusActionLabel returns action labels", () => {
@@ -133,6 +269,31 @@ describe("ontologies API", () => {
     expect(getOntologyStatusActionLabel("Published")).toBe("Publish");
     expect(getOntologyStatusActionLabel("Versioned")).toBe("Version");
     expect(getOntologyStatusActionLabel("Retired")).toBe("Retire");
+  });
+
+  it("updateOntology calls PATCH with payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(mockOntology), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const payload = {
+      title: "Updated Ontology",
+      ontology_definition: { classes: [{ name: "Vendor" }] },
+    };
+
+    const { updateOntology } = await import("./ontologies");
+    await expect(updateOntology("onto-1", payload)).resolves.toEqual(mockOntology);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/onto-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: expect.any(Headers),
+      }),
+    );
   });
 
   it("updateOntologyStatus calls PATCH with status body", async () => {
@@ -150,6 +311,27 @@ describe("ontologies API", () => {
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ status: "Versioned" }),
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("updateOntologyConnector calls PUT with connector_id body", async () => {
+    const updated = { ...mockOntology, connector_id: "connector-1" };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(updated), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const { updateOntologyConnector } = await import("./ontologies");
+    await expect(updateOntologyConnector("onto-1", "connector-1")).resolves.toEqual(updated);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/ontologies/onto-1/connector",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ connector_id: "connector-1" }),
         headers: expect.any(Headers),
       }),
     );

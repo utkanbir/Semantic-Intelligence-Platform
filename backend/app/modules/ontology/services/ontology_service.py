@@ -11,13 +11,32 @@ from app.modules.adapters.domain.models import TechnologyAdapter
 from app.modules.adapters.repositories.interfaces import TechnologyAdapterRepository
 from app.modules.applications.repositories.interfaces import ApplicationRepository
 from app.modules.ontology.domain.enums import OntologyDefinitionStatus
+from app.modules.ontology.domain.extraction import ExtractionResult, ExtractionSource
 from app.modules.ontology.domain.models import OntologyDefinition
+from app.modules.ontology.domain.semantic_review import (
+    SemanticReviewResult,
+    attach_semantic_review,
+    read_stored_semantic_review,
+)
+from app.modules.ontology.domain.validation import (
+    OntologyValidationReport,
+    attach_validation_report,
+    read_stored_validation_report,
+)
 from app.modules.ontology.ports.interfaces import (
     KnowledgeGraphPortResolver,
     OntologyTransactionRecorder,
 )
 from app.modules.ontology.repositories.interfaces import OntologyDefinitionRepository
+from app.modules.ontology.services.ontology_generation_service import (
+    OntologyGenerationService,
+)
+from app.modules.ontology.services.ontology_semantic_review_service import (
+    OntologySemanticReviewService,
+)
+from app.modules.ontology.services.ontology_validation_service import OntologyValidationService
 from app.modules.ontology.services.rdf_formats import resolve_rdf_content_type
+from app.modules.ontology.services.rdf_serialization import serialize_definition_to_turtle
 from app.shared.ports.knowledge_graph import KnowledgeGraphPort
 
 UNSET = object()
@@ -29,6 +48,11 @@ DEFAULT_ONTOLOGY_DEFINITION: dict[str, Any] = {
     "relationships": [],
     "metadata": {},
 }
+
+
+def ontology_fuseki_graph_uri(ontology_id: UUID) -> str:
+    """Stable named graph IRI for an ontology artifact in Fuseki."""
+    return f"urn:sip:ontology:{ontology_id}"
 
 
 class ApplicationNotFoundError(Exception):
@@ -59,12 +83,50 @@ class InvalidOntologyConnectorError(Exception):
     """Raised when the connector is not eligible for ontology import."""
 
 
+class OntologyConnectorSelectionNotAllowedError(Exception):
+    """Raised when selecting a connector is not allowed in the current status."""
+
+
 class OntologyArtifactPersistError(Exception):
     """Raised when ontology artifact persistence to the knowledge graph fails."""
 
 
+class OntologyValidationFailedError(Exception):
+    """Raised when ontology structural validation fails."""
+
+
+class OntologyValidationRequiredError(Exception):
+    """Raised when lifecycle transition requires a passing validation report."""
+
+
+class OntologyMaterializationNotAllowedError(Exception):
+    """Raised when ontology materialization preconditions are not met."""
+
+
+class OntologyAlreadyMaterializedError(Exception):
+    """Raised when materialize is requested for an ontology with an artifact."""
+
+
 class ApplicationWorkspaceNotFoundError(Exception):
     """Raised when the application workspace is unavailable for import."""
+
+
+class SemanticReviewNotAvailableError(Exception):
+    """Raised when a suggestion decision is requested but no review exists."""
+
+
+class SemanticReviewFindingNotFoundError(Exception):
+    """Raised when a suggestion decision references an unknown finding id."""
+
+
+class NoExtractionSourcesError(Exception):
+    """Raised when generate-from-sources is requested without usable sources."""
+
+
+def _source_is_usable(source: ExtractionSource) -> bool:
+    if source.kind == "url":
+        return bool(source.url and source.url.strip())
+    return bool(source.content and source.content.strip())
 
 
 class _NoOpTransactionRecorder:
@@ -94,6 +156,9 @@ class OntologyService:
         connector_repository: TechnologyAdapterRepository | None = None,
         transaction_recorder: OntologyTransactionRecorder | None = None,
         knowledge_graph_port_resolver: KnowledgeGraphPortResolver | None = None,
+        validation_service: OntologyValidationService | None = None,
+        semantic_review_service: OntologySemanticReviewService | None = None,
+        generation_service: OntologyGenerationService | None = None,
     ) -> None:
         self._repository = repository
         self._application_repository = application_repository
@@ -102,6 +167,11 @@ class OntologyService:
         self._knowledge_graph_port_resolver = (
             knowledge_graph_port_resolver or _NoOpKnowledgeGraphPortResolver()
         )
+        self._validation_service = validation_service or OntologyValidationService()
+        self._semantic_review_service = (
+            semantic_review_service or OntologySemanticReviewService()
+        )
+        self._generation_service = generation_service or OntologyGenerationService()
 
     def create_ontology(
         self,
@@ -136,14 +206,25 @@ class OntologyService:
             connector_id=connector_id,
         )
         created = self._repository.create(ontology)
+        steps: list[tuple[str, str | None]] = [
+            ("ModeSelected", "Manual mode selected"),
+            (
+                "DraftCreated",
+                f"Draft OntologyDefinition {created.id} created (draft-only, not materialized)",
+            ),
+        ]
+        if created.connector_id is not None:
+            steps.append(
+                (
+                    "ConnectorSelected",
+                    f"Connector {created.connector_id} selected for "
+                    f"OntologyDefinition {created.id}",
+                )
+            )
         self._record_transaction(
             transaction_type="ontology.created",
             ontology=created,
-            steps=[
-                ("validate_request", "Validated ontology create request"),
-                ("persist_metadata", "Persisted ontology metadata"),
-                ("finalize", "Ontology create completed"),
-            ],
+            steps=steps,
         )
         return created
 
@@ -162,26 +243,19 @@ class OntologyService:
         if application is None:
             raise ApplicationNotFoundError("Application not found")
         connector = self._require_ontology_connector(connector_id)
-        workspace = application.workspace
-        if workspace is None or not workspace.fuseki_dataset:
-            raise ApplicationWorkspaceNotFoundError(
-                "Application workspace fuseki_dataset unavailable"
-            )
 
         now = datetime.now(UTC)
         ontology_id = uuid4()
-        artifact_uri = (
-            f"fuseki://{workspace.fuseki_dataset}/ontologies/{ontology_id}/"
-            f"artifact.{source_format.lstrip('.')}"
-        )
-        content_type = resolve_rdf_content_type(source_format)
+        fuseki_graph_uri = ontology_fuseki_graph_uri(ontology_id)
 
-        knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
-        import_result = knowledge_graph.import_data(
-            dataset=workspace.fuseki_dataset,
-            content=source_content,
-            content_type=content_type,
+        validation_report = self._validation_service.validate_content(
+            source_content=source_content,
+            source_format=source_format,
+            title=title,
+            description=description,
         )
+        if not validation_report.passed:
+            raise OntologyValidationFailedError(_format_validation_failure(validation_report))
 
         definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
         definition["metadata"] = {
@@ -189,9 +263,10 @@ class OntologyService:
             "import": {
                 "source_format": source_format,
                 "content_length": len(source_content),
-                "fuseki_dataset": workspace.fuseki_dataset,
-                "fuseki_location": import_result.get("location"),
+                "source_content": source_content,
+                "fuseki_graph_uri": fuseki_graph_uri,
             },
+            "validation": validation_report.to_dict(),
         }
         ontology = OntologyDefinition(
             id=ontology_id,
@@ -205,23 +280,506 @@ class OntologyService:
             updated_at=now,
             ontology_definition=definition,
             connector_id=connector_id,
-            artifact_uri=artifact_uri,
+            artifact_uri=None,
             source_format=source_format,
         )
         created = self._repository.create(ontology)
-        persist_location = import_result.get("location", artifact_uri)
         semantic_transaction_id = self._record_transaction(
             transaction_type="ontology.imported",
             ontology=created,
             steps=[
-                ("validate_request", "Validated ontology import request"),
-                ("resolve_connector", f"Resolved connector {connector.adapter_key}"),
-                ("persist_artifact", f"Artifact persisted at {persist_location}"),
-                ("persist_metadata", "Persisted ontology metadata"),
-                ("finalize", "Ontology import completed"),
+                ("ModeSelected", "OWL/RDF Import mode selected"),
+                (
+                    "DraftCreated",
+                    f"Draft OntologyDefinition {created.id} created from imported "
+                    f"{source_format} source ({len(source_content)} chars, not materialized)",
+                ),
+                (
+                    "ConnectorSelected",
+                    f"Connector {connector.id} ({connector.adapter_key}) selected for "
+                    f"OntologyDefinition {created.id}",
+                ),
             ],
         )
         return created, semantic_transaction_id
+
+    def generate_from_sources(
+        self,
+        *,
+        application_id: UUID,
+        title: str,
+        sources: list[ExtractionSource],
+        created_by: str | None = None,
+        description: str | None = None,
+    ) -> tuple[OntologyDefinition, ExtractionResult, UUID | None]:
+        """Extract candidate concepts from sources into a draft-only ontology.
+
+        Produces a Draft ``OntologyDefinition`` (no graph-store write). Candidates
+        never auto-materialize; user approval happens later (Frontend + S34-08).
+        """
+        if self._application_repository.get(application_id) is None:
+            raise ApplicationNotFoundError("Application not found")
+
+        usable_sources = [source for source in sources if _source_is_usable(source)]
+        if not usable_sources:
+            raise NoExtractionSourcesError(
+                "At least one source with content is required for generation"
+            )
+
+        extraction = self._generation_service.extract(
+            usable_sources,
+            title=title,
+            description=description,
+        )
+
+        resolved_sources = [
+            source
+            for source in extraction.sources
+            if source.content and source.content.strip()
+        ]
+
+        now = datetime.now(UTC)
+        definition = dict(DEFAULT_ONTOLOGY_DEFINITION)
+        definition["classes"] = [item.to_dict() for item in extraction.classes]
+        definition["properties"] = [item.to_dict() for item in extraction.properties]
+        definition["relationships"] = [
+            item.to_dict() for item in extraction.relationships
+        ]
+        definition["metadata"] = {
+            "mode": "generate",
+            "generate": {
+                "sources": [source.to_dict() for source in resolved_sources],
+                "extraction": extraction.to_dict(),
+            },
+        }
+
+        ontology = OntologyDefinition(
+            id=uuid4(),
+            application_id=application_id,
+            version_number=1,
+            status=OntologyDefinitionStatus.DRAFT,
+            title=title,
+            description=description,
+            created_by=created_by or "",
+            created_at=now,
+            updated_at=now,
+            ontology_definition=definition,
+        )
+        created = self._repository.create(ontology)
+
+        if extraction.available:
+            extraction_message = (
+                f"Extracted {extraction.class_count} classes, "
+                f"{extraction.property_count} properties, "
+                f"{extraction.relationship_count} relationships "
+                f"from {len(resolved_sources)} sources"
+            )
+        else:
+            extraction_message = "Skipped: LLM extraction unavailable"
+
+        semantic_transaction_id = self._record_transaction(
+            transaction_type="ontology.generated",
+            ontology=created,
+            steps=[
+                ("ModeSelected", "Generate from Sources mode selected"),
+                ("CandidatesExtracted", extraction_message),
+                ("DraftCreated", "Draft ontology created (draft-only, not materialized)"),
+            ],
+        )
+        return created, extraction, semantic_transaction_id
+
+    def select_connector(
+        self, ontology_id: UUID, *, connector_id: UUID
+    ) -> tuple[OntologyDefinition, UUID | None]:
+        """Attach a graph store connector to a draft and trace ConnectorSelected.
+
+        Connector selection is only allowed before approval; approved or
+        materialized ontologies keep the connector chosen for their write.
+        """
+        current = self._repository.get(ontology_id)
+        if current is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+        if current.status not in {
+            OntologyDefinitionStatus.DRAFT,
+            OntologyDefinitionStatus.VALIDATED,
+        }:
+            raise OntologyConnectorSelectionNotAllowedError(
+                "Connector can only be selected while the ontology is Draft or Validated"
+            )
+
+        connector = self._require_ontology_connector(connector_id)
+
+        updated = OntologyDefinition(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=current.status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            validated_at=current.validated_at,
+            approved_at=current.approved_at,
+            published_at=current.published_at,
+            version_created_at=current.version_created_at,
+            ontology_definition=current.ontology_definition,
+            connector_id=connector_id,
+            artifact_uri=current.artifact_uri,
+            source_format=current.source_format,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        semantic_transaction_id = self._record_transaction(
+            transaction_type="ontology.connector_selected",
+            ontology=result,
+            steps=[
+                (
+                    "ConnectorSelected",
+                    f"Connector {connector.id} ({connector.adapter_key}) selected for "
+                    f"OntologyDefinition {result.id}",
+                ),
+            ],
+        )
+        return result, semantic_transaction_id
+
+    def materialize_ontology(
+        self, ontology_id: UUID
+    ) -> tuple[OntologyDefinition, UUID | None]:
+        current = self._repository.get(ontology_id)
+        if current is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+        if current.status != OntologyDefinitionStatus.APPROVED:
+            raise OntologyMaterializationNotAllowedError(
+                "Materialize requires Approved status"
+            )
+        if current.artifact_uri is not None:
+            raise OntologyAlreadyMaterializedError("Ontology artifact already materialized")
+        if current.connector_id is None:
+            raise InvalidOntologyConnectorError("Connector is required for materialize")
+
+        report = read_stored_validation_report(current.ontology_definition)
+        if report is None:
+            raise OntologyValidationRequiredError(
+                "Run validation and resolve all errors before materialize"
+            )
+        if not report.passed:
+            raise OntologyValidationRequiredError(
+                "Validation report contains errors; resolve them before materialize"
+            )
+
+        source_content = self._read_stored_source_content(current)
+        if source_content is None:
+            source_content = serialize_definition_to_turtle(current.ontology_definition)
+        if source_content is None:
+            raise OntologyValidationRequiredError(
+                "No ontology content available to materialize"
+            )
+
+        application = self._application_repository.get(current.application_id)
+        if application is None:
+            raise ApplicationNotFoundError("Application not found")
+        workspace = application.workspace
+        if workspace is None or not workspace.fuseki_dataset:
+            raise ApplicationWorkspaceNotFoundError(
+                "Application workspace fuseki_dataset unavailable"
+            )
+
+        connector = self._require_ontology_connector(current.connector_id)
+        source_format = current.source_format or "ttl"
+        fuseki_graph_uri = self._read_fuseki_graph_uri(current) or ontology_fuseki_graph_uri(
+            current.id
+        )
+        content_type = resolve_rdf_content_type(source_format, source_content)
+        knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
+        import_result = knowledge_graph.import_data(
+            dataset=workspace.fuseki_dataset,
+            content=source_content,
+            content_type=content_type,
+            graph=fuseki_graph_uri,
+        )
+
+        artifact_uri = (
+            f"fuseki://{workspace.fuseki_dataset}/ontologies/{current.id}/"
+            f"artifact.{source_format.lstrip('.')}"
+        )
+        definition = dict(current.ontology_definition)
+        metadata = dict(definition.get("metadata", {}))
+        import_meta = dict(metadata.get("import", {}))
+        import_meta["fuseki_dataset"] = workspace.fuseki_dataset
+        import_meta["fuseki_graph_uri"] = fuseki_graph_uri
+        import_meta["fuseki_location"] = import_result.get("location")
+        metadata["import"] = import_meta
+        definition["metadata"] = metadata
+
+        updated = OntologyDefinition(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=current.status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            validated_at=current.validated_at,
+            approved_at=current.approved_at,
+            published_at=current.published_at,
+            version_created_at=current.version_created_at,
+            ontology_definition=definition,
+            connector_id=current.connector_id,
+            artifact_uri=artifact_uri,
+            source_format=current.source_format,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        persist_location = import_result.get("location", artifact_uri)
+        # ConnectorSelected and OntologyApproved are emitted by their own lifecycle
+        # actions (select_connector / approve); materialize only records the write
+        # to avoid duplicating those steps across the ontology-creation run.
+        steps: list[tuple[str, str | None]] = [
+            (
+                "OntologyMaterialized",
+                f"Materialized OntologyDefinition {result.id} to graph {fuseki_graph_uri} "
+                f"via connector {connector.id} ({connector.adapter_key})",
+            ),
+            ("persist_artifact", f"Artifact persisted at {persist_location}"),
+        ]
+        semantic_transaction_id = self._record_transaction(
+            transaction_type="ontology.materialized",
+            ontology=result,
+            steps=steps,
+        )
+        return result, semantic_transaction_id
+
+    def validate_content(
+        self,
+        *,
+        source_format: str,
+        source_content: str,
+        title: str | None = None,
+        description: str | None = None,
+    ) -> OntologyValidationReport:
+        return self._validation_service.validate_content(
+            source_content=source_content,
+            source_format=source_format,
+            title=title,
+            description=description,
+        )
+
+    def run_validation(
+        self, ontology_id: UUID
+    ) -> tuple[
+        OntologyDefinition,
+        OntologyValidationReport,
+        SemanticReviewResult,
+        UUID | None,
+    ]:
+        current = self._repository.get(ontology_id)
+        if current is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+        if current.status != OntologyDefinitionStatus.DRAFT:
+            raise InvalidOntologyDefinitionStatusTransitionError(
+                "Validation runs are only supported for Draft ontologies"
+            )
+
+        source_format = current.source_format or "ttl"
+        source_content = self._resolve_validation_content(current)
+        report = self._validation_service.validate_content(
+            source_content=source_content,
+            source_format=source_format,
+            title=current.title,
+            description=current.description,
+            ontology_definition=current.ontology_definition,
+        )
+
+        review = self._semantic_review_service.review(
+            report,
+            title=current.title,
+            description=current.description,
+        )
+
+        updated_definition = attach_validation_report(current.ontology_definition, report)
+        updated_definition = attach_semantic_review(updated_definition, review)
+        updated = OntologyDefinition(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=current.status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            validated_at=current.validated_at,
+            approved_at=current.approved_at,
+            published_at=current.published_at,
+            version_created_at=current.version_created_at,
+            ontology_definition=updated_definition,
+            connector_id=current.connector_id,
+            artifact_uri=current.artifact_uri,
+            source_format=current.source_format,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        if review.available:
+            review_message = (
+                f"{review.suggestion_count} suggestions, "
+                f"{review.warning_count} warnings, "
+                f"{review.improvement_count} improvement ideas"
+            )
+        else:
+            review_message = "Skipped: advisory semantic review unavailable"
+
+        semantic_transaction_id = self._record_transaction(
+            transaction_type="ontology.validation_run",
+            ontology=result,
+            steps=[
+                (
+                    "DeterministicValidationExecuted",
+                    f"Deterministic validation {'passed' if report.passed else 'failed'} "
+                    f"({report.error_count} errors, {report.warning_count} warnings)",
+                ),
+                ("LLMSemanticReviewExecuted", review_message),
+                ("finalize", "Ontology validation run completed"),
+            ],
+        )
+        return result, report, review, semantic_transaction_id
+
+    def record_suggestion_decision(
+        self,
+        ontology_id: UUID,
+        *,
+        finding_id: str,
+        decision: str,
+    ) -> tuple[OntologyDefinition, SemanticReviewResult, UUID | None]:
+        current = self._repository.get(ontology_id)
+        if current is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        review = read_stored_semantic_review(current.ontology_definition)
+        if review is None or not review.findings:
+            raise SemanticReviewNotAvailableError(
+                "No semantic review findings recorded; run validation first"
+            )
+
+        finding = review.find(finding_id)
+        if finding is None:
+            raise SemanticReviewFindingNotFoundError(
+                f"Semantic review finding '{finding_id}' not found"
+            )
+
+        finding.decision = cast(Any, decision)
+
+        # Advisory only: decisions never mutate the ontology definition content.
+        updated_definition = attach_semantic_review(current.ontology_definition, review)
+        updated = OntologyDefinition(
+            id=current.id,
+            application_id=current.application_id,
+            version_number=current.version_number,
+            previous_version_id=current.previous_version_id,
+            status=current.status,
+            title=current.title,
+            description=current.description,
+            created_by=current.created_by,
+            created_at=current.created_at,
+            updated_at=datetime.now(UTC),
+            validated_at=current.validated_at,
+            approved_at=current.approved_at,
+            published_at=current.published_at,
+            version_created_at=current.version_created_at,
+            ontology_definition=updated_definition,
+            connector_id=current.connector_id,
+            artifact_uri=current.artifact_uri,
+            source_format=current.source_format,
+        )
+        result = self._repository.update(updated)
+        if result is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        step_type = (
+            "SuggestionAccepted" if decision == "accepted" else "SuggestionIgnored"
+        )
+        semantic_transaction_id = self._record_transaction(
+            transaction_type="ontology.suggestion_reviewed",
+            ontology=result,
+            steps=[
+                (
+                    step_type,
+                    f"Finding '{finding.id}' ({finding.kind}) {decision}: {finding.title}",
+                ),
+            ],
+        )
+        return result, review, semantic_transaction_id
+
+    def _resolve_validation_content(self, ontology: OntologyDefinition) -> str:
+        stored_content = self._read_stored_source_content(ontology)
+        if stored_content is not None:
+            return stored_content
+
+        if ontology.artifact_uri and ontology.connector_id:
+            application = self._application_repository.get(ontology.application_id)
+            if application is None or application.workspace is None:
+                raise ApplicationWorkspaceNotFoundError(
+                    "Application workspace unavailable for validation export"
+                )
+            connector = self._require_ontology_connector(ontology.connector_id)
+            knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
+            source_format = ontology.source_format or "ttl"
+            accept_format = resolve_rdf_content_type(source_format)
+            graph_uri = self._read_fuseki_graph_uri(ontology)
+            return knowledge_graph.export_data(
+                dataset=application.workspace.fuseki_dataset,
+                accept_format=accept_format,
+                graph=graph_uri,
+            )
+
+        # Manual-mode drafts carry a structured definition instead of raw RDF;
+        # render it to Turtle so deterministic validation can parse a graph.
+        serialized = serialize_definition_to_turtle(ontology.ontology_definition)
+        if serialized is not None:
+            return serialized
+
+        metadata = ontology.ontology_definition.get("metadata", {})
+        if isinstance(metadata, dict) and isinstance(metadata.get("import"), dict):
+            raise OntologyValidationRequiredError(
+                "No materialized artifact available for validation export"
+            )
+
+        raise OntologyValidationRequiredError(
+            "Ontology has no content to validate"
+        )
+
+    def _require_passing_validation_report(self, ontology: OntologyDefinition) -> None:
+        has_import_content = self._read_stored_source_content(ontology) is not None
+        has_structured_content = (
+            serialize_definition_to_turtle(ontology.ontology_definition) is not None
+        )
+        if (
+            ontology.artifact_uri is None
+            and not has_import_content
+            and not has_structured_content
+        ):
+            return
+
+        report = read_stored_validation_report(ontology.ontology_definition)
+        if report is None:
+            raise OntologyValidationRequiredError(
+                "Run validation and resolve all errors before marking Validated"
+            )
+        if not report.passed:
+            raise OntologyValidationRequiredError(
+                "Validation report contains errors; resolve them before marking Validated"
+            )
 
     def list_ontologies(
         self,
@@ -239,6 +797,69 @@ class OntologyService:
         if ontology is None:
             raise OntologyDefinitionNotFoundError("Ontology definition not found")
         return ontology
+
+    def delete_ontology(self, ontology_id: UUID) -> None:
+        current = self._repository.get(ontology_id)
+        if current is None:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+        self._remove_fuseki_artifact(current)
+
+        deleted = self._repository.delete(ontology_id)
+        if not deleted:
+            raise OntologyDefinitionNotFoundError("Ontology definition not found")
+
+    def _read_fuseki_graph_uri(self, ontology: OntologyDefinition) -> str | None:
+        metadata = ontology.ontology_definition.get("metadata", {})
+        if isinstance(metadata, dict):
+            import_meta = metadata.get("import")
+            if isinstance(import_meta, dict):
+                graph_uri = import_meta.get("fuseki_graph_uri")
+                if isinstance(graph_uri, str) and graph_uri.strip():
+                    return graph_uri
+        return None
+
+    def _read_stored_source_content(self, ontology: OntologyDefinition) -> str | None:
+        metadata = ontology.ontology_definition.get("metadata", {})
+        if isinstance(metadata, dict):
+            import_meta = metadata.get("import")
+            if isinstance(import_meta, dict):
+                source_content = import_meta.get("source_content")
+                if isinstance(source_content, str) and source_content.strip():
+                    return source_content
+        return None
+
+    def _remove_fuseki_artifact(self, ontology: OntologyDefinition) -> None:
+        if ontology.artifact_uri is None or ontology.connector_id is None:
+            return
+
+        application = self._application_repository.get(ontology.application_id)
+        if application is None or application.workspace is None:
+            return
+
+        try:
+            connector = self._require_ontology_connector(ontology.connector_id)
+            knowledge_graph = self._knowledge_graph_port_resolver.resolve(connector)
+        except (ConnectorNotFoundError, InvalidOntologyConnectorError):
+            return
+
+        dataset = application.workspace.fuseki_dataset
+        graph_uri = self._read_fuseki_graph_uri(ontology)
+        if graph_uri:
+            knowledge_graph.delete_graph(dataset=dataset, graph=graph_uri)
+            return
+
+        source_content = self._read_stored_source_content(ontology)
+        if source_content is None:
+            return
+
+        source_format = ontology.source_format or "ttl"
+        content_type = resolve_rdf_content_type(source_format, source_content)
+        knowledge_graph.delete_default_graph_content(
+            dataset=dataset,
+            content=source_content,
+            content_type=content_type,
+        )
 
     def update_ontology(
         self,
@@ -310,6 +931,14 @@ class OntologyService:
                 f"Invalid status transition: {current.status.value} -> {status.value}"
             )
 
+        if status in {
+            OntologyDefinitionStatus.VALIDATED,
+            OntologyDefinitionStatus.APPROVED,
+        }:
+            # Server-side gate: blocking validation errors must not reach
+            # Approve (and therefore Materialize), independent of the UI.
+            self._require_passing_validation_report(current)
+
         validated_at = current.validated_at
         if status == OntologyDefinitionStatus.VALIDATED and validated_at is None:
             validated_at = datetime.now(UTC)
@@ -345,16 +974,29 @@ class OntologyService:
         result = self._repository.update(updated)
         if result is None:
             raise OntologyDefinitionNotFoundError("Ontology definition not found")
+        if status == OntologyDefinitionStatus.APPROVED:
+            connector_note = (
+                f" (connector {result.connector_id})"
+                if result.connector_id is not None
+                else ""
+            )
+            steps: list[tuple[str, str | None]] = [
+                (
+                    "OntologyApproved",
+                    f"OntologyDefinition {result.id} approved for materialization"
+                    f"{connector_note}",
+                ),
+                ("finalize", "Ontology approval completed"),
+            ]
+        else:
+            steps = [
+                ("transition_status", f"Status changed to {status.value}"),
+                ("finalize", "Ontology status transition completed"),
+            ]
         self._record_transaction(
             transaction_type="ontology.status_changed",
             ontology=result,
-            steps=[
-                (
-                    "transition_status",
-                    f"Status changed to {status.value}",
-                ),
-                ("finalize", "Ontology status transition completed"),
-            ],
+            steps=steps,
         )
         return result
 
@@ -448,9 +1090,9 @@ VALID_STATUS_TRANSITIONS: dict[
         OntologyDefinitionStatus.APPROVED,
         OntologyDefinitionStatus.DRAFT,
     },
-    OntologyDefinitionStatus.APPROVED: {OntologyDefinitionStatus.PUBLISHED},
-    OntologyDefinitionStatus.PUBLISHED: {OntologyDefinitionStatus.VERSIONED},
-    OntologyDefinitionStatus.VERSIONED: {OntologyDefinitionStatus.RETIRED},
+    OntologyDefinitionStatus.APPROVED: set(),
+    OntologyDefinitionStatus.PUBLISHED: set(),
+    OntologyDefinitionStatus.VERSIONED: set(),
     OntologyDefinitionStatus.RETIRED: set(),
 }
 
@@ -459,3 +1101,10 @@ def _is_valid_status_transition(
     current: OntologyDefinitionStatus, target: OntologyDefinitionStatus
 ) -> bool:
     return target in VALID_STATUS_TRANSITIONS[current]
+
+
+def _format_validation_failure(report: OntologyValidationReport) -> str:
+    errors = [finding.message for finding in report.findings if finding.level == "error"]
+    if not errors:
+        return "Ontology validation failed"
+    return "; ".join(errors[:3])

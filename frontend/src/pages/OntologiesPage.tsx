@@ -1,22 +1,58 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api";
+import { listConnectors, type ConnectorResponse } from "../api/adapters";
 import {
-  canForkOntology,
-  createOntology,
-  forkOntologyVersion,
+  deleteOntology,
   getNextOntologyStatuses,
   getOntologyStatusActionLabel,
   listOntologies,
+  normalizeOntologyLifecycleStatus,
   updateOntologyStatus,
   type OntologyDefinitionResponse,
   type OntologyDefinitionStatus,
 } from "../api/ontologies";
-import { formatVersionChain } from "../utils/versionChain";
+import { getVendorLabel, readConnectorVendor } from "../connectors/catalog";
 
 type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "success"; ontologies: OntologyDefinitionResponse[] };
+
+const ONTOLOGY_MODES = [
+  {
+    id: "manual",
+    title: "Manual",
+    copy: "Define title, namespace, and prefix. A minimal ontology document is generated for materialization.",
+    hrefSuffix: "?mode=manual",
+    cta: "Start manual",
+    enabled: true,
+  },
+  {
+    id: "import",
+    title: "OWL Import",
+    copy: "Import existing OWL/RDF content from a local file.",
+    hrefSuffix: "?mode=import",
+    cta: "Import OWL",
+    enabled: true,
+  },
+  {
+    id: "document",
+    title: "Document-assisted",
+    copy: "Upload documents and extract concepts with LLM assistance.",
+    hrefSuffix: "",
+    cta: "Coming soon",
+    enabled: false,
+  },
+  {
+    id: "hybrid",
+    title: "Hybrid",
+    copy: "Combine manual edits with imported ontology fragments.",
+    hrefSuffix: "",
+    cta: "Coming soon",
+    enabled: false,
+  },
+] as const;
 
 function formatDate(iso: string | null): string {
   if (!iso) {
@@ -32,200 +68,41 @@ function statusClassName(status: OntologyDefinitionResponse["status"]): string {
   return `ontologies-table__status ontologies-table__status--${status.toLowerCase()}`;
 }
 
-interface CreateFormFields {
-  title: string;
-  description: string;
-  created_by: string;
-  ontology_definition_json: string;
-}
-
-interface OntologyCreateFormProps {
-  applicationId: string;
-  onCreated: () => void;
-  onCancel?: () => void;
-}
-
-function OntologyCreateForm({ applicationId, onCreated, onCancel }: OntologyCreateFormProps) {
-  const [fields, setFields] = useState<CreateFormFields>({
-    title: "",
-    description: "",
-    created_by: "",
-    ontology_definition_json: "",
-  });
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const [definitionError, setDefinitionError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitError(null);
-
-    const trimmedTitle = fields.title.trim();
-    if (!trimmedTitle) {
-      setTitleError("Title is required");
-      return;
-    }
-    setTitleError(null);
-
-    const trimmedDefinition = fields.ontology_definition_json.trim();
-    let ontologyDefinition: Record<string, unknown> = {};
-    if (trimmedDefinition) {
-      try {
-        const parsed: unknown = JSON.parse(trimmedDefinition);
-        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-          setDefinitionError("Ontology definition must be a JSON object");
-          return;
-        }
-        ontologyDefinition = parsed as Record<string, unknown>;
-      } catch {
-        setDefinitionError("Ontology definition must be valid JSON");
-        return;
-      }
-    }
-    setDefinitionError(null);
-
-    setSubmitting(true);
-    try {
-      const description = fields.description.trim();
-      const createdBy = fields.created_by.trim();
-      await createOntology({
-        application_id: applicationId,
-        title: trimmedTitle,
-        ontology_definition: ontologyDefinition,
-        ...(description ? { description } : {}),
-        ...(createdBy ? { created_by: createdBy } : {}),
-      });
-      onCreated();
-    } catch (error: unknown) {
-      const message =
-        error instanceof ApiError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : "Failed to create ontology";
-      setSubmitError(message);
-    } finally {
-      setSubmitting(false);
-    }
+function pickPrimaryOntology(
+  ontologies: OntologyDefinitionResponse[],
+): OntologyDefinitionResponse | null {
+  if (ontologies.length === 0) {
+    return null;
   }
 
-  return (
-    <form
-      className="ontologies-page__form"
-      onSubmit={handleSubmit}
-      noValidate
-      aria-label="Create ontology"
-    >
-      <div className="ontologies-page__field">
-        <label htmlFor="ontology-title">Title</label>
-        <input
-          id="ontology-title"
-          name="title"
-          type="text"
-          value={fields.title}
-          onChange={(event) => {
-            setFields((current) => ({ ...current, title: event.target.value }));
-            if (titleError) {
-              setTitleError(null);
-            }
-          }}
-          aria-invalid={titleError ? true : undefined}
-          aria-describedby={titleError ? "ontology-title-error" : undefined}
-        />
-        {titleError && (
-          <p id="ontology-title-error" className="ontologies-page__field-error" role="alert">
-            {titleError}
-          </p>
-        )}
-      </div>
+  const active = ontologies.filter((ontology) => ontology.status !== "Retired");
+  const pool = active.length > 0 ? active : ontologies;
 
-      <div className="ontologies-page__field">
-        <label htmlFor="ontology-description">
-          Description <span className="ontologies-page__optional">(optional)</span>
-        </label>
-        <textarea
-          id="ontology-description"
-          name="description"
-          rows={3}
-          value={fields.description}
-          onChange={(event) =>
-            setFields((current) => ({ ...current, description: event.target.value }))
-          }
-        />
-      </div>
-
-      <div className="ontologies-page__field">
-        <label htmlFor="ontology-created-by">
-          Created by <span className="ontologies-page__optional">(optional)</span>
-        </label>
-        <input
-          id="ontology-created-by"
-          name="created_by"
-          type="text"
-          value={fields.created_by}
-          onChange={(event) =>
-            setFields((current) => ({ ...current, created_by: event.target.value }))
-          }
-        />
-      </div>
-
-      <div className="ontologies-page__field">
-        <label htmlFor="ontology-definition">
-          Ontology definition <span className="ontologies-page__optional">(optional JSON)</span>
-        </label>
-        <textarea
-          id="ontology-definition"
-          name="ontology_definition"
-          rows={4}
-          placeholder="{}"
-          value={fields.ontology_definition_json}
-          onChange={(event) => {
-            setFields((current) => ({
-              ...current,
-              ontology_definition_json: event.target.value,
-            }));
-            if (definitionError) {
-              setDefinitionError(null);
-            }
-          }}
-          aria-invalid={definitionError ? true : undefined}
-          aria-describedby={definitionError ? "ontology-definition-error" : undefined}
-        />
-        {definitionError && (
-          <p id="ontology-definition-error" className="ontologies-page__field-error" role="alert">
-            {definitionError}
-          </p>
-        )}
-      </div>
-
-      {submitError && (
-        <div className="ontologies-page__error" role="alert">
-          {submitError}
-        </div>
-      )}
-
-      <div className="ontologies-page__form-actions">
-        {onCancel && (
-          <button
-            type="button"
-            className="ontologies-page__button ontologies-page__button--secondary"
-            onClick={onCancel}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-        )}
-        <button
-          type="submit"
-          className="ontologies-page__button ontologies-page__button--primary"
-          disabled={submitting}
-        >
-          {submitting ? "Creating…" : "Create ontology"}
-        </button>
-      </div>
-    </form>
+  return pool.reduce((best, current) =>
+    current.version_number > best.version_number ? current : best,
   );
+}
+
+function sortOntologiesNewestFirst(
+  ontologies: OntologyDefinitionResponse[],
+): OntologyDefinitionResponse[] {
+  return [...ontologies].sort(
+    (left, right) =>
+      new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+  );
+}
+
+function formatConnectorSummary(connector: ConnectorResponse | undefined): string {
+  if (!connector) {
+    return "—";
+  }
+
+  const vendorId = readConnectorVendor(connector.connector_configuration);
+  const vendorLabel = vendorId
+    ? getVendorLabel(connector.connector_type, vendorId)
+    : null;
+
+  return vendorLabel ? `${connector.title} — ${vendorLabel}` : connector.title;
 }
 
 interface OntologiesPageProps {
@@ -233,10 +110,13 @@ interface OntologiesPageProps {
 }
 
 export function OntologiesPage({ applicationId }: OntologiesPageProps) {
+  const navigate = useNavigate();
   const [state, setState] = useState<PageState>({ kind: "loading" });
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [connectors, setConnectors] = useState<ConnectorResponse[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingOntologyId, setPendingOntologyId] = useState<string | null>(null);
+
+  const createBasePath = `/applications/${applicationId}/ontology/create`;
 
   const loadOntologies = useCallback(() => {
     setState({ kind: "loading" });
@@ -261,9 +141,13 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
   useEffect(() => {
     let cancelled = false;
 
-    listOntologies(applicationId)
-      .then((ontologies) => {
+    Promise.all([
+      listOntologies(applicationId),
+      listConnectors({ connectorType: "ontology_knowledge_graph" }),
+    ])
+      .then(([ontologies, connectorList]) => {
         if (!cancelled) {
+          setConnectors(connectorList);
           setState({ kind: "success", ontologies });
         }
       })
@@ -283,11 +167,6 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
       cancelled = true;
     };
   }, [applicationId]);
-
-  function handleCreated() {
-    setShowCreateForm(false);
-    void loadOntologies();
-  }
 
   async function handleStatusTransition(
     ontologyId: string,
@@ -311,27 +190,47 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
     }
   }
 
-  async function handleForkVersion(ontologyId: string) {
+  async function handleDelete(ontology: OntologyDefinitionResponse) {
+    const confirmed = window.confirm(
+      `Delete ontology "${ontology.title}"? This cannot be undone.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
     setActionError(null);
-    setPendingOntologyId(ontologyId);
+    setPendingOntologyId(ontology.id);
     try {
-      await forkOntologyVersion(ontologyId);
+      await deleteOntology(ontology.id);
       await loadOntologies();
+      navigate(`/applications/${applicationId}/ontology`);
     } catch (error: unknown) {
       const message =
         error instanceof ApiError
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to create ontology version";
+            : "Failed to delete ontology";
       setActionError(message);
     } finally {
       setPendingOntologyId(null);
     }
   }
 
-  const isEmpty = state.kind === "success" && state.ontologies.length === 0;
-  const hasOntologies = state.kind === "success" && state.ontologies.length > 0;
+  const ontologies = state.kind === "success" ? state.ontologies : [];
+  const sortedOntologies = useMemo(
+    () => sortOntologiesNewestFirst(ontologies),
+    [ontologies],
+  );
+  const primaryOntology = useMemo(() => pickPrimaryOntology(ontologies), [ontologies]);
+
+  const activeConnectors = useMemo(
+    () => connectors.filter((connector) => connector.status === "Active"),
+    [connectors],
+  );
+
+  const isEmpty = state.kind === "success" && ontologies.length === 0;
+  const hasOntologies = state.kind === "success" && ontologies.length > 0;
 
   return (
     <section className="ontologies-page" aria-labelledby="ontologies-heading">
@@ -339,19 +238,16 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
         <div>
           <h2 id="ontologies-heading">Ontology</h2>
           <p className="ontologies-page__lead">
-            Ontology definitions describe the semantic model for this application&apos;s
-            knowledge graph and data products.
+            Defines what things mean in this application. Agents and data products use this
+            semantic layer — it is not another database.
           </p>
         </div>
-        {hasOntologies && !showCreateForm && (
-          <button
-            type="button"
-            className="ontologies-page__button ontologies-page__button--primary"
-            onClick={() => setShowCreateForm(true)}
-          >
-            New ontology
-          </button>
-        )}
+        <Link
+          to={createBasePath}
+          className="ontologies-page__button ontologies-page__button--primary"
+        >
+          Create or import ontology
+        </Link>
       </div>
 
       {state.kind === "loading" && (
@@ -372,79 +268,185 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
         </div>
       )}
 
-      {isEmpty && (
-        <div className="ontologies-page__empty" role="status">
-          <p>No ontology definitions yet.</p>
-          <p className="ontologies-page__hint">
-            Create your first ontology definition to get started.
-          </p>
-          <OntologyCreateForm applicationId={applicationId} onCreated={handleCreated} />
+      {state.kind === "success" && (
+        <div className="ontologies-page__context-strip" role="status">
+          <dl className="ontologies-page__context-list">
+            <div>
+              <dt>Definitions</dt>
+              <dd>{ontologies.length}</dd>
+            </div>
+            <div>
+              <dt>Ready connectors</dt>
+              <dd>
+                {activeConnectors.length > 0 ? (
+                  activeConnectors.length
+                ) : (
+                  <>
+                    None —{" "}
+                    <Link to="/connectors" className="ontologies-page__inline-link">
+                      create a connector
+                    </Link>
+                  </>
+                )}
+              </dd>
+            </div>
+            {primaryOntology?.semantic_transaction_id && (
+              <div>
+                <dt>Semantic lineage</dt>
+                <dd>
+                  <Link
+                    to={`/applications/${applicationId}/semantic-transactions/${primaryOntology.semantic_transaction_id}`}
+                    className="ontologies-page__inline-link"
+                  >
+                    View transaction
+                  </Link>
+                </dd>
+              </div>
+            )}
+          </dl>
         </div>
       )}
 
-      {hasOntologies && showCreateForm && (
-        <div className="ontologies-page__create-panel">
-          <h3 className="ontologies-page__create-title">New ontology</h3>
-          <OntologyCreateForm
-            applicationId={applicationId}
-            onCreated={handleCreated}
-            onCancel={() => setShowCreateForm(false)}
-          />
+      {isEmpty && (
+        <div className="ontologies-page__empty ontologies-page__empty--modes" role="status">
+          <h3 className="ontologies-page__empty-title">
+            No ontology defined for this application yet.
+          </h3>
+          <p className="ontologies-page__hint">
+            Choose how you want to capture business meaning. You can refine and validate
+            before materializing through a connector.
+          </p>
+
+          <div className="ontologies-page__mode-grid" role="list">
+            {ONTOLOGY_MODES.map((mode) =>
+              mode.enabled ? (
+                <div key={mode.id} className="ontologies-page__mode-item" role="listitem">
+                  <Link
+                    to={`${createBasePath}${mode.hrefSuffix}`}
+                    className="ontologies-page__mode-card ontologies-page__mode-card--link"
+                    aria-label={`${mode.title}: ${mode.cta}`}
+                  >
+                    <span className="ontologies-page__mode-title">{mode.title}</span>
+                    <span className="ontologies-page__mode-copy">{mode.copy}</span>
+                    <span className="ontologies-page__mode-cta">{mode.cta} →</span>
+                  </Link>
+                </div>
+              ) : (
+                <div
+                  key={mode.id}
+                  className="ontologies-page__mode-item ontologies-page__mode-card ontologies-page__mode-card--disabled"
+                  role="listitem"
+                  aria-disabled="true"
+                >
+                  <span className="ontologies-page__mode-title">{mode.title}</span>
+                  <span className="ontologies-page__mode-copy">{mode.copy}</span>
+                  <span className="ontologies-page__mode-cta">{mode.cta}</span>
+                </div>
+              ),
+            )}
+          </div>
+
+          <p className="ontologies-page__flow-hint">
+            Mode → Edit &amp; validate → Connector → Materialize → Register → Semantic
+            transaction
+          </p>
         </div>
       )}
 
       {hasOntologies && (
         <div className="ontologies-page__table-wrap">
-          <table className="ontologies-table">
+          <table className="ontologies-table" aria-label="Ontology definitions">
             <thead>
               <tr>
                 <th scope="col">Title</th>
                 <th scope="col">Status</th>
-                <th scope="col">Version</th>
-                <th scope="col">Created at</th>
+                <th scope="col">Created</th>
+                <th scope="col">Connector</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {state.ontologies.map((ontology) => (
-                <tr key={ontology.id}>
-                  <td>{ontology.title}</td>
-                  <td>
-                    <span className={statusClassName(ontology.status)}>{ontology.status}</span>
-                  </td>
-                  <td>{formatVersionChain(ontology, state.ontologies)}</td>
-                  <td>{formatDate(ontology.created_at)}</td>
-                  <td>
-                    <div className="ontologies-table__actions">
-                      {canForkOntology(ontology) && (
-                        <button
-                          type="button"
-                          className="ontologies-page__button ontologies-page__button--secondary ontologies-table__action"
-                          disabled={pendingOntologyId === ontology.id}
-                          onClick={() => void handleForkVersion(ontology.id)}
-                        >
-                          New version
-                        </button>
+              {sortedOntologies.map((ontology) => {
+                const connector = ontology.connector_id
+                  ? connectors.find((item) => item.id === ontology.connector_id)
+                  : undefined;
+                const normalizedStatus = normalizeOntologyLifecycleStatus(ontology.status);
+
+                return (
+                  <tr key={ontology.id} id={`ontology-${ontology.id}`}>
+                    <td>
+                      <strong>{ontology.title}</strong>
+                      {ontology.description && (
+                        <p className="ontologies-page__table-description">
+                          {ontology.description}
+                        </p>
                       )}
-                      {getNextOntologyStatuses(ontology.status).map((nextStatus) => (
-                        <button
-                          key={nextStatus}
-                          type="button"
-                          className="ontologies-page__button ontologies-page__button--secondary ontologies-table__action"
-                          disabled={pendingOntologyId === ontology.id}
-                          onClick={() => void handleStatusTransition(ontology.id, nextStatus)}
-                        >
-                          {getOntologyStatusActionLabel(nextStatus)}
-                        </button>
-                      ))}
-                      {getNextOntologyStatuses(ontology.status).length === 0 &&
-                        !canForkOntology(ontology) && (
-                          <span className="ontologies-table__no-actions">—</span>
+                    </td>
+                    <td>
+                      <span className={statusClassName(normalizedStatus)}>
+                        {normalizedStatus}
+                      </span>
+                    </td>
+                    <td>{formatDate(ontology.created_at)}</td>
+                    <td>{formatConnectorSummary(connector)}</td>
+                    <td>
+                      <div className="ontologies-table__actions">
+                        {ontology.status === "Draft" && ontology.artifact_uri && (
+                          <Link
+                            to={`/applications/${applicationId}/ontology/${ontology.id}/validate`}
+                            className="ontologies-table__action"
+                          >
+                            Run validation
+                          </Link>
                         )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {ontology.status === "Validated" && ontology.artifact_uri && (
+                          <Link
+                            to={`/applications/${applicationId}/ontology/${ontology.id}/validate`}
+                            className="ontologies-table__action"
+                          >
+                            Review &amp; approve
+                          </Link>
+                        )}
+                        {getNextOntologyStatuses(ontology.status)
+                          .filter(
+                            (nextStatus) =>
+                              !(
+                                ontology.status === "Draft" &&
+                                nextStatus === "Validated" &&
+                                Boolean(ontology.artifact_uri)
+                              ) &&
+                              !(
+                                ontology.status === "Validated" &&
+                                nextStatus === "Approved" &&
+                                Boolean(ontology.artifact_uri)
+                              ),
+                          )
+                          .map((nextStatus) => (
+                            <button
+                              key={nextStatus}
+                              type="button"
+                              className="ontologies-table__action"
+                              disabled={pendingOntologyId === ontology.id}
+                              onClick={() =>
+                                void handleStatusTransition(ontology.id, nextStatus)
+                              }
+                            >
+                              {getOntologyStatusActionLabel(nextStatus)}
+                            </button>
+                          ))}
+                        <button
+                          type="button"
+                          className="ontologies-table__action"
+                          disabled={pendingOntologyId === ontology.id}
+                          onClick={() => void handleDelete(ontology)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -11,6 +11,8 @@
 
 One paragraph: overall architecture health this sprint (Green / Amber / Red).
 
+**Green constraint (Sprint 36+):** Allowed only when §9 Gate trigger #11-class checklist has no **Fail** results.
+
 ---
 
 ## 2. Merged PRs reviewed
@@ -79,7 +81,24 @@ Drift from `SIP_Domain_Model_v1` (if any):
 
 ---
 
-## 9. Risks for next sprint
+## 9. Gate trigger #11-class checklist (required Sprint 36+)
+
+Policy trigger **#11** covers SemanticTransaction / TraceStep pattern changes (R-013, R-014). **#11-class** extends to related semantic-surface hygiene — e.g. Console labels vs taxonomy contract (Sprint 31 TD-017 incident).
+
+**Rating rule:** Section 1 may be **Green** only when every applicable row below is **Pass** or **N/A** (no **Fail**).
+
+| ID | Check | Result (Pass / Fail / N/A) | Notes |
+|----|-------|----------------------------|-------|
+| G11-1 | SemanticTransaction / TraceStep write paths unchanged, or gate-Yes PR(s) reviewed per policy trigger #11 | | |
+| G11-2 | New/changed Console labels for semantic lineage align with taxonomy/ontology contract (no `audit_trace` ↔ semantic conflation) | | |
+| G11-3 | New semantic read/write routes documented in the relevant module contract | | |
+| G11-4 | `trace_audience` / lineage classification matches contract (persisted on write when required) | | |
+
+**Section 1 summary line must cite this table** when rated Green (e.g. "Green — §9 gate-trigger-11 checklist: all Pass/N/A").
+
+---
+
+## 10. Risks for next sprint
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|

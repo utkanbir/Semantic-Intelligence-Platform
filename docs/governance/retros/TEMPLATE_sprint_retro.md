@@ -2,6 +2,7 @@
 
 **Date:** YYYY-MM-DD  
 **Sprint:** Sprint N — \<theme\>  
+**Kickoff plan:** `docs/project/Sprint_N_<Theme>_Plan.md` *(frozen at sprint start — delivery rate denominator)*  
 **Facilitator:** PMO (DM hat)  
 **Attendees:** Product Owner, Lead Architect, Engineering offices, QA
 
@@ -9,9 +10,17 @@
 
 ## 1. Committed vs delivered
 
-| Issue | Title | Committed | Delivered | Notes |
-|-------|-------|-----------|-----------|-------|
-| #NNN | | Yes/No | Done/Not | |
+Report against the **kickoff plan** committed scope (§3), not issues added or dropped at close. Scope changes require a plan amendment during the sprint; do not re-scope the denominator in this retro.
+
+| Issue | Title | Committed (kickoff plan) | Delivered | Notes |
+|-------|-------|-------------------------|-----------|-------|
+| #NNN | | Yes | Done/Not | |
+
+**Delivery rate:** \<delivered\>/\<committed\> implementation issues *(exclude epic row; committed = kickoff plan §3 issue list)*.
+
+**Scope drift:** List any kickoff issues not delivered and any in-sprint additions with rationale (does not change the rate denominator).
+
+-
 
 ---
 

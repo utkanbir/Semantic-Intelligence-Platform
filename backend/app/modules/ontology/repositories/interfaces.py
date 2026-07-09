@@ -28,3 +28,6 @@ class OntologyDefinitionRepository(Protocol):
 
     def update(self, ontology: OntologyDefinition) -> OntologyDefinition | None:
         """Persist modifications for an existing ontology definition."""
+
+    def delete(self, ontology_id: UUID) -> bool:
+        """Delete an ontology definition when present."""

@@ -440,6 +440,24 @@ powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
 
 **Manifest:** `scripts/sprint_db_expectations.json` — PMO adds sprint entry when landing new migrations.
 
+### sip-dev deploy verification (mandatory at sprint close)
+
+Before closing the milestone or telling the PO the sprint is complete, PMO/DevOps MUST verify the live `sip-dev` frontend/backend workloads are running the sprint's expected images.
+
+```powershell
+powershell -File scripts/verify-sprint-deploy.ps1 -Sprint <N>
+```
+
+| Check | Failure means |
+|-------|----------------|
+| Dev overlay pins the expected `sip-backend` / `sip-console` tags | Repo desired state is stale or incomplete |
+| Live `sip-dev` deployments use those exact images | Latest sprint UI/API is not actually deployed |
+| `kubectl rollout status` succeeds for both deployments | Rollout is incomplete or unhealthy |
+
+**On failure:** rebuild/publish the expected image tag(s), apply `infra/kubernetes/overlays/dev`, wait for rollout, then re-run verify until exit 0.
+
+**Manifest:** `scripts/sprint_deploy_expectations.json` — starting with Sprint 31, add one entry per sprint and carry forward unchanged tags so sprint close always has explicit deploy expectations.
+
 ### Sprint close gates and PO handoff (mandatory)
 
 **PMO must not deliver a sprint to the PO** until all gates pass. Partial delivery (code merged but cluster/board drift) is **unacceptable**.
@@ -450,7 +468,7 @@ Single entry point:
 powershell -File scripts/verify-sprint-close.ps1 -Sprint <N>
 ```
 
-Runs cluster DB verify + project board verify. **Exit 1 blocks:** retro finalization, milestone close, and any PO message claiming sprint complete.
+Runs cluster DB verify + `sip-dev` deploy verify + project board verify. **Exit 1 blocks:** retro finalization, milestone close, and any PO message claiming sprint complete.
 
 **Sprint-close order (strict):**
 
@@ -464,10 +482,76 @@ Individual gates (called by verify-sprint-close):
 
 ```powershell
 powershell -File scripts/verify-sprint-db.ps1 -Sprint <N>
+powershell -File scripts/verify-sprint-deploy.ps1 -Sprint <N>
 powershell -File scripts/verify-sprint-board.ps1 -Sprint <N>
 ```
 
 **Manifest:** `scripts/sprint_board_expectations.json` — PMO adds sprint issue list when milestone is created.
+
+### Sprint governance CI (S36-01)
+
+GitHub Actions workflow **`Sprint Governance CI`** (`.github/workflows/sprint-governance-ci.yml`) enforces sprint-close documentation on merges to `develop`:
+
+| Behaviour | Detail |
+|-----------|--------|
+| **No-op** | Ordinary PRs without an `end_of_sprint_<N>:` commit subject exit 0 — no failure |
+| **Hard fail** | `end_of_sprint_*` commit without matching `docs/governance/retros/Sprint_<N>_*_retro.md` **and** `docs/governance/health-reports/Sprint_<N>_*_health.md` |
+| **Manifests** | Sprint `N` must exist in `sprint_board_expectations.json`, `sprint_db_expectations.json`, and (when `N >= enforce_from_sprint`) `sprint_deploy_expectations.json` |
+| **Board** | `verify_sprint_board.py` runs only when `end_of_sprint_*` is detected; requires `PROJECT_SYNC_TOKEN` in CI |
+| **Cluster** | DB + deploy gates remain **local only** via `verify-sprint-close.ps1` (no `kubectl` on GitHub-hosted runners) |
+
+Local parity: `verify-sprint-close.ps1` calls `scripts/verify_sprint_close_ci.py --sprint <N>` as its first gate.
+
+### Deferred-items ledger (S36-02)
+
+At sprint close, `verify_sprint_close_ci.py` also runs `scripts/verify_sprint_deferrals.py`:
+
+| Behaviour | Detail |
+|-----------|--------|
+| **Ledger** | `scripts/deferred_items_ledger.json` — every open deferral has `github_issue` + `target_milestone` |
+| **Document scan** | Sprint `N` retro + health report: lines with deferral language must reference `#NNN` or a ledger id (e.g. `TD-018`) |
+| **GitHub** | When `GH_TOKEN` / `PROJECT_SYNC_TOKEN` is set, linked issues must be open with the expected milestone |
+| **Docs** | `docs/governance/SIP_Deferred_Items_Ledger.md` |
+
+Local: `python scripts/verify_sprint_deferrals.py --sprint <N>`
+
+### Health-report gate-trigger-11 checklist (S36-03)
+
+From Sprint 36, architecture health reports must include **§9 Gate trigger #11-class checklist** (`TEMPLATE_architecture_health.md`). A **Green** summary is invalid if any checklist row is **Fail** or unset.
+
+| Behaviour | Detail |
+|-----------|--------|
+| **Template** | `docs/governance/health-reports/TEMPLATE_architecture_health.md` §9 |
+| **Enforcement** | `verify_health_report_gate11.py` via `verify_sprint_close_ci.py` (Sprint ≥ 36) |
+| **Incident guard** | Prevents Sprint 31-style Green ratings under semantic-surface drift (TD-017 class) |
+
+Local: `python scripts/verify_health_report_gate11.py --sprint <N>`
+
+### Retro delivery rate vs kickoff plan (S36-07)
+
+From Sprint 37, retros must report **Delivery rate** against the issue list frozen in the sprint **plan** at kickoff (`docs/project/Sprint_<N>_*_Plan.md` §3), not a re-scoped list at close.
+
+| Behaviour | Detail |
+|-----------|--------|
+| **Template** | `docs/governance/retros/TEMPLATE_sprint_retro.md` — **Kickoff plan** link + denominator rule |
+| **Enforcement** | `verify_sprint_retro_delivery.py` via `verify_sprint_close_ci.py` (Sprint ≥ 37) |
+| **Scope drift** | Document dropped/added issues in §1; denominator unchanged without plan amendment |
+
+Local: `python scripts/verify_sprint_retro_delivery.py --sprint <N>`
+
+### Contract-sync CI (S36-05)
+
+Backend PRs run `scripts/verify_contract_sync.py` — live `/api/v1` routes must appear in `docs/architecture/*_Contract_*.md` or `scripts/contract_sync_baseline.json` (grandfathered only).
+
+| Behaviour | Detail |
+|-----------|--------|
+| **Script** | `verify_contract_sync.py` — OpenAPI vs contract markdown |
+| **Baseline** | `contract_sync_baseline.json` — pre-S36-05 gaps; do not add new routes here |
+| **CI** | `Backend CI` workflow step after dependency install |
+
+Local: `PYTHONPATH=backend python scripts/verify_contract_sync.py`
+
+**PMO manual (when GitHub CLI unavailable):** create milestone `Sprint 36 — Governance Remediation`, epic E-36, and issues S36-01…S36-07; add issue numbers to `sprint_board_expectations.json` before sprint close.
 
 ### Project board verification (details)
 

@@ -13,28 +13,11 @@ vi.mock("../../api/auditTrace", () => ({
 
 const mockTransaction: SemanticTransactionResponse = {
   id: "txn-1",
-  transaction_type: "CREATE",
-  resource_type: "Application",
-  resource_id: "app-1",
+  transaction_type: "connector.provisioned",
+  resource_type: "TechnologyAdapter",
+  resource_id: "adapter-1",
   created_at: "2025-06-01T10:00:00Z",
-  trace_steps: [
-    {
-      id: "step-1",
-      semantic_transaction_id: "txn-1",
-      step_number: 1,
-      step_type: "VALIDATE",
-      message: "Validated input",
-      created_at: "2025-06-01T10:00:01Z",
-    },
-    {
-      id: "step-2",
-      semantic_transaction_id: "txn-1",
-      step_number: 2,
-      step_type: "PERSIST",
-      message: "Saved record",
-      created_at: "2025-06-01T10:00:02Z",
-    },
-  ],
+  trace_steps: [],
 };
 
 describe("AuditTracePage", () => {
@@ -42,54 +25,49 @@ describe("AuditTracePage", () => {
     vi.mocked(listAuditTraces).mockReset();
   });
 
-  it("does not fetch on mount without resource ID", () => {
-    render(<AuditTracePage />);
-
-    expect(listAuditTraces).not.toHaveBeenCalled();
-    expect(
-      screen.getByLabelText("Load semantic transactions by resource ID"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Enter an application ID or other resource ID to list related semantic transactions",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("loads semantic transactions when resource ID is submitted", async () => {
-    vi.mocked(listAuditTraces).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => resolve([mockTransaction]), 0);
-        }),
-    );
+  it("loads all audit trace records on mount", async () => {
+    vi.mocked(listAuditTraces).mockResolvedValue([mockTransaction]);
 
     render(<AuditTracePage />);
-
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
-
-    expect(screen.getByText("Loading semantic transactions…")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("CREATE")).toBeInTheDocument();
+      expect(screen.getByText("connector.provisioned")).toBeInTheDocument();
     });
 
-    expect(listAuditTraces).toHaveBeenCalledWith("app-1");
-    expect(screen.getByText("Application")).toBeInTheDocument();
-    expect(screen.getByText("app-1")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(listAuditTraces).toHaveBeenCalledWith({});
+    expect(screen.getByRole("heading", { name: "Audit trace" })).toBeInTheDocument();
   });
 
-  it("shows validation error when resource ID is empty", async () => {
+  it("applies trace audience and resource filters", async () => {
+    vi.mocked(listAuditTraces).mockResolvedValue([mockTransaction]);
+
     render(<AuditTracePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenCalledTimes(1);
+    });
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Resource ID is required");
-    expect(listAuditTraces).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Trace audience"), {
+      target: { value: "operational_audit" },
+    });
+
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenLastCalledWith({
+        traceAudience: "operational_audit",
+      });
+    });
+
+    fireEvent.change(screen.getByLabelText("Resource ID"), {
+      target: { value: "adapter-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+
+    await waitFor(() => {
+      expect(listAuditTraces).toHaveBeenLastCalledWith({
+        traceAudience: "operational_audit",
+        resourceId: "adapter-1",
+      });
+    });
   });
 
   it("renders empty state", async () => {
@@ -97,15 +75,8 @@ describe("AuditTracePage", () => {
 
     render(<AuditTracePage />);
 
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
-
     await waitFor(() => {
-      expect(
-        screen.getByText("No semantic transactions found for this resource ID."),
-      ).toBeInTheDocument();
+      expect(screen.getByText("No audit trace records found yet.")).toBeInTheDocument();
     });
   });
 
@@ -113,11 +84,6 @@ describe("AuditTracePage", () => {
     vi.mocked(listAuditTraces).mockRejectedValue(new ApiError("Server error", 500));
 
     render(<AuditTracePage />);
-
-    fireEvent.change(screen.getByLabelText("Resource ID"), {
-      target: { value: "app-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Server error");

@@ -7,7 +7,11 @@ import {
 } from "../api/applications";
 import { listAgents } from "../api/agents";
 import { listAgentRuns, getAgentRun } from "../api/agentRuns";
-import { listApplicationAuditTraces } from "../api/auditTrace";
+import { listConnectors } from "../api/adapters";
+import {
+  listApplicationAuditTraces,
+  listApplicationSemanticTransactions,
+} from "../api/auditTrace";
 import { listAssets } from "../api/assets";
 import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
@@ -66,8 +70,17 @@ vi.mock("../api/agentRuns", () => ({
   getAgentRun: vi.fn(),
 }));
 
+vi.mock("../api/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/adapters")>();
+  return {
+    ...actual,
+    listConnectors: vi.fn(),
+  };
+});
+
 vi.mock("../api/auditTrace", () => ({
   listApplicationAuditTraces: vi.fn(),
+  listApplicationSemanticTransactions: vi.fn(),
 }));
 
 vi.mock("../api/assets", async (importOriginal) => {
@@ -154,8 +167,12 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listAgentRuns).mockReset();
     vi.mocked(listAgentRuns).mockResolvedValue([]);
     vi.mocked(getAgentRun).mockReset();
+    vi.mocked(listConnectors).mockReset();
+    vi.mocked(listConnectors).mockResolvedValue([]);
     vi.mocked(listApplicationAuditTraces).mockReset();
     vi.mocked(listApplicationAuditTraces).mockResolvedValue([]);
+    vi.mocked(listApplicationSemanticTransactions).mockReset();
+    vi.mocked(listApplicationSemanticTransactions).mockResolvedValue([]);
     vi.mocked(listOntologies).mockReset();
     vi.mocked(listOntologies).mockResolvedValue([]);
     vi.mocked(listKnowledgeGraphs).mockReset();
@@ -325,6 +342,43 @@ describe("ApplicationDetailPage", () => {
     expect(listOntologies).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Ontology" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("renders the ontology create route and highlights the Ontology navigation link", async () => {
+    renderDetailPage("/applications/app-1/ontology/create");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
+    });
+
+    expect(listConnectors).toHaveBeenCalledWith({
+      connectorType: "ontology_knowledge_graph",
+    });
+    expect(screen.getByRole("link", { name: "Ontology" })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology",
+    );
+    expect(screen.getByRole("link", { name: "Ontology" })).toHaveClass(
+      "application-shell__nav-link--active",
+    );
+    expect(screen.queryByRole("link", { name: "Ontology Wizard" })).not.toBeInTheDocument();
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(breadcrumb).toHaveTextContent("Applications");
+    expect(breadcrumb).toHaveTextContent("Demo App");
+  });
+
+  it("redirects legacy ontology-studio bookmarks to ontology/create", async () => {
+    renderDetailPage("/applications/app-1/ontology-studio");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Create ontology" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: /Back to ontologies/i })).toHaveAttribute(
+      "href",
+      "/applications/app-1/ontology",
+    );
   });
 
   it("navigates to knowledge graph list", async () => {
@@ -501,7 +555,7 @@ describe("ApplicationDetailPage", () => {
   });
 
   it("navigates to semantic transactions list", async () => {
-    vi.mocked(listApplicationAuditTraces).mockResolvedValue([
+    vi.mocked(listApplicationSemanticTransactions).mockResolvedValue([
       {
         id: "txn-1",
         transaction_type: "ontology.created",
@@ -525,7 +579,7 @@ describe("ApplicationDetailPage", () => {
       expect(screen.getByText("ontology.created")).toBeInTheDocument();
     });
 
-    expect(listApplicationAuditTraces).toHaveBeenCalledWith("app-1", {});
+    expect(listApplicationSemanticTransactions).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Semantic transactions" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
@@ -574,6 +628,7 @@ describe("ApplicationDetailPage", () => {
     ["products"],
     ["agents"],
     ["agent-runs"],
+    ["semantic-transactions"],
     ["audit-trace"],
   ] as const)("shows breadcrumb on %s route", async (segment) => {
     renderDetailPage(`/applications/app-1/${segment}`);

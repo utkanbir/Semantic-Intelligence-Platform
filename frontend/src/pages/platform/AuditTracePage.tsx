@@ -1,15 +1,22 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ApiError } from "../../api";
 import {
   listAuditTraces,
+  type AuditTraceListQuery,
   type SemanticTransactionResponse,
 } from "../../api/auditTrace";
 
 type PageState =
-  | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "success"; transactions: SemanticTransactionResponse[] };
+
+type TraceAudienceFilter = AuditTraceListQuery["traceAudience"] | "all";
+
+interface AuditTraceFilters {
+  traceAudience: TraceAudienceFilter;
+  resourceId?: string;
+}
 
 function formatDate(iso: string | null): string {
   if (!iso) {
@@ -23,76 +30,110 @@ function formatDate(iso: string | null): string {
 
 export function AuditTracePage() {
   const [resourceId, setResourceId] = useState("");
-  const [resourceIdError, setResourceIdError] = useState<string | null>(null);
-  const [state, setState] = useState<PageState>({ kind: "idle" });
+  const [filters, setFilters] = useState<AuditTraceFilters>({ traceAudience: "all" });
+  const [state, setState] = useState<PageState>({ kind: "loading" });
 
-  async function loadTraces(id: string) {
+  useEffect(() => {
+    let cancelled = false;
+    const query = buildAuditTraceQuery(filters);
+
     setState({ kind: "loading" });
 
-    try {
-      const transactions = await listAuditTraces(id);
-      setState({ kind: "success", transactions });
-    } catch (error: unknown) {
-      const message =
-        error instanceof ApiError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : "Failed to load semantic transactions";
-      setState({ kind: "error", message });
-    }
-  }
+    listAuditTraces(query)
+      .then((transactions) => {
+        if (!cancelled) {
+          setState({ kind: "success", transactions });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          const message =
+            error instanceof ApiError
+              ? error.message
+              : error instanceof Error
+                ? error.message
+                : "Failed to load audit trace records";
+          setState({ kind: "error", message });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filters]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setResourceIdError(null);
 
     const trimmedId = resourceId.trim();
-    if (!trimmedId) {
-      setResourceIdError("Resource ID is required");
-      return;
+    setFilters((current) => ({
+      ...current,
+      resourceId: trimmedId || undefined,
+    }));
+  }
+
+  function buildAuditTraceQuery(nextFilters: AuditTraceFilters): AuditTraceListQuery {
+    const query: AuditTraceListQuery = {};
+
+    if (nextFilters.traceAudience !== "all") {
+      query.traceAudience = nextFilters.traceAudience;
+    }
+    if (nextFilters.resourceId) {
+      query.resourceId = nextFilters.resourceId;
     }
 
-    void loadTraces(trimmedId);
+    return query;
   }
 
   const isEmpty = state.kind === "success" && state.transactions.length === 0;
   const hasTransactions = state.kind === "success" && state.transactions.length > 0;
 
   return (
-    <section className="platform-page" aria-labelledby="semantic-transactions-heading">
-      <h1 id="semantic-transactions-heading">Semantic transactions</h1>
+    <section className="platform-page" aria-labelledby="audit-trace-heading">
+      <h1 id="audit-trace-heading">Audit trace</h1>
       <p className="platform-page__lead">
-        Search platform-wide semantic transactions by resource ID. Each transaction records
-        what changed and the ordered trace steps that executed.
+        Explore operational and platform trace records, including connector provisioning and
+        workspace events. Semantic lineage lives on the Semantic transactions page.
       </p>
 
       <form
         className="platform-page__filter-form"
         onSubmit={handleSubmit}
-        aria-label="Load semantic transactions by resource ID"
+        aria-label="Refine audit trace records"
       >
         <div className="platform-page__field">
-          <label htmlFor="semantic-transactions-resource-id">Resource ID</label>
+          <label htmlFor="audit-trace-audience">Trace audience</label>
+          <select
+            id="audit-trace-audience"
+            value={filters.traceAudience}
+            onChange={(event) =>
+              setFilters((current) => ({
+                ...current,
+                traceAudience: event.target.value as TraceAudienceFilter,
+              }))
+            }
+            disabled={state.kind === "loading"}
+          >
+            <option value="all">All trace records</option>
+            <option value="operational_audit">Operational audit</option>
+            <option value="platform_provisioning">Platform provisioning</option>
+            <option value="semantic_lineage">Semantic lineage</option>
+          </select>
+        </div>
+        <div className="platform-page__field">
+          <label htmlFor="audit-trace-resource-id">Resource ID</label>
           <p className="platform-page__field-hint">
-            Enter an application ID or other resource ID to list related semantic transactions
+            Optional: narrow the list to a known resource ID
           </p>
           <div className="platform-page__field-row">
             <input
-              id="semantic-transactions-resource-id"
+              id="audit-trace-resource-id"
               name="resource_id"
               type="text"
               value={resourceId}
               onChange={(event) => {
                 setResourceId(event.target.value);
-                if (resourceIdError) {
-                  setResourceIdError(null);
-                }
               }}
-              aria-invalid={resourceIdError ? true : undefined}
-              aria-describedby={
-                resourceIdError ? "semantic-transactions-resource-id-error" : undefined
-              }
               disabled={state.kind === "loading"}
             />
             <button
@@ -100,24 +141,15 @@ export function AuditTracePage() {
               className="platform-page__button platform-page__button--primary"
               disabled={state.kind === "loading"}
             >
-              {state.kind === "loading" ? "Loading…" : "Search"}
+              {state.kind === "loading" ? "Loading…" : "Apply filters"}
             </button>
           </div>
-          {resourceIdError && (
-            <p
-              id="semantic-transactions-resource-id-error"
-              className="platform-page__field-error"
-              role="alert"
-            >
-              {resourceIdError}
-            </p>
-          )}
         </div>
       </form>
 
       {state.kind === "loading" && (
         <p className="platform-page__status" role="status" aria-live="polite">
-          Loading semantic transactions…
+          Loading audit trace records…
         </p>
       )}
 
@@ -129,7 +161,7 @@ export function AuditTracePage() {
 
       {isEmpty && (
         <div className="platform-page__empty" role="status">
-          <p>No semantic transactions found for this resource ID.</p>
+          <p>No audit trace records found yet.</p>
         </div>
       )}
 

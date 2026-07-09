@@ -2,6 +2,9 @@
 
 Python / FastAPI modular monolith for the Semantic Intelligence Platform.
 
+**Architecture reference:** [docs/architecture/SIP_Software_Architecture_Guide.md](../docs/architecture/SIP_Software_Architecture_Guide.md)  
+**Project state:** [docs/handoff.md](../docs/handoff.md)
+
 ## Local development
 
 From this directory (`backend/`):
@@ -16,6 +19,8 @@ Or:
 ```bash
 python -m app.main
 ```
+
+OpenAPI docs: http://localhost:8000/docs
 
 ## Configuration
 
@@ -34,9 +39,51 @@ Settings load from environment variables with the `SIP_` prefix. See `env.exampl
 
 Do not commit `.env` files with secrets.
 
-## Database and Alembic (S0-06)
+## Package layout (`app/`)
 
-Alembic migrations live under `backend/alembic/`. Initial baseline revision has no domain tables.
+| Path | Role |
+|------|------|
+| `main.py` | ASGI entry — calls `create_app()` |
+| `core/` | App factory (`app.py`), settings (`config.py`) |
+| `api/v1/` | Platform router assembly (`router.py`) + health routes |
+| `modules/` | Domain modules (applications, ontology, adapters, …) |
+| `shared/ports/` | Cross-cutting port protocols (LLM, KnowledgeGraph, …) |
+| `infrastructure/` | Adapters (Fuseki, httpx, DB session, LLM stub) |
+
+Each module under `modules/<name>/` follows:
+
+```
+api/           # routes.py, schemas.py
+domain/        # models.py, enums.py, events.py
+services/      # use-case orchestration
+repositories/  # interfaces.py, sqlalchemy_repository.py, orm_models.py
+ports/         # module-specific port interfaces (optional)
+```
+
+**Layering:** routes → services → domain/repos/ports → infrastructure adapters. Domain must not import FastAPI or SQLAlchemy.
+
+## Active modules (Sprint 35)
+
+| Module | API prefix | Notes |
+|--------|------------|-------|
+| `applications` | `/applications` | Workspace provisioning entry |
+| `discovery` | `/discovery` | Discovery workflows |
+| `blueprints` | `/blueprints` | Blueprint lifecycle |
+| `assets` | `/assets` | Asset registry |
+| `ontology` | `/ontologies` | Draft-first wizard, validate, LLM review, materialize |
+| `knowledge_graph` | `/knowledge-graphs` | KG registry |
+| `products` | `/data-products` | Published data products |
+| `agents` | `/agents` | Agent definitions |
+| `agent_runtime` | `/agent-runs` | Agent execution |
+| `governance` | `/governance` | Policy definitions |
+| `adapters` | `/connectors` | Unified semantic connectors (Fuseki, vector DB, …) |
+| `audit_trace` | `/semantic-transactions`, `/audit` | Semantic lineage + operational trace |
+
+Router registration: `app/api/v1/router.py`.
+
+## Database and Alembic
+
+Alembic migrations live under `backend/alembic/`. Current head: **`20260706_0019`** (verify with `alembic heads`).
 
 ### Kubernetes (`sip-dev`)
 
@@ -75,6 +122,26 @@ Verify against a running Postgres (local or `kubectl port-forward -n sip-dev svc
 | `GET /api/v1/health/ready` | Kubernetes readiness probe |
 | `GET /api/v1/health/live` | Kubernetes liveness probe |
 
-## Module router registration
+## Tests
 
-Module routers are registered in `app/api/v1/router.py`. See that file for the pattern used when implementing module APIs.
+From `backend/`:
+
+```bash
+pytest
+```
+
+Tests mirror `app/` under `backend/tests/`. Ontology wizard, semantic review, and connector flows have dedicated API tests.
+
+## Key ontology endpoints (recent)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/ontologies` | Create manual draft |
+| `POST` | `/ontologies/import` | Import OWL/RDF → draft |
+| `POST` | `/ontologies/generate` | Generate from sources → draft |
+| `POST` | `/ontologies/{id}/validate` | Deterministic + LLM advisory review |
+| `PUT` | `/ontologies/{id}/connector` | Bind graph-store connector |
+| `POST` | `/ontologies/{id}/approve` | Approve draft |
+| `POST` | `/ontologies/{id}/materialize` | Write to Fuseki (after approve) |
+
+See [SIP_Ontology_Definition_Contract_v1.md](../docs/architecture/SIP_Ontology_Definition_Contract_v1.md) § Addendum S34–S35.

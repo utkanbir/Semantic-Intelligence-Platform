@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  canPingConnector,
   createConnector,
+  formatConnectorStatusLabel,
   getNextConnectorStatuses,
-  pingConnector,
   provisionConnector,
+  testConnectorConfiguration,
   updateConnectorStatus,
   type ConnectorResponse,
 } from "./adapters";
@@ -38,20 +38,21 @@ describe("connectors API", () => {
     fetchMock.mockReset();
   });
 
-  it("getNextConnectorStatuses maps Registered to Configured", () => {
-    expect(getNextConnectorStatuses("Registered")).toEqual(["Configured"]);
+  it("getNextConnectorStatuses only exposes admin lifecycle actions", () => {
+    expect(getNextConnectorStatuses("Registered")).toEqual([]);
+    expect(getNextConnectorStatuses("Configured")).toEqual([]);
     expect(getNextConnectorStatuses("Active")).toEqual(["Deprecated"]);
+    expect(getNextConnectorStatuses("Deprecated")).toEqual(["Retired"]);
   });
 
-  it("canPingConnector allows Active only", () => {
-    expect(canPingConnector({ ...mockConnector, status: "Active" })).toBe(true);
-    expect(canPingConnector({ ...mockConnector, status: "Registered" })).toBe(false);
+  it("formatConnectorStatusLabel maps Active to Ready", () => {
+    expect(formatConnectorStatusLabel("Active")).toBe("Ready");
+    expect(formatConnectorStatusLabel("Registered")).toBe("Registered");
   });
 
   it("createConnector POSTs to connectors endpoint", async () => {
-    const created = { ...mockConnector, status: "Registered" as const };
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify(created), {
+      new Response(JSON.stringify(mockConnector), {
         status: 201,
         headers: { "Content-Type": "application/json" },
       }),
@@ -62,7 +63,7 @@ describe("connectors API", () => {
         connector_type: "ontology_knowledge_graph",
         title: "Ontology Store",
       }),
-    ).resolves.toEqual(created);
+    ).resolves.toEqual(mockConnector);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/connectors",
@@ -76,54 +77,7 @@ describe("connectors API", () => {
     );
   });
 
-  it("createConnector accepts optional connector_key", async () => {
-    const created = { ...mockConnector, status: "Registered" as const };
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify(created), {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    await createConnector({
-      connector_type: "ontology_knowledge_graph",
-      connector_key: "ontology-dev",
-      title: "Ontology Store",
-    });
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/connectors",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          connector_type: "ontology_knowledge_graph",
-          connector_key: "ontology-dev",
-          title: "Ontology Store",
-        }),
-      }),
-    );
-  });
-
-  it("updateConnectorStatus PATCHes status endpoint", async () => {
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ ...mockConnector, status: "Configured" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    await updateConnectorStatus("connector-1", "Configured");
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/connectors/connector-1/status",
-      expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ status: "Configured" }),
-      }),
-    );
-  });
-
-  it("pingConnector POSTs to ping endpoint", async () => {
+  it("testConnectorConfiguration POSTs to test endpoint", async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ status: "ok", connector_type: "database" }), {
         status: 200,
@@ -131,14 +85,41 @@ describe("connectors API", () => {
       }),
     );
 
-    await expect(pingConnector("connector-1")).resolves.toEqual({
-      status: "ok",
-      connector_type: "database",
-    });
+    await expect(
+      testConnectorConfiguration({
+        connector_type: "database",
+        connector_configuration: { vendor: "postgresql" },
+      }),
+    ).resolves.toEqual({ status: "ok", connector_type: "database" });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/connectors/connector-1/ping",
-      expect.objectContaining({ method: "POST" }),
+      "/api/v1/connectors/test",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          connector_type: "database",
+          connector_configuration: { vendor: "postgresql" },
+        }),
+      }),
+    );
+  });
+
+  it("updateConnectorStatus PATCHes status endpoint", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ ...mockConnector, status: "Deprecated" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await updateConnectorStatus("connector-1", "Deprecated");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/connectors/connector-1/status",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ status: "Deprecated" }),
+      }),
     );
   });
 

@@ -72,7 +72,7 @@ def _create_published_ontology(client: TestClient, application_id: str) -> str:
     )
     assert response.status_code == 201
     ontology_id = response.json()["id"]
-    for next_status in ("Validated", "Approved", "Published"):
+    for next_status in ("Validated", "Approved"):
         patch = client.patch(
             f"/api/v1/ontologies/{ontology_id}/status",
             json={"status": next_status},

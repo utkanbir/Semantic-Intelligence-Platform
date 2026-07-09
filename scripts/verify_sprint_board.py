@@ -123,6 +123,13 @@ def verify_sprint(sprint: str) -> list[str]:
         "expected_status", manifest.get("default_expected_status", "Done")
     )
 
+    if not issue_numbers:
+        return [
+            f"Sprint {sprint_key} ({label}) has an empty issues list in {MANIFEST_PATH.name}. "
+            "Add committed sprint issue numbers before sprint close; an empty list is not a "
+            "valid pass (self-certifying gate)."
+        ]
+
     print(
         f"Verifying Sprint {sprint_key} ({label}) board: "
         f"{len(issue_numbers)} issues -> {expected_status!r} ..."

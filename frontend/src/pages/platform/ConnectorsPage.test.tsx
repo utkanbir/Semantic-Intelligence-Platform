@@ -4,8 +4,8 @@ import { ApiError } from "../../api";
 import {
   createConnector,
   listConnectors,
-  pingConnector,
   provisionConnector,
+  testConnectorConfiguration,
   updateConnectorStatus,
   type ConnectorResponse,
 } from "../../api/adapters";
@@ -18,13 +18,12 @@ vi.mock("../../api/adapters", async (importOriginal) => {
     listConnectors: vi.fn(),
     createConnector: vi.fn(),
     provisionConnector: vi.fn(),
+    testConnectorConfiguration: vi.fn(),
     updateConnectorStatus: vi.fn(),
-    pingConnector: vi.fn(),
-    canPingConnector: vi.fn((connector: { status: string }) => connector.status === "Active"),
     getNextConnectorStatuses: vi.fn((status: string) => {
       const map: Record<string, string[]> = {
-        Registered: ["Configured"],
-        Configured: ["Active", "Registered"],
+        Registered: [],
+        Configured: [],
         Active: ["Deprecated"],
         Deprecated: ["Retired"],
         Retired: [],
@@ -33,9 +32,6 @@ vi.mock("../../api/adapters", async (importOriginal) => {
     }),
     getConnectorStatusActionLabel: vi.fn((status: string) => {
       const labels: Record<string, string> = {
-        Configured: "Configure",
-        Active: "Activate",
-        Registered: "Revert to Registered",
         Deprecated: "Deprecate",
         Retired: "Retire",
       };
@@ -66,18 +62,10 @@ const mockConnector: ConnectorResponse = {
   },
 };
 
-const registeredConnector: ConnectorResponse = {
+const newConnector: ConnectorResponse = {
   ...mockConnector,
   id: "connector-2",
-  status: "Registered",
-  title: "New Connector",
-  connector_key: "new-key",
-  configured_at: null,
-  activated_at: null,
-};
-
-const newConnector: ConnectorResponse = {
-  ...registeredConnector,
+  status: "Active",
   title: "Dev PostgreSQL",
   connector_key: "dev-pg",
   connector_type: "database",
@@ -90,7 +78,7 @@ const newConnector: ConnectorResponse = {
 };
 
 const provisionedConnector: ConnectorResponse = {
-  ...registeredConnector,
+  ...mockConnector,
   id: "connector-prov-1",
   title: "Cluster MinIO",
   connector_key: "cluster-minio",
@@ -108,8 +96,8 @@ describe("ConnectorsPage", () => {
     vi.mocked(listConnectors).mockReset();
     vi.mocked(createConnector).mockReset();
     vi.mocked(provisionConnector).mockReset();
+    vi.mocked(testConnectorConfiguration).mockReset();
     vi.mocked(updateConnectorStatus).mockReset();
-    vi.mocked(pingConnector).mockReset();
   });
 
   it("renders loading then connectors table", async () => {
@@ -127,11 +115,11 @@ describe("ConnectorsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Primary Database")).toBeInTheDocument();
       expect(screen.getByText("PostgreSQL")).toBeInTheDocument();
+      expect(screen.getByText("Ready")).toBeInTheDocument();
     });
 
     expect(listConnectors).toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Connectors" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Semantic connectors" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
   });
 
@@ -161,31 +149,17 @@ describe("ConnectorsPage", () => {
 
     expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save connector" })).toBeDisabled();
   });
 
-  it("allows cancel on create form when list is empty", async () => {
-    vi.mocked(listConnectors).mockResolvedValue([]);
-
-    render(<ConnectorsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
-    expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    expect(screen.queryByLabelText("Create connector")).not.toBeInTheDocument();
-    expect(screen.getByText("No connectors yet.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
-  });
-
-  it("creates connector with vendor and connection details", async () => {
+  it("tests connection before saving existing instance connector", async () => {
     vi.mocked(listConnectors)
       .mockResolvedValueOnce([])
       .mockResolvedValue([newConnector]);
+    vi.mocked(testConnectorConfiguration).mockResolvedValue({
+      status: "ok",
+      connector_type: "database",
+    });
     vi.mocked(createConnector).mockResolvedValue(newConnector);
 
     render(<ConnectorsPage />);
@@ -196,17 +170,40 @@ describe("ConnectorsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New connector" }));
 
-    await waitFor(() => {
-      expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
-    });
-
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Dev PostgreSQL" } });
     fireEvent.change(screen.getByLabelText("Host"), { target: { value: "localhost" } });
     fireEvent.change(document.getElementById("connection-port")!, { target: { value: "5432" } });
     fireEvent.change(document.getElementById("connection-database")!, {
       target: { value: "sip_db" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create connector" }));
+
+    expect(screen.getByRole("button", { name: "Save connector" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+
+    await waitFor(() => {
+      expect(testConnectorConfiguration).toHaveBeenCalledWith({
+        connector_type: "database",
+        connector_configuration: {
+          schema_version: "2",
+          vendor: "postgresql",
+          connection_method: "existing_instance",
+          connection: {
+            host: "localhost",
+            port: "5432",
+            database: "sip_db",
+            username: "",
+            password: "",
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Save connector" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save connector" }));
 
     await waitFor(() => {
       expect(createConnector).toHaveBeenCalledWith({
@@ -228,7 +225,7 @@ describe("ConnectorsPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Dev PostgreSQL")).toBeInTheDocument();
+      expect(screen.getByText("Connector saved and ready to use.")).toBeInTheDocument();
     });
   });
 
@@ -252,126 +249,42 @@ describe("ConnectorsPage", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "New connector" }));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Create connector")).toBeInTheDocument();
-    });
-
     fireEvent.click(screen.getByRole("button", { name: "Object storage" }));
     fireEvent.click(screen.getByLabelText("Provision in cluster"));
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Cluster MinIO" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create connector" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save connector" }));
 
     await waitFor(() => {
-      expect(createConnector).toHaveBeenCalledWith({
-        connector_type: "object_storage",
-        title: "Cluster MinIO",
-        connector_configuration: {
-          schema_version: "2",
-          vendor: "minio",
-          connection_method: "provision_in_cluster",
-          connection: {},
-        },
-      });
-    });
-
-    await waitFor(() => {
+      expect(createConnector).toHaveBeenCalled();
       expect(provisionConnector).toHaveBeenCalledWith("connector-prov-1");
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Connector provisioned/)).toBeInTheDocument();
-      expect(screen.getByText("provisioned")).toBeInTheDocument();
-      expect(screen.getByText("http://minio.sip-dev.svc:9000")).toBeInTheDocument();
+      expect(screen.getByText(/Connector saved and provisioned/)).toBeInTheDocument();
     });
-
-    expect(screen.queryByLabelText("Host")).not.toBeInTheDocument();
   });
 
-  it("updates vendor options when connector type changes", async () => {
-    vi.mocked(listConnectors).mockResolvedValue([]);
-
-    render(<ConnectorsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "PostgreSQL", pressed: true })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Ontology / knowledge graph" }));
-
-    expect(screen.getByRole("button", { name: "Apache Jena Fuseki", pressed: true })).toBeInTheDocument();
-    expect(screen.getByLabelText("SPARQL endpoint URL")).toBeInTheDocument();
-  });
-
-  it("selects vector database type and vendor via icon tiles", async () => {
-    vi.mocked(listConnectors).mockResolvedValue([]);
-
-    render(<ConnectorsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New connector" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "New connector" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Vector database" }));
-    expect(screen.getByRole("button", { name: "Vector database", pressed: true })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Qdrant", pressed: true })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Weaviate" }));
-    expect(screen.getByRole("button", { name: "Weaviate", pressed: true })).toBeInTheDocument();
-    expect(screen.getByLabelText("Endpoint URL")).toBeInTheDocument();
-    expect(screen.getByLabelText("Class name")).toBeInTheDocument();
-  });
-
-  it("configures registered connector via lifecycle action", async () => {
-    const configuredConnector: ConnectorResponse = {
-      ...registeredConnector,
-      status: "Configured",
-      configured_at: "2025-06-02T10:00:00Z",
+  it("deprecates active connector via admin lifecycle action", async () => {
+    const deprecatedConnector: ConnectorResponse = {
+      ...mockConnector,
+      status: "Deprecated",
+      deprecated_at: "2025-06-04T10:00:00Z",
     };
     vi.mocked(listConnectors)
-      .mockResolvedValueOnce([registeredConnector])
-      .mockResolvedValueOnce([configuredConnector]);
-    vi.mocked(updateConnectorStatus).mockResolvedValue(configuredConnector);
+      .mockResolvedValueOnce([mockConnector])
+      .mockResolvedValueOnce([deprecatedConnector]);
+    vi.mocked(updateConnectorStatus).mockResolvedValue(deprecatedConnector);
 
     render(<ConnectorsPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Deprecate" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Configure" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deprecate" }));
 
     await waitFor(() => {
-      expect(updateConnectorStatus).toHaveBeenCalledWith("connector-2", "Configured");
-    });
-  });
-
-  it("pings active connector and shows result", async () => {
-    vi.mocked(listConnectors).mockResolvedValue([mockConnector]);
-    vi.mocked(pingConnector).mockResolvedValue({ status: "ok", connector_type: "database" });
-
-    render(<ConnectorsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Ping" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Ping" }));
-
-    await waitFor(() => {
-      expect(pingConnector).toHaveBeenCalledWith("connector-1");
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Ping: ok (database)")).toBeInTheDocument();
+      expect(updateConnectorStatus).toHaveBeenCalledWith("connector-1", "Deprecated");
     });
   });
 

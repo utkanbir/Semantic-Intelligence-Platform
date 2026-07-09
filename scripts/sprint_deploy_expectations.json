@@ -1,0 +1,84 @@
+{
+  "$schema_note": "PMO/DevOps: starting with enforce_from_sprint, add one entry per sprint and record the exact sip-dev frontend/backend images expected at sprint close. Carry forward unchanged image tags so verify-sprint-close can block stale rollouts.",
+  "enforce_from_sprint": 31,
+  "default_namespace": "sip-dev",
+  "default_overlay_kustomization": "infra/kubernetes/overlays/dev/kustomization.yaml",
+  "default_rollout_timeout_seconds": 180,
+  "sprints": {
+    "31": {
+      "label": "Ontology Wizard & Semantic Transactions v2",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s35"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s35"
+        }
+      ]
+    },
+    "32": {
+      "label": "Semantic Transaction Realignment",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s36"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s36"
+        }
+      ]
+    },
+    "34": {
+      "label": "Ontology Creation Flow v2",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s51"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s52"
+        }
+      ]
+    },
+    "35": {
+      "label": "Ontology Flow Polish & Generate Extensions",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s53"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s54"
+        }
+      ]
+    },
+    "36": {
+      "label": "Governance Remediation",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s53"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s54"
+        }
+      ]
+    }
+  }
+}
