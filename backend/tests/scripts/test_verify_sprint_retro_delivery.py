@@ -113,3 +113,60 @@ def test_valid_retro_passes(repo: Path) -> None:
     )
     errors = vrd.verify_sprint_retro_delivery(37, repo_root=repo, enforce_from=37)
     assert errors == []
+
+
+def test_not_done_row_does_not_count_as_delivered(repo: Path) -> None:
+    retro = repo / "docs" / "governance" / "retros" / "Sprint_37_Test_retro.md"
+    retro.write_text(
+        """# retro
+
+**Kickoff plan:** `docs/project/Sprint_37_Test_Plan.md`
+
+## 1. Committed vs delivered
+
+| Issue | Title | Delivered |
+|-------|-------|-----------|
+| #401 | One | Done |
+| #402 | Two | Not done |
+
+**Delivery rate:** 1/2 implementation issues.
+""",
+        encoding="utf-8",
+    )
+    errors = vrd.verify_sprint_retro_delivery(37, repo_root=repo, enforce_from=37)
+    assert errors == []
+
+
+def test_pr_numbers_in_row_are_ignored(repo: Path) -> None:
+    plan_dir = repo / "docs" / "project"
+    plan_dir.joinpath("Sprint_36_Noise_Plan.md").write_text(
+        """## 3. Committed scope
+
+| ID | Title | Issue |
+|----|-------|-------|
+| S36-03 | Gate trigger #11-class checks | #338 |
+""",
+        encoding="utf-8",
+    )
+    retro = repo / "docs" / "governance" / "retros" / "Sprint_36_Noise_retro.md"
+    retro.write_text(
+        """**Kickoff plan:** `docs/project/Sprint_36_Noise_Plan.md`
+
+## 1. Committed vs delivered
+
+| Issue | Title | Delivered | PR |
+|-------|-------|-----------|-----|
+| #338 | Gate | Done | #348 |
+
+**Delivery rate:** 1/1 implementation issues.
+""",
+        encoding="utf-8",
+    )
+    errors = vrd.verify_sprint_retro_delivery(36, repo_root=repo, enforce_from=36)
+    assert errors == []
+
+
+def test_real_sprint_36_plan_and_retro_pass() -> None:
+    """Fixture against committed Sprint 36 kickoff plan + retro (S37-02)."""
+    errors = vrd.verify_sprint_retro_delivery(36, repo_root=REPO_ROOT, enforce_from=36)
+    assert errors == []

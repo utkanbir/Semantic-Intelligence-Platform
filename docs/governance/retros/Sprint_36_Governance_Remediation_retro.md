@@ -36,7 +36,7 @@ Report against the **kickoff plan** committed scope (§3), not issues added or d
 
 - **Audit remediation closed end-to-end** — all ten audit carryover items mapped to S36-01…S36-07 and delivered.
 - **CI gates are real** — Sprint Governance CI, contract-sync on Backend CI, deferral/health/retro scripts wired into `verify-sprint-close.ps1`.
-- **Deferrals have expiry** — ledger + GitHub issues #343–#346 on Technical Debt Backlog milestone.
+- **Deferrals tracked in ledger** — GitHub issues #343–#346 on Technical Debt Backlog milestone. > Correction (2026-07-09, #361): `expires_sprint` field and expiry gate land in Sprint 37 (S37-06); Sprint 36 shipped tracking only.
 - **MVP release cut** — `main` synced with `develop`; `v1.0-mvp` tag; Sprint 12 checklist completed.
 - **No product regression** — zero schema migration; `sip-dev` deploy unchanged from Sprint 35 images.
 
