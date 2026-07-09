@@ -1,5 +1,5 @@
 {
-  "$schema_note": "PMO: every open deferral from audit/retros must have github_issue + target_milestone. verify_sprint_deferrals.py enforces at sprint close.",
+  "$schema_note": "PMO: every open deferral must have github_issue, target_milestone, and expires_sprint. verify_sprint_deferrals.py enforces at sprint close.",
   "target_milestone_default": "Technical Debt Backlog",
   "items": [
     {
@@ -8,6 +8,7 @@
       "source": "Sprint 1 architecture clarification deferral; audit Deep Dive 1",
       "github_issue": 343,
       "target_milestone": "Technical Debt Backlog",
+      "expires_sprint": 42,
       "status": "open"
     },
     {
@@ -16,6 +17,7 @@
       "source": "Sprint 1–5 health reports; audit Deep Dive 1",
       "github_issue": 344,
       "target_milestone": "Technical Debt Backlog",
+      "expires_sprint": 42,
       "status": "open",
       "aliases": ["TD-006", "trace orchestration ADR", "SemanticTransaction orchestration"]
     },
@@ -25,6 +27,7 @@
       "source": "Audit scope creep / Sprint 28 stub",
       "github_issue": 345,
       "target_milestone": "Technical Debt Backlog",
+      "expires_sprint": 42,
       "status": "open",
       "aliases": ["real connector provisioning", "provision_in_cluster"]
     },
@@ -34,6 +37,25 @@
       "source": "Sprint 32 semantic transaction realignment; audit residual 1",
       "github_issue": 346,
       "target_milestone": "Technical Debt Backlog",
+      "expires_sprint": 40,
+      "status": "open"
+    },
+    {
+      "id": "TD-019",
+      "title": "Ontology lifecycle = multiple SemanticTransaction rows per resource_id",
+      "source": "handoff.md §8; Sprint 34/35 health reports",
+      "github_issue": 366,
+      "target_milestone": "Technical Debt Backlog",
+      "expires_sprint": 42,
+      "status": "open"
+    },
+    {
+      "id": "TD-021",
+      "title": "Legacy .xls Excel not supported in Generate mode (CSV/XLSX only)",
+      "source": "handoff.md §8; Sprint 35 / #333",
+      "github_issue": 367,
+      "target_milestone": "Technical Debt Backlog",
+      "expires_sprint": 42,
       "status": "open"
     }
   ]
