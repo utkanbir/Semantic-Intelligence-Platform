@@ -2,7 +2,7 @@
 
 **Role:** Delivery Manager (PMO)
 **Date:** 2026-07-09
-**Status:** Active
+**Status:** Closed (2026-07-09)
 **Epic:** E-37 (#355)  
 **Milestone:** Sprint 37 — Governance Hardening (#40)
 
