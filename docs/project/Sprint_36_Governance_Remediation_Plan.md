@@ -46,7 +46,7 @@ Make sprint-close status self-correcting instead of self-congratulatory: enforce
 | S36-03 | Health-report template change: require explicit pass/fail against architecture-gate trigger #11-class checks (e.g. "new UI label vs taxonomy contract") before a sprint can be rated Green | PMO / process | No | — | #338 ✅ |
 | S36-04 | Cut the release: create `main`, complete the Sprint 12 checklist items still Partial/Pending, tag `v1.0-mvp` | DevOps | Yes* | S36-01 | #339 |
 | S36-05 | Contract-sync check: script diffs live FastAPI `/api/v1` routes against `docs/architecture/*_Contract_*.md`; required CI check on backend PRs | Backend / DevOps | Yes* | S36-01 | #340 |
-| S36-06 | Correct the record: fix Sprint 32 retro §10 (product/agent records are not on the semantic surface — align with taxonomy contract and code), fix Ontology contract §5.1.1's stale "Sprint 33" reference, remove phantom `"33"` entry from `sprint_deploy_expectations.json`, and either wire a real LLM provider into `llm_resolver.py` or rename "LLM semantic review" until one exists | Docs / Backend | No | — | #341 |
+| S36-06 | Correct the record: fix Sprint 32 retro §10 (product/agent records are not on the semantic surface — align with taxonomy contract and code), fix Ontology contract §5.1.1's stale "Sprint 33" reference, remove phantom `"33"` entry from `sprint_deploy_expectations.json`, and either wire a real LLM provider into `llm_resolver.py` or rename "LLM semantic review" until one exists | Docs / Backend | No | — | #341 ✅ |
 | S36-07 | Retro template change: delivery rate reported against the issue list frozen in the sprint **plan** at kickoff, not against scope as re-negotiated at close | PMO / process | No | — | #342 |
 
 \* S36-04, S36-05: escalate to architecture gate if new CI infra or cross-module tooling is required.
@@ -70,7 +70,7 @@ Make sprint-close status self-correcting instead of self-congratulatory: enforce
 - [x] Health-report template includes a gate-trigger-11 checklist section; Sprint 31's incident could not recur silently (S36-03)
 - [ ] `main` exists, Sprint 12 checklist is 100% complete, `v1.0-mvp` tag exists (S36-04)
 - [ ] Contract-sync script runs in CI and fails on an undocumented route (verify against `ontologies/generate` as the known gap) (S36-05)
-- [ ] Sprint 32 retro, ontology contract, and `sprint_deploy_expectations.json` corrected; `llm_resolver.py` either has a real provider or the feature is renamed (S36-06)
+- [x] Sprint 32 retro, ontology contract, and `sprint_deploy_expectations.json` corrected; `llm_resolver.py` either has a real provider or the feature is renamed (S36-06)
 - [ ] Sprint 37 retro reports delivery rate against the Sprint 37 **plan** doc's original issue list (S36-07)
 - [ ] `verify-sprint-close.ps1 -Sprint 36` exit 0
 - [ ] Retro with §10–§12 per playbook, referencing this remediation plan and the original audit report

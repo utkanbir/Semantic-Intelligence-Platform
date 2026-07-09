@@ -196,7 +196,7 @@ describe("OntologyStudioPage · semantic review", () => {
     });
 
     expect(screen.getByRole("heading", { name: "Validation report" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "LLM semantic review" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Advisory semantic review" })).toBeInTheDocument();
     expect(screen.getByText("Use Supplier instead of Vendor")).toBeInTheDocument();
     expect(screen.getByText("Sparse property definitions")).toBeInTheDocument();
     expect(screen.getByText(/One naming suggestion/)).toBeInTheDocument();
@@ -237,7 +237,7 @@ describe("OntologyStudioPage · semantic review", () => {
     });
 
     const reviewCard = screen
-      .getByRole("heading", { name: "LLM semantic review" })
+      .getByRole("heading", { name: "Advisory semantic review" })
       .closest(".ontology-wizard__review-card");
     expect(reviewCard).not.toBeNull();
     expect(within(reviewCard as HTMLElement).getByText("Accepted")).toBeInTheDocument();
@@ -265,7 +265,7 @@ describe("OntologyStudioPage · semantic review", () => {
     await reachFinalizeStep();
 
     await waitFor(() => {
-      expect(screen.getByText(/LLM semantic review is unavailable/)).toBeInTheDocument();
+      expect(screen.getByText(/Advisory semantic review is unavailable/)).toBeInTheDocument();
     });
     expect(screen.queryByRole("button", { name: /Accept suggestion/ })).not.toBeInTheDocument();
   });

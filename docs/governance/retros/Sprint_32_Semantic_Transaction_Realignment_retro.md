@@ -64,7 +64,7 @@
 **Semantic Transactions artik gercek anlam semantik soy ile uyumlu.**
 
 - Platform menüsünde **Semantic Transactions** ve **Audit Trace** artik ayri ekranlar; connector provision gibi operasyonel kayitlar Semantic Transactions listesine karismiyor.
-- **Semantic Transactions** ekrani yalnizca ontology, product, agent gibi anlam evrimi kayitlarini listeler.
+- **Semantic Transactions** ekrani yalnizca ontology tanimi anlam evrimi kayitlarini listeler (`ontology.*` olaylari); product, agent ve diger modul yasam dongusu kayitlari **Audit Trace** uzerindedir (bkz. Semantic Transaction Taxonomy §6.1).
 - **Audit Trace** ekrani tum iz kayitlarini (operasyonel + platform) inceler; istege bagli audience filtresi vardir.
 - Uygulama icinde de ayni ayrim gecerli; Ontology Wizard basari linki dogrudan semantic transaction detayina gider.
 - Sprint 30/31 dokumanlarindaki yaniltici "Semantic Transactions" ifadeleri duzeltildi.

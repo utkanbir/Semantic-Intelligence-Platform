@@ -114,9 +114,9 @@ export function SemanticReviewPanel({
   if (!review.available) {
     return (
       <div className="ontology-wizard__review-card ontology-wizard__semantic-review" role="status">
-        <h4>LLM semantic review</h4>
+        <h4>Advisory semantic review</h4>
         <p className="ontology-wizard__hint">
-          LLM semantic review is unavailable — structural validation results are shown above.
+          Advisory semantic review is unavailable — structural validation results are shown above.
           Advisory suggestions will appear here when the review service is enabled.
         </p>
       </div>
@@ -125,7 +125,7 @@ export function SemanticReviewPanel({
 
   return (
     <div className="ontology-wizard__review-card ontology-wizard__semantic-review">
-      <h4>LLM semantic review</h4>
+      <h4>Advisory semantic review</h4>
       <p>
         Advisory findings from the semantic review — separate from deterministic structural
         checks. Accept or ignore suggestions to record your decision; the draft is not modified.

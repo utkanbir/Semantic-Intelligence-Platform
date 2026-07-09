@@ -124,7 +124,7 @@ Authoritative labels from SIP Asset Catalog v1:
 - Transition to `Validated` requires a stored validation report with `error_count = 0` when `artifact_uri` is set (imported/materialized ontologies).
 - Validation report snapshot is stored at `ontology_definition.metadata.validation`.
 
-### 5.1.1 Validation runs (Sprint 33)
+### 5.1.1 Validation runs (Sprint 34)
 
 | Method | Path | Behavior |
 |--------|------|----------|
@@ -277,7 +277,7 @@ Console route: `/applications/:id/ontology/create` (legacy `/ontology-studio` re
 | Step | Endpoint | Blocking? |
 |------|----------|-----------|
 | Deterministic validation | `POST /ontologies/{id}/validate` | Errors block approve/materialize |
-| LLM semantic review | Same response includes `semantic_review` | **Non-blocking** — advisory only |
+| Advisory semantic review | Same response includes `semantic_review` | **Non-blocking** — advisory only (stub LLM until provider wired) |
 | Suggestion decision | `POST /ontologies/{id}/suggestions/{finding_id}/decision` | Records Accept/Ignore; **does not mutate** `ontology_definition` |
 
 Finding kinds: `suggestion`, `warning`, `improvement`. Accept/Ignore UI applies to **suggestions** only.
