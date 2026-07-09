@@ -36,7 +36,9 @@ def test_parse_contract_includes_generate_route() -> None:
     assert ("POST", "/api/v1/ontologies/generate") in routes
 
 
-def test_missing_generate_in_contract_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_generate_in_contract_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     contract_dir = tmp_path / "contracts"
     contract_dir.mkdir()
     (contract_dir / "SIP_Test_Contract_v1.md").write_text(
