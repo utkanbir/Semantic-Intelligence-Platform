@@ -15,7 +15,11 @@ from app.modules.audit_trace.domain.enums import (
     TraceLayer,
     TraceStepStatus,
 )
-from app.modules.audit_trace.domain.models import SemanticTransactionRecord, TraceStep
+from app.modules.audit_trace.domain.models import (
+    LayeredTraceStepSpec,
+    SemanticTransactionRecord,
+    TraceStep,
+)
 from app.modules.audit_trace.domain.trace_audience import (
     OPERATIONAL_AUDIT_TRANSACTION_TYPES,
     PLATFORM_PROVISIONING_TRANSACTION_TYPES,
@@ -127,6 +131,73 @@ class SqlAlchemyAuditTraceRepository:
             )
         self._session.commit()
         return transaction_id
+
+    def begin_semantic_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+        application_id: UUID | None,
+        initiated_by: str | None = None,
+        participating_assets: dict | None = None,
+    ) -> UUID:
+        """Create a Running semantic transaction before layered steps are appended."""
+        transaction_id = uuid4()
+        now = datetime.now(UTC)
+        semantic_transaction = SemanticTransaction(
+            id=transaction_id,
+            transaction_type=transaction_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            application_id=application_id,
+            status=SemanticTransactionStatus.RUNNING.value,
+            initiated_by=initiated_by,
+            participating_assets=participating_assets,
+            created_at=now,
+        )
+        self._session.add(semantic_transaction)
+        self._session.commit()
+        return transaction_id
+
+    def append_layered_step(
+        self,
+        transaction_id: UUID,
+        *,
+        step_number: int,
+        spec: LayeredTraceStepSpec,
+    ) -> None:
+        """Append one typed trace step and commit for live trace polling."""
+        now = datetime.now(UTC)
+        self._session.add(
+            TraceStepORM(
+                id=uuid4(),
+                semantic_transaction_id=transaction_id,
+                step_number=step_number,
+                step_type=spec.step_type,
+                message=spec.message,
+                layer=spec.layer.value,
+                status=spec.status.value,
+                input_summary=spec.input_summary,
+                output_summary=spec.output_summary,
+                duration_ms=spec.duration_ms,
+                created_at=now,
+            )
+        )
+        self._session.commit()
+
+    def finalize_semantic_transaction(
+        self,
+        transaction_id: UUID,
+        *,
+        status: SemanticTransactionStatus,
+    ) -> None:
+        """Set the final semantic transaction status."""
+        transaction = self._session.get(SemanticTransaction, transaction_id)
+        if transaction is None:
+            raise ValueError(f"SemanticTransaction {transaction_id} not found")
+        transaction.status = status.value
+        self._session.commit()
 
 
 class SqlAlchemyTraceStepRepository(TraceStepRepository):
