@@ -125,22 +125,21 @@ const passingValidationReport = {
   },
 };
 
-function fillImportPasteContent(
+function uploadImportFile(
   content: string,
-  options?: { format?: string; title?: string },
+  fileName: string,
+  options?: { type?: string; title?: string },
 ) {
   if (options?.title) {
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: options.title },
     });
   }
-  if (options?.format) {
-    fireEvent.change(screen.getByLabelText("Source format"), {
-      target: { value: options.format },
-    });
-  }
-  fireEvent.change(screen.getByLabelText("Ontology content"), {
-    target: { value: content },
+  const file = new File([content], fileName, {
+    type: options?.type ?? "text/plain",
+  });
+  fireEvent.change(screen.getByLabelText("Ontology file"), {
+    target: { files: [file] },
   });
 }
 
@@ -493,7 +492,7 @@ describe("OntologyStudioPage", () => {
     });
   });
 
-  it("imports ontology RDF content through the draft-first flow", async () => {
+  it("imports ontology RDF file through the draft-first flow", async () => {
     vi.mocked(importOntology).mockResolvedValue({
       ...draftOntology,
       title: "Imported Ontology",
@@ -506,9 +505,13 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
 
-    fillImportPasteContent("<rdf:RDF></rdf:RDF>", {
+    uploadImportFile("<rdf:RDF></rdf:RDF>", "vendor.rdf", {
       title: "Imported Ontology",
-      format: "rdf",
+      type: "application/xml",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
     });
 
     await goToReviewStep({ approveImport: true });
@@ -546,9 +549,12 @@ describe("OntologyStudioPage", () => {
       expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
 
-    fillImportPasteContent("<rdf:RDF></rdf:RDF>", {
+    uploadImportFile("<rdf:RDF></rdf:RDF>", "vendor.rdf", {
       title: "Imported Ontology",
-      format: "rdf",
+      type: "application/xml",
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.rdf/)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -563,16 +569,24 @@ describe("OntologyStudioPage", () => {
     expect(importOntology).not.toHaveBeenCalled();
   });
 
-  it("supports importing ontology content by pasting text through the wizard", async () => {
+  it("supports importing ontology content from a file upload", async () => {
     renderPage("/applications/app-1/ontology/create?mode=import");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Create ontology · OWL Import" })).toBeInTheDocument();
     });
 
-    fillImportPasteContent("@prefix ex: <https://example.com/> .", {
+    uploadImportFile("@prefix ex: <https://example.com/> .", "vendor.ttl", {
       title: "vendor",
+      type: "text/turtle",
     });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("vendor")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
+    expect(screen.getByText(/format: ttl/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => {
@@ -592,7 +606,7 @@ describe("OntologyStudioPage", () => {
     });
   });
 
-  it("supports importing ontology content by pasting OWL/RDF text", async () => {
+  it("supports importing ontology content by uploading an OWL/RDF file", async () => {
     vi.mocked(importOntology).mockResolvedValue({
       ...draftOntology,
       title: "Pasted Ontology",
@@ -610,9 +624,14 @@ describe("OntologyStudioPage", () => {
       target: { value: "Pasted Ontology" },
     });
 
-    const pastedContent = "@prefix ex: <https://example.com/> .\nex:Vendor a owl:Class .";
-    fireEvent.change(screen.getByLabelText("Ontology content"), {
-      target: { value: pastedContent },
+    uploadImportFile(
+      "@prefix ex: <https://example.com/> .\nex:Vendor a owl:Class .",
+      "vendor.ttl",
+      { type: "text/turtle" },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
     });
 
     await goToReviewStep({ approveImport: true });
@@ -625,7 +644,8 @@ describe("OntologyStudioPage", () => {
         title: "Pasted Ontology",
         connector_id: "connector-1",
         source_format: "ttl",
-        source_content: pastedContent,
+        source_content:
+          "@prefix ex: <https://example.com/> .\nex:Vendor a owl:Class .",
       });
     });
   });
@@ -639,8 +659,12 @@ describe("OntologyStudioPage", () => {
       ).toBeInTheDocument();
     });
 
-    fillImportPasteContent("@prefix ex: <https://example.com/> .", {
+    uploadImportFile("@prefix ex: <https://example.com/> .", "vendor.ttl", {
       title: "Imported Ontology",
+      type: "text/turtle",
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -690,8 +714,12 @@ describe("OntologyStudioPage", () => {
       ).toBeInTheDocument();
     });
 
-    fillImportPasteContent("@prefix ex: <https://example.com/> .", {
+    uploadImportFile("@prefix ex: <https://example.com/> .", "vendor.ttl", {
       title: "Imported Ontology",
+      type: "text/turtle",
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/vendor\.ttl/)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
