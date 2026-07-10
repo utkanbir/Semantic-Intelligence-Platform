@@ -138,6 +138,57 @@ function normalizePrefix(prefix: string): string {
   return prefix.trim().replace(/:$/, "");
 }
 
+function inferSourceFormat(fileName: string): string {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+
+  switch (extension) {
+    case "ttl":
+      return "ttl";
+    case "rdf":
+      return "rdf";
+    case "owl":
+      return "owl";
+    case "xml":
+      return "xml";
+    case "jsonld":
+      return "jsonld";
+    default:
+      return "ttl";
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function readUploadedFile(file: File): Promise<string> {
+  const readWithFileReader = () =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsText(file);
+    });
+
+  if (typeof file.text === "function") {
+    try {
+      return file.text().catch(() => readWithFileReader());
+    } catch {
+      return readWithFileReader();
+    }
+  }
+
+  return readWithFileReader();
+}
+
 function previewSourceContent(content: string): string {
   const trimmed = content.trim();
   if (trimmed.length <= 1400) {
@@ -369,6 +420,8 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [prefix, setPrefix] = useState("");
   const [description, setDescription] = useState("");
   const [connectorId, setConnectorId] = useState("");
+  const [sourceFileName, setSourceFileName] = useState("");
+  const [sourceFileSize, setSourceFileSize] = useState<number | null>(null);
   const [sourceFormat, setSourceFormat] = useState("ttl");
   const [sourceContent, setSourceContent] = useState("");
   const [createdBy, setCreatedBy] = useState("");
@@ -548,7 +601,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       { id: "title", label: "Title provided", passed: Boolean(title.trim()) },
       {
         id: "source",
-        label: "Ontology content pasted",
+        label: "Ontology file uploaded",
         passed: Boolean(trimmedContent),
       },
       {
@@ -643,7 +696,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       }
 
       if (mode === "import" && !sourceContent.trim()) {
-        return "Paste ontology content to continue";
+        return "Upload an ontology file to continue";
       }
     }
 
@@ -1237,11 +1290,28 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
   }
 
-  function handlePasteContentChange(value: string) {
-    setSourceContent(value);
-    setBackendValidationReport(null);
-    setParsedContentApproved(false);
-    setStepError(null);
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await readUploadedFile(file);
+      setSourceFileName(file.name);
+      setSourceFileSize(file.size);
+      setSourceContent(text);
+      setSourceFormat(inferSourceFormat(file.name));
+      setBackendValidationReport(null);
+      setParsedContentApproved(false);
+      setStepError(null);
+      setSubmitError(null);
+      if (!title.trim()) {
+        setTitle(file.name.replace(/\.[^.]+$/, ""));
+      }
+    } catch {
+      setSubmitError("Failed to read the selected file");
+    }
   }
 
   const backHref = `/applications/${applicationId}/ontology`;
@@ -1417,7 +1487,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                   <span className="ontology-wizard__mode-title">OWL Import</span>
                   <span className="ontology-wizard__mode-copy">
-                    Import existing OWL/RDF content from a file upload or pasted text.
+                    Import existing OWL/RDF semantics by uploading a .ttl, .owl, .rdf, or JSON-LD file.
                   </span>
                 </label>
                 <label className="ontology-wizard__mode-card">
@@ -1550,7 +1620,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 Step {stepNumber} · Edit draft
               </h3>
               <p className="ontology-wizard__panel-lead">
-                Paste OWL/RDF/TTL content. Basic RDF structure is checked before validation.
+                Upload an OWL/RDF/TTL file. Basic RDF structure is checked before validation.
               </p>
               <div className="ontology-wizard__step-body">
                 <div className="agent-runs-page__field">
@@ -1567,41 +1637,25 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                 </div>
 
-                <div className="ontology-wizard__step-body">
-                  <div className="agent-runs-page__field">
-                    <label htmlFor="ontology-paste-format">Source format</label>
-                    <select
-                      id="ontology-paste-format"
-                      value={sourceFormat}
-                      onChange={(event) => {
-                        setSourceFormat(event.target.value);
-                        setStepError(null);
-                        setBackendValidationReport(null);
-                        setParsedContentApproved(false);
-                      }}
-                    >
-                      <option value="ttl">Turtle (TTL)</option>
-                      <option value="rdf">RDF/XML</option>
-                      <option value="owl">OWL</option>
-                      <option value="xml">XML</option>
-                      <option value="jsonld">JSON-LD</option>
-                    </select>
-                  </div>
-                  <div className="agent-runs-page__field">
-                    <label htmlFor="ontology-paste-content">Ontology content</label>
-                    <textarea
-                      id="ontology-paste-content"
-                      className="ontology-wizard__import-textarea"
-                      rows={10}
-                      placeholder="@prefix ex: <https://example.com/> ."
-                      value={sourceContent}
-                      onChange={(event) => handlePasteContentChange(event.target.value)}
-                    />
-                    <p className="agent-runs-page__field-hint">
-                      Paste OWL/RDF/TTL content. It is parsed via the validate step before
-                      becoming a draft.
+                <div className="agent-runs-page__field">
+                  <label htmlFor="ontology-import-file">Ontology file</label>
+                  <input
+                    id="ontology-import-file"
+                    type="file"
+                    accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
+                    onChange={(event) => void handleFileChange(event)}
+                  />
+                  {sourceFileName ? (
+                    <p className="ontology-wizard__file-info" role="status">
+                      {sourceFileName}
+                      {sourceFileSize !== null && ` · ${formatFileSize(sourceFileSize)}`}
+                      {` · format: ${effectiveSourceFormat}`}
                     </p>
-                  </div>
+                  ) : (
+                    <p className="agent-runs-page__field-hint">
+                      Accepted formats include TTL, RDF/XML, OWL, and JSON-LD.
+                    </p>
+                  )}
                 </div>
 
                 {contentForSubmission && (
@@ -2091,7 +2145,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     {mode === "import" && (
                       <div>
                         <dt>Import source</dt>
-                        <dd>Pasted text</dd>
+                        <dd>{sourceFileName || "Uploaded file"}</dd>
                       </div>
                     )}
                     <div>
