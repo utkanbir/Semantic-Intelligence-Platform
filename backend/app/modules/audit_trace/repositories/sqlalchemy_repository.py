@@ -146,6 +146,9 @@ class SqlAlchemyAuditTraceRepository:
         application_id: UUID | None,
         initiated_by: str | None = None,
         participating_assets: dict | None = None,
+        question_text: str | None = None,
+        started_at: datetime | None = None,
+        mode: str | None = None,
     ) -> UUID:
         """Create a Running semantic transaction before layered steps are appended."""
         transaction_id = uuid4()
@@ -159,6 +162,9 @@ class SqlAlchemyAuditTraceRepository:
             status=SemanticTransactionStatus.RUNNING.value,
             initiated_by=initiated_by,
             participating_assets=participating_assets,
+            question_text=question_text,
+            started_at=started_at or now,
+            mode=mode,
             created_at=now,
         )
         self._session.add(semantic_transaction)
@@ -196,12 +202,21 @@ class SqlAlchemyAuditTraceRepository:
         transaction_id: UUID,
         *,
         status: SemanticTransactionStatus,
+        answer_text: str | None = None,
+        completed_at: datetime | None = None,
+        total_duration_ms: int | None = None,
     ) -> None:
         """Set the final semantic transaction status."""
         transaction = self._session.get(SemanticTransaction, transaction_id)
         if transaction is None:
             raise ValueError(f"SemanticTransaction {transaction_id} not found")
         transaction.status = status.value
+        if answer_text is not None:
+            transaction.answer_text = answer_text
+        if completed_at is not None:
+            transaction.completed_at = completed_at
+        if total_duration_ms is not None:
+            transaction.total_duration_ms = total_duration_ms
         self._session.commit()
 
 
