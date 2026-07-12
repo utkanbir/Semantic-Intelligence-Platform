@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionMode,
     SemanticTransactionStatus,
     TraceLayer,
     TraceStepStatus,
@@ -58,3 +59,9 @@ class SemanticTransactionRecord:
     status: SemanticTransactionStatus | None = None
     initiated_by: str | None = None
     participating_assets: dict[str, Any] | None = None
+    question_text: str | None = None
+    answer_text: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    total_duration_ms: int | None = None
+    mode: SemanticTransactionMode | None = None
