@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from uuid import uuid4
-
 import importlib.util
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from app.modules.audit_trace.domain.enums import SemanticTransactionMode
 from app.modules.audit_trace.domain.models import SemanticTransactionRecord
