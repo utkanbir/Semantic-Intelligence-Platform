@@ -201,10 +201,38 @@ def collect_close_commits(
     return matches
 
 
-def commit_touches_path(sha: str, path: str, *, repo_root: Path) -> bool:
-    """Return True when *sha* changes *path*."""
+def commit_parents(sha: str, *, repo_root: Path) -> list[str]:
+    """Return parent SHAs for *sha* (empty for the root commit)."""
     result = subprocess.run(
-        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+        ["git", "rev-list", "--parents", "-n", "1", sha],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=repo_root,
+    )
+    if result.returncode != 0:
+        return []
+    parts = result.stdout.split()
+    return parts[1:] if len(parts) > 1 else []
+
+
+def commit_touches_path(sha: str, path: str, *, repo_root: Path) -> bool:
+    """Return True when the changes introduced by *sha* include *path*.
+
+    A plain ``git diff-tree`` of a merge commit shows an empty combined diff, so
+    a sprint-close merge commit (``end_of_sprint_<N>:`` subject produced by a
+    non-squash PR merge) would appear to touch nothing even though the merged
+    branch updated ``handoff.md``. Compare the commit against its first parent
+    instead: this surfaces every file the commit — merge or not — brings onto
+    the branch. Falls back to ``diff-tree`` for the root commit (no parent).
+    """
+    parents = commit_parents(sha, repo_root=repo_root)
+    if parents:
+        cmd = ["git", "diff", "--name-only", parents[0], sha]
+    else:
+        cmd = ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha]
+    result = subprocess.run(
+        cmd,
         capture_output=True,
         text=True,
         check=False,
