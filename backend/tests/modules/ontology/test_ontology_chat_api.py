@@ -19,6 +19,7 @@ from app.core.config import get_settings
 from app.infrastructure.database import get_db
 from app.main import app as fastapi_app
 from app.modules.applications.repositories.orm_models import Base
+from app.modules.audit_trace.domain.enums import SemanticTransactionMode
 from app.modules.audit_trace.repositories.orm_models import SemanticTransaction, TraceStep
 
 
@@ -113,12 +114,13 @@ def _create_ontology(client: TestClient, application_id: str) -> str:
 def test_ontology_chat_happy_path(client: TestClient, db_engine: Engine) -> None:
     application_id = _create_application(client)
     ontology_id = _create_ontology(client, application_id)
+    question = "What is Invoice?" + (" and its properties?" * 80)
 
     response = client.post(
         "/api/v1/chat/ontology",
         json={
             "ontology_id": ontology_id,
-            "question": "What is Invoice?",
+            "question": question,
             "initiated_by": "test-user",
         },
     )
@@ -140,6 +142,14 @@ def test_ontology_chat_happy_path(client: TestClient, db_engine: Engine) -> None
         assert transaction.status == "Completed"
         assert transaction.initiated_by == "test-user"
         assert transaction.participating_assets["ontology_id"] == ontology_id
+        assert transaction.question_text == question
+        assert transaction.answer_text == body["answer"]
+        assert transaction.started_at is not None
+        assert transaction.completed_at is not None
+        assert transaction.completed_at >= transaction.started_at
+        assert transaction.total_duration_ms is not None
+        assert transaction.total_duration_ms >= 0
+        assert transaction.mode == SemanticTransactionMode.RICH.value
 
         steps = session.scalars(
             select(TraceStep)
@@ -157,6 +167,8 @@ def test_ontology_chat_happy_path(client: TestClient, db_engine: Engine) -> None
         ]
         assert steps[0].layer == "ExperienceLayer"
         assert steps[2].layer == "KnowledgeLayer"
+        assert steps[0].input_summary == f"question={question[:500]}"
+        assert steps[4].output_summary == body["answer"][:500]
 
 
 def test_ontology_chat_returns_404_for_missing_ontology(client: TestClient) -> None:
