@@ -19,4 +19,4 @@ images:
     newTag: s60
   - name: sip-console:dev
     newName: sip-console
-    newTag: s59
+    newTag: s60
