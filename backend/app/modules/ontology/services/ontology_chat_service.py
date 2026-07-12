@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from app.core.config import Settings, get_settings
 from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionMode,
     SemanticTransactionStatus,
     TraceLayer,
     TraceStepStatus,
@@ -114,6 +116,9 @@ class OntologyChatService:
             "ontology_title": ontology.title,
             "llm_provider": self._settings.llm_provider,
         }
+        started_at = datetime.now(UTC)
+        overall_started = time.perf_counter()
+        # Structure-only ontology chat maps to Rich mode (full semantic trace + trx_main).
         transaction_id = self._audit_trace_repository.begin_semantic_transaction(
             transaction_type=CHAT_TRANSACTION_TYPE,
             resource_type="OntologyDefinition",
@@ -121,6 +126,9 @@ class OntologyChatService:
             application_id=ontology.application_id,
             initiated_by=initiated_by or "console-user",
             participating_assets=participating_assets,
+            question_text=question,
+            started_at=started_at,
+            mode=SemanticTransactionMode.RICH.value,
         )
 
         step_number = 1
@@ -215,6 +223,9 @@ class OntologyChatService:
             self._audit_trace_repository.finalize_semantic_transaction(
                 transaction_id,
                 status=SemanticTransactionStatus.COMPLETED,
+                answer_text=answer,
+                completed_at=datetime.now(UTC),
+                total_duration_ms=self._elapsed_ms(overall_started),
             )
             return OntologyChatResult(
                 semantic_transaction_id=transaction_id,
@@ -238,6 +249,8 @@ class OntologyChatService:
             self._audit_trace_repository.finalize_semantic_transaction(
                 transaction_id,
                 status=SemanticTransactionStatus.FAILED,
+                completed_at=datetime.now(UTC),
+                total_duration_ms=self._elapsed_ms(overall_started),
             )
             raise
 
