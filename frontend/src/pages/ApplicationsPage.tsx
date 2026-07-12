@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import {
   createApplication,
@@ -201,8 +201,11 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
 
 export function ApplicationsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [state, setState] = useState<PageState>({ kind: "loading" });
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(
+    () => searchParams.get("create") === "1",
+  );
 
   const loadApplications = useCallback(() => {
     setState({ kind: "loading" });
