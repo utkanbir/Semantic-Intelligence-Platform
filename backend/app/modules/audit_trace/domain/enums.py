@@ -4,11 +4,15 @@ from enum import StrEnum
 
 
 class TraceLayer(StrEnum):
-    """Semantic trace layering for multi-step audit flows (S38-01)."""
+    """Semantic trace layering for multi-step audit flows (S38-01, S39-02 / ADR-002)."""
 
     EXPERIENCE = "ExperienceLayer"
     SEMANTIC = "SemanticLayer"
-    KNOWLEDGE = "KnowledgeLayer"
+    ONTOLOGY = "OntologyLayer"
+    KNOWLEDGE_GRAPH = "KnowledgeGraphLayer"
+    INFORMATION = "InformationLayer"
+    DATA = "DataLayer"
+    KNOWLEDGE = "KnowledgeLayer"  # legacy S38 rows; prefer KNOWLEDGE_GRAPH for new writes
     OPERATIONAL = "OperationalLayer"
 
 
