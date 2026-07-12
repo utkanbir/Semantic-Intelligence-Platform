@@ -38,7 +38,7 @@ describe("PlatformShell", () => {
 
   it("renders grouped platform and applications navigation", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/connectors"]}>
         <PlatformShell>
           <div>Page content</div>
         </PlatformShell>
@@ -76,5 +76,18 @@ describe("PlatformShell", () => {
     await waitFor(() => {
       expect(screen.getByText("Backend connected")).toBeInTheDocument();
     });
+  });
+
+  it("hides the global header on the home route", () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <PlatformShell>
+          <div>Home content</div>
+        </PlatformShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Home content")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Primary" })).not.toBeInTheDocument();
   });
 });
