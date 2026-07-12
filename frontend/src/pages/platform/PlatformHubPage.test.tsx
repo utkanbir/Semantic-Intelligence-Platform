@@ -12,6 +12,9 @@ describe("PlatformHubPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Platform" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Platform services" }),
+    ).toBeInTheDocument();
 
     expect(screen.getByRole("link", { name: /View and provision connectors/i })).toHaveAttribute(
       "href",

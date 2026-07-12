@@ -49,7 +49,7 @@ describe("App", () => {
     expect(
       screen.getByText("Semantic Intelligence Platform"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Platform overview" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Home" })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText("Backend connected")).toBeInTheDocument();
     });
@@ -58,9 +58,7 @@ describe("App", () => {
   it("loads platform hub at /platform", async () => {
     render(<App />);
 
-    fireEvent.click(
-      screen.getByRole("link", { name: /Connectors, governance, semantic transactions/i }),
-    );
+    fireEvent.click(screen.getByRole("link", { name: /Open platform hub/i }));
 
     expect(screen.getByRole("heading", { name: "Platform" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /View and provision connectors/i })).toHaveAttribute(

@@ -1,43 +1,36 @@
-import { NavLink } from "react-router-dom";
-
-const SUMMARY_CARDS = [
-  {
-    to: "/platform",
-    label: "Platform",
-    description: "Cross-cutting framework capabilities shared across all applications.",
-    hint: "Connectors, governance, semantic transactions",
-  },
-  {
-    to: "/applications",
-    label: "Applications",
-    description: "Isolated workspaces for discovery, blueprints, products, and agents.",
-    hint: "Open application list",
-  },
-] as const;
+import {
+  APPLICATIONS_HUB_ENTRY,
+  HubNavCard,
+  HubPageLayout,
+  HubSection,
+  PLATFORM_HUB_ENTRY,
+  PLATFORM_SECTIONS,
+} from "../../components/hub";
 
 export function PlatformOverviewPage() {
   return (
-    <section className="platform-page">
-      <h1>Platform overview</h1>
-      <p className="platform-page__lead">
-        Manage platform-wide framework services—connectors, governance, and semantic
-        transactions—or switch to Applications to work inside an application workspace.
-      </p>
-      <div className="platform-page__summary">
-        {SUMMARY_CARDS.map((card) => (
-          <NavLink
-            key={card.to}
-            to={card.to}
-            className={({ isActive }) =>
-              `platform-page__summary-card${isActive ? " platform-page__summary-card--active" : ""}`
-            }
-          >
-            <span className="platform-page__summary-label">{card.label}</span>
-            <p className="platform-page__summary-description">{card.description}</p>
-            <span className="platform-page__summary-hint">{card.hint} →</span>
-          </NavLink>
+    <HubPageLayout
+      title="Home"
+      lead="Semantic Intelligence Platform — manage shared platform capabilities or open an application workspace to run discovery, blueprints, and agents."
+    >
+      <HubSection
+        headingId="home-platform-section"
+        title="Platform capabilities"
+        description="Framework services that span every application—connectors, governance, semantic transactions, and audit trace."
+      >
+        <HubNavCard {...PLATFORM_HUB_ENTRY} />
+        {PLATFORM_SECTIONS.map((section) => (
+          <HubNavCard key={section.to} {...section} />
         ))}
-      </div>
-    </section>
+      </HubSection>
+
+      <HubSection
+        headingId="home-applications-section"
+        title="Applications & sandboxes"
+        description="Work inside isolated application workspaces or spin up sandboxes for experimentation."
+      >
+        <HubNavCard {...APPLICATIONS_HUB_ENTRY} />
+      </HubSection>
+    </HubPageLayout>
   );
 }

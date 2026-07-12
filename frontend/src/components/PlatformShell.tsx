@@ -59,7 +59,9 @@ export function PlatformShell({ children }: PlatformShellProps) {
     <div className="platform-shell">
       <header className="platform-header">
         <div className="platform-header__brand">
-          <span className="platform-header__title">Semantic Intelligence Platform</span>
+          <NavLink to="/" end className="platform-header__title">
+            Semantic Intelligence Platform
+          </NavLink>
         </div>
         <div className="platform-header__actions">
           <span
