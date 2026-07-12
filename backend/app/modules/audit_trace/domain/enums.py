@@ -30,3 +30,10 @@ class SemanticTransactionStatus(StrEnum):
     RUNNING = "Running"
     COMPLETED = "Completed"
     FAILED = "Failed"
+
+
+class SemanticTransactionMode(StrEnum):
+    """Execution mode for a semantic transaction (ADR-002 trx_main)."""
+
+    RICH = "Rich"
+    BARE = "Bare"

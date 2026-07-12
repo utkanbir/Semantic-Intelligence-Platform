@@ -38,3 +38,16 @@ def test_semantic_transaction_extension_columns() -> None:
     assert table.columns["status"].nullable is False
     assert table.columns["initiated_by"].nullable is True
     assert table.columns["participating_assets"].nullable is True
+
+
+def test_semantic_transaction_trx_main_columns_are_nullable() -> None:
+    table = SemanticTransaction.__table__
+    for column_name in (
+        "question_text",
+        "answer_text",
+        "started_at",
+        "completed_at",
+        "total_duration_ms",
+        "mode",
+    ):
+        assert table.columns[column_name].nullable is True

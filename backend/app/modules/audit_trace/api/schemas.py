@@ -39,6 +39,12 @@ class SemanticTransactionResponse(BaseModel):
     status: str | None = None
     initiated_by: str | None = None
     participating_assets: dict | None = None
+    question_text: str | None = None
+    answer_text: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    total_duration_ms: int | None = None
+    mode: str | None = None
 
 
 def to_trace_step_response(trace_step: TraceStep) -> TraceStepResponse:
@@ -71,4 +77,10 @@ def to_semantic_transaction_response(
         status=record.status.value if record.status else None,
         initiated_by=record.initiated_by,
         participating_assets=record.participating_assets,
+        question_text=record.question_text,
+        answer_text=record.answer_text,
+        started_at=record.started_at,
+        completed_at=record.completed_at,
+        total_duration_ms=record.total_duration_ms,
+        mode=record.mode.value if record.mode else None,
     )
