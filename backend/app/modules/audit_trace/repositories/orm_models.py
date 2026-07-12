@@ -40,6 +40,12 @@ class SemanticTransaction(Base):
     )
     initiated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     participating_assets: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    question_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answer_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    total_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -1,6 +1,7 @@
 """Tests for audit_trace trace layer and status enums (S38-01)."""
 
 from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionMode,
     SemanticTransactionStatus,
     TraceLayer,
     TraceStepStatus,
@@ -24,3 +25,8 @@ def test_semantic_transaction_status_values() -> None:
     assert SemanticTransactionStatus.RUNNING.value == "Running"
     assert SemanticTransactionStatus.COMPLETED.value == "Completed"
     assert SemanticTransactionStatus.FAILED.value == "Failed"
+
+
+def test_semantic_transaction_mode_values() -> None:
+    assert SemanticTransactionMode.RICH.value == "Rich"
+    assert SemanticTransactionMode.BARE.value == "Bare"

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionMode,
     SemanticTransactionStatus,
     TraceLayer,
     TraceStepStatus,
@@ -45,6 +46,10 @@ def _parse_trace_step_status(value: str | None) -> TraceStepStatus | None:
 
 def _parse_transaction_status(value: str | None) -> SemanticTransactionStatus | None:
     return SemanticTransactionStatus(value) if value else None
+
+
+def _parse_transaction_mode(value: str | None) -> SemanticTransactionMode | None:
+    return SemanticTransactionMode(value) if value else None
 
 
 def _to_domain(trace_step_orm: TraceStepORM) -> TraceStep:
@@ -249,6 +254,12 @@ def _to_transaction_record(
         status=_parse_transaction_status(transaction_orm.status),
         initiated_by=transaction_orm.initiated_by,
         participating_assets=transaction_orm.participating_assets,
+        question_text=transaction_orm.question_text,
+        answer_text=transaction_orm.answer_text,
+        started_at=transaction_orm.started_at,
+        completed_at=transaction_orm.completed_at,
+        total_duration_ms=transaction_orm.total_duration_ms,
+        mode=_parse_transaction_mode(transaction_orm.mode),
     )
 
 
