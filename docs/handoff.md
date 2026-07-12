@@ -1,6 +1,6 @@
 # SIP Project Handoff — Current State
 
-**Date:** 2026-07-09  
+**Date:** 2026-07-12  
 **Branch:** `develop` (integration)  
 **Audience:** PO, new engineers, PMO continuity  
 **Maintainer:** Update this document at each sprint close or major milestone.
@@ -11,10 +11,12 @@
 
 The **Semantic Intelligence Platform (SIP)** is a modular monolith delivering a governed semantic lifecycle: Applications → Discovery → Blueprints → Assets → Data Products → Ontology & Knowledge Graph → Agents, with full **Semantic Transaction** audit trails.
 
-**Current maturity:** MVP Console and API are live on local Kubernetes (`sip-dev`). Recent delivery: **Sprint 38 — Ontology Chat** (ontology-grounded Q&A with layered semantic trace + Console chat tab). Prior: Sprint 37 governance hardening.
+**Current maturity:** MVP Console and API are live on local Kubernetes (`sip-dev`). Recent delivery: **Sprint 39 — Semantic Transaction Data Model** (trx_main first-class question/answer/timing/mode columns + six-layer `TraceLayer`, ADR-002). Prior: Sprint 38 ontology chat.
 
-**Latest closed sprint:** Sprint 38 — Ontology Chat  
-**Close gate proof:** `verify-sprint-close.ps1 -Sprint 38` **PASSED** (via sprint close PR merge)
+**Latest closed sprint:** Sprint 39 — Semantic Transaction Data Model  
+**Close gate proof:** `verify-sprint-close.ps1 -Sprint 39` **PASSED** (via sprint close PR merge)
+
+**Post-MVP direction:** ADR-002–006 (Accepted) define the v2 semantic transaction routing model (Sandbox, deterministic router, Compare Mode, connector layers, provenance). Roadmap: `docs/project/Sprint_39_Plus_Roadmap.md`.
 
 ---
 
@@ -26,15 +28,15 @@ The **Semantic Intelligence Platform (SIP)** is a modular monolith delivering a 
 | Namespace | `sip-dev` |
 | Console URL | http://console.sip.local |
 | API URL | http://api.sip.local |
-| Backend image | `sip-backend:s55` |
-| Console image | `sip-console:s56` |
-| Alembic head | `20260709_0020` |
-| DB tables | 16 cumulative (see Sprint 38 retro §12) |
+| Backend image | `sip-backend:s60` |
+| Console image | `sip-console:s59` |
+| Alembic head | `20260712_0021` |
+| DB tables | 16 cumulative (see Sprint 39 retro §12) |
 
 ### Verify before PO handoff
 
 ```powershell
-powershell -File scripts/verify-sprint-close.ps1 -Sprint 38
+powershell -File scripts/verify-sprint-close.ps1 -Sprint 39
 ```
 
 ---
@@ -55,6 +57,7 @@ powershell -File scripts/verify-sprint-close.ps1 -Sprint 38
 | 36 | Governance Remediation (sprint-close CI, MVP release) | ✅ Closed |
 | 37 | Governance Hardening (branch protection, gate fixes) | ✅ Closed |
 | 38 | Ontology Chat (layered trace, chat API + Console tab) | ✅ Closed |
+| 39 | Semantic Transaction Data Model (trx_main columns, six-layer TraceLayer) | ✅ Closed |
 
 **Retros:** `docs/governance/retros/`  
 **Health reports:** `docs/governance/health-reports/`
@@ -188,7 +191,7 @@ At sprint close, `verify_sprint_deferrals.py` enforces ledger hygiene and retro/
 | **Ontology contract** | `docs/architecture/SIP_Ontology_Definition_Contract_v1.md` (+ § addendum S34) |
 | **Connector model** | `docs/architecture/SIP_Semantic_Connector_Supplement_v1.md` |
 | **Semantic transaction taxonomy** | `docs/governance/SIP_Semantic_Transaction_Taxonomy_and_Eligibility_Contract.md` |
-| **Sprint 38 retro (latest)** | `docs/governance/retros/Sprint_38_Ontology_Chat_retro.md` |
+| **Sprint 39 retro (latest)** | `docs/governance/retros/Sprint_39_Semantic_Transaction_Data_Model_retro.md` |
 | **Governance / sprint gates** | `scripts/verify-sprint-close.ps1`, `docs/project/SIP_DEVELOPMENT_PLAYBOOK.md` §6 |
 | **Backend local setup** | `backend/README.md` |
 | **Cluster deploy** | `infra/README.md` |
