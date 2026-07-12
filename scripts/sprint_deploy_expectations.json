@@ -109,6 +109,21 @@
           "image": "sip-console:s56"
         }
       ]
+    },
+    "39": {
+      "label": "Semantic Transaction Data Model",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s60"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s59"
+        }
+      ]
     }
   }
 }
