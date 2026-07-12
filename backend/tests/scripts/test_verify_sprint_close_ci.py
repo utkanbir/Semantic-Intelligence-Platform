@@ -239,3 +239,42 @@ def test_handoff_passes_when_close_commit_updates_handoff(temp_repo: Path) -> No
         capture_output=True,
     )
     assert vsc.verify_handoff_updated(37, repo_root=temp_repo, git_range="HEAD") == []
+
+
+def test_handoff_passes_when_close_is_a_merge_commit(temp_repo: Path) -> None:
+    """A non-squash sprint-close merge commit still counts the handoff change.
+
+    Reproduces the Sprint 39 close: the ``end_of_sprint_<N>:`` commit is a merge
+    commit whose combined diff is empty, but its first-parent diff includes the
+    handoff.md update brought in by the merged branch.
+    """
+    import subprocess
+
+    def _git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=temp_repo, check=True, capture_output=True)
+
+    _init_git_repo(temp_repo)
+    _write_docs(temp_repo, 37)
+    _git("add", ".")
+    _git("commit", "-m", "docs: sprint 37 governance folders")
+    _git("branch", "base-tip")
+
+    # Feature branch updates handoff.md, then merge it back with a
+    # --no-ff merge whose subject matches end_of_sprint (mirrors gh pr merge --merge).
+    _git("switch", "-c", "close-branch")
+    handoff = temp_repo / "docs" / "handoff.md"
+    handoff.parent.mkdir(parents=True, exist_ok=True)
+    handoff.write_text("# handoff\n", encoding="utf-8")
+    _git("add", ".")
+    _git("commit", "-m", "end_of_sprint_37: close with handoff on branch")
+
+    _git("switch", "base-tip")
+    _git(
+        "merge",
+        "--no-ff",
+        "close-branch",
+        "-m",
+        "end_of_sprint_37: Close Sprint 37 (#999)",
+    )
+
+    assert vsc.verify_handoff_updated(37, repo_root=temp_repo, git_range="base-tip") == []
