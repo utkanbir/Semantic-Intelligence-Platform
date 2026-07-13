@@ -7,7 +7,8 @@ Detects ``end_of_sprint_<N>:`` commit subjects and, when present, verifies:
   3. Deferred-items ledger and retro/health deferral hygiene (S36-02)
   4. Health-report gate-trigger-11-class checklist when sprint >= 36 (S36-03)
   5. Retro delivery rate vs kickoff plan when sprint >= 37 (S36-07)
-  6. GitHub project board state (when GH_TOKEN is available)
+  6. ``docs/handoff.md`` updated in each ``end_of_sprint_*`` commit (S37-09)
+  7. GitHub project board state (when GH_TOKEN is available)
 
 When no ``end_of_sprint_*`` commit is detected, exits 0 immediately (no-op).
 
@@ -40,6 +41,8 @@ DEPLOY_MANIFEST = SCRIPTS_DIR / "sprint_deploy_expectations.json"
 
 RETRO_GLOB = "Sprint_{sprint}_*_retro.md"
 HEALTH_GLOB = "Sprint_{sprint}_*_health.md"
+HANDOFF_PATH = "docs/handoff.md"
+HANDOFF_ENFORCE_FROM_SPRINT = 37
 
 
 def parse_sprint_from_commit_message(subject: str) -> int | None:
@@ -167,6 +170,110 @@ def verify_manifests(sprint: int) -> list[str]:
     return errors
 
 
+def collect_close_commits(
+    sprint: int,
+    *,
+    repo_root: Path,
+    git_range: str | None,
+) -> list[tuple[str, str]]:
+    """Return (sha, subject) pairs for end_of_sprint commits matching *sprint*."""
+    cmd = ["git", "log", "--format=%H\t%s"]
+    if git_range and git_range.strip():
+        cmd.append(git_range.strip())
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=repo_root,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"git log failed: {stderr}")
+
+    matches: list[tuple[str, str]] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        sha, _, subject = line.partition("\t")
+        if parse_sprint_from_commit_message(subject) == sprint:
+            matches.append((sha.strip(), subject.strip()))
+    return matches
+
+
+def commit_parents(sha: str, *, repo_root: Path) -> list[str]:
+    """Return parent SHAs for *sha* (empty for the root commit)."""
+    result = subprocess.run(
+        ["git", "rev-list", "--parents", "-n", "1", sha],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=repo_root,
+    )
+    if result.returncode != 0:
+        return []
+    parts = result.stdout.split()
+    return parts[1:] if len(parts) > 1 else []
+
+
+def commit_touches_path(sha: str, path: str, *, repo_root: Path) -> bool:
+    """Return True when the changes introduced by *sha* include *path*.
+
+    A plain ``git diff-tree`` of a merge commit shows an empty combined diff, so
+    a sprint-close merge commit (``end_of_sprint_<N>:`` subject produced by a
+    non-squash PR merge) would appear to touch nothing even though the merged
+    branch updated ``handoff.md``. Compare the commit against its first parent
+    instead: this surfaces every file the commit — merge or not — brings onto
+    the branch. Falls back to ``diff-tree`` for the root commit (no parent).
+    """
+    parents = commit_parents(sha, repo_root=repo_root)
+    if parents:
+        cmd = ["git", "diff", "--name-only", parents[0], sha]
+    else:
+        cmd = ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha]
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=repo_root,
+    )
+    if result.returncode != 0:
+        return False
+    return path in {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
+def verify_handoff_updated(
+    sprint: int,
+    *,
+    repo_root: Path,
+    git_range: str | None,
+) -> list[str]:
+    """Fail when an end_of_sprint close commit does not update docs/handoff.md."""
+    if sprint < HANDOFF_ENFORCE_FROM_SPRINT:
+        return []
+    try:
+        close_commits = collect_close_commits(sprint, repo_root=repo_root, git_range=git_range)
+    except RuntimeError as exc:
+        return [str(exc)]
+
+    if not close_commits:
+        return [
+            f"No end_of_sprint_{sprint}: commit found"
+            + (f" in range {git_range!r}" if git_range else " on current branch")
+        ]
+
+    errors: list[str] = []
+    for sha, subject in close_commits:
+        if not commit_touches_path(sha, HANDOFF_PATH, repo_root=repo_root):
+            short = sha[:7]
+            errors.append(
+                f"Close commit {short} ({subject}) must update {HANDOFF_PATH} "
+                "(handoff.md is required at every sprint close)."
+            )
+    return errors
+
+
 def verify_board(sprint: int, *, gh_token: str | None) -> list[str]:
     """Run verify_sprint_board.py when a sprint-close commit requires board verification."""
     if not gh_token:
@@ -198,11 +305,13 @@ def verify_sprint_close(
     ci_mode: bool,
     gh_token: str | None,
     skip_board: bool,
+    git_range: str | None = None,
 ) -> list[str]:
     """Run all applicable gates for one sprint-close; return error messages."""
     errors: list[str] = []
     errors.extend(verify_documents(repo_root, sprint))
     errors.extend(verify_manifests(sprint))
+    errors.extend(verify_handoff_updated(sprint, repo_root=repo_root, git_range=git_range))
 
     defer_path = SCRIPTS_DIR / "verify_sprint_deferrals.py"
     if defer_path.is_file():
@@ -270,6 +379,7 @@ def run(
     ci_mode: bool,
     gh_token: str | None,
     skip_board: bool,
+    git_range: str | None = None,
 ) -> int:
     """Execute verification for detected sprints; return process exit code."""
     if not sprints:
@@ -284,6 +394,7 @@ def run(
             ci_mode=ci_mode,
             gh_token=gh_token,
             skip_board=skip_board,
+            git_range=git_range,
         )
         if errors:
             print(f"Sprint {sprint} governance verification FAILED:", file=sys.stderr)
@@ -347,6 +458,7 @@ def main() -> int:
         ci_mode=args.ci_mode,
         gh_token=gh_token,
         skip_board=args.skip_board,
+        git_range=args.git_range,
     )
 
 

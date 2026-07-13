@@ -769,6 +769,93 @@
         "agent_runs",
         "policy_definitions"
       ]
+    },
+    "37": {
+      "label": "Governance Hardening",
+      "alembic_head": "20260706_0019",
+      "new_tables": [],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries",
+        "technology_adapters",
+        "agent_runs",
+        "policy_definitions"
+      ]
+    },
+    "38": {
+      "label": "Ontology Chat",
+      "alembic_head": "20260709_0020",
+      "new_tables": [],
+      "column_changes": [
+        "semantic_transactions.status",
+        "semantic_transactions.initiated_by",
+        "semantic_transactions.participating_assets",
+        "trace_steps.layer",
+        "trace_steps.status",
+        "trace_steps.input_summary",
+        "trace_steps.output_summary",
+        "trace_steps.duration_ms"
+      ],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries",
+        "technology_adapters",
+        "agent_runs",
+        "policy_definitions"
+      ]
+    },
+    "39": {
+      "label": "Semantic Transaction Data Model",
+      "alembic_head": "20260712_0021",
+      "new_tables": [],
+      "column_changes": [
+        "semantic_transactions.question_text",
+        "semantic_transactions.answer_text",
+        "semantic_transactions.started_at",
+        "semantic_transactions.completed_at",
+        "semantic_transactions.total_duration_ms",
+        "semantic_transactions.mode"
+      ],
+      "cumulative_tables": [
+        "alembic_version",
+        "applications",
+        "application_workspaces",
+        "semantic_transactions",
+        "discovery_sessions",
+        "discovery_phase_history",
+        "blueprints",
+        "asset_records",
+        "trace_steps",
+        "published_data_products",
+        "agent_definitions",
+        "ontology_definitions",
+        "knowledge_graph_registries",
+        "technology_adapters",
+        "agent_runs",
+        "policy_definitions"
+      ]
     }
   }
 }

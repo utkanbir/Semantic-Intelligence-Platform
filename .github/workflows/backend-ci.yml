@@ -2,9 +2,9 @@ name: Backend CI
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [develop, main]
   push:
-    branches: [develop]
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -37,6 +37,11 @@ jobs:
 
       - name: Contract sync (S36-05)
         run: python ../scripts/verify_contract_sync.py
+        env:
+          PYTHONPATH: .
+
+      - name: Semantic lineage taxonomy sync (S37-04)
+        run: python ../scripts/verify_semantic_lineage_sync.py
         env:
           PYTHONPATH: .
 

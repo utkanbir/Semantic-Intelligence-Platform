@@ -6,6 +6,8 @@
 **Facilitator:** PMO (DM hat)  
 **Attendees:** Product Owner, Lead Architect, Engineering offices, QA
 
+**Closed-sprint edits (S37-08):** After merge, any change to this file MUST include an inline blockquote on the edited section: `> Correction (YYYY-MM-DD, #issue): <reason>`.
+
 ---
 
 ## 1. Committed vs delivered

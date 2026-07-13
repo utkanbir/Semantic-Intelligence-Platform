@@ -414,3 +414,16 @@ def to_ontology_definition_response(
         source_format=ontology.source_format,
         semantic_transaction_id=semantic_transaction_id,
     )
+
+
+class OntologyChatRequest(BaseModel):
+    ontology_id: UUID
+    question: str = Field(min_length=1, max_length=4000)
+    initiated_by: str | None = Field(default=None, max_length=255)
+
+
+class OntologyChatResponse(BaseModel):
+    semantic_transaction_id: UUID
+    status: str
+    answer: str
+    trace_step_count: int

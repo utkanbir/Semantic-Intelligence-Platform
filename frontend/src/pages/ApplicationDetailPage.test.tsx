@@ -17,6 +17,8 @@ import { listBlueprints } from "../api/blueprints";
 import { listDiscoverySessions } from "../api/discovery";
 import { listKnowledgeGraphs } from "../api/knowledgeGraphs";
 import { listOntologies } from "../api/ontologies";
+import { askOntologyQuestion } from "../api/chat";
+import { getSemanticTransaction } from "../api/auditTrace";
 import { listProducts } from "../api/products";
 import { ApplicationDetailPage } from "./ApplicationDetailPage";
 
@@ -81,6 +83,11 @@ vi.mock("../api/adapters", async (importOriginal) => {
 vi.mock("../api/auditTrace", () => ({
   listApplicationAuditTraces: vi.fn(),
   listApplicationSemanticTransactions: vi.fn(),
+  getSemanticTransaction: vi.fn(),
+}));
+
+vi.mock("../api/chat", () => ({
+  askOntologyQuestion: vi.fn(),
 }));
 
 vi.mock("../api/assets", async (importOriginal) => {
@@ -177,6 +184,8 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(listOntologies).mockResolvedValue([]);
     vi.mocked(listKnowledgeGraphs).mockReset();
     vi.mocked(listKnowledgeGraphs).mockResolvedValue([]);
+    vi.mocked(askOntologyQuestion).mockReset();
+    vi.mocked(getSemanticTransaction).mockReset();
   });
 
   it("loads application and shows overview by default", async () => {
@@ -582,6 +591,39 @@ describe("ApplicationDetailPage", () => {
     expect(listApplicationSemanticTransactions).toHaveBeenCalledWith("app-1");
     expect(screen.getByRole("heading", { name: "Semantic transactions" })).toBeInTheDocument();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+  });
+
+  it("navigates to ontology chat route", async () => {
+    vi.mocked(listOntologies).mockResolvedValue([
+      {
+        id: "onto-1",
+        application_id: "app-1",
+        version_number: 1,
+        previous_version_id: null,
+        status: "Approved",
+        title: "Ontology A",
+        description: null,
+        created_by: "alice@example.com",
+        created_at: "2025-06-01T10:00:00Z",
+        updated_at: "2025-06-01T10:00:00Z",
+        validated_at: null,
+        approved_at: null,
+        published_at: null,
+        version_created_at: null,
+        ontology_definition: {},
+      },
+    ]);
+
+    renderDetailPage("/applications/app-1/ontology/chat");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Ontology chat" })).toBeInTheDocument();
+    });
+
+    expect(listOntologies).toHaveBeenCalledWith("app-1");
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveClass(
+      "ontology-area-nav__link--active",
+    );
   });
 
   it("highlights active section in navigation", async () => {

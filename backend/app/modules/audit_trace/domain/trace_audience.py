@@ -26,6 +26,7 @@ SEMANTIC_LINEAGE_TRANSACTION_TYPES: frozenset[str] = frozenset(
         "ontology.suggestion_reviewed",
         "ontology.connector_selected",
         "ontology.materialized",
+        "ontology.question_answered",
     }
 )
 

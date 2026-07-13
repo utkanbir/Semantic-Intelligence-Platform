@@ -2,7 +2,7 @@
 
 **Role:** Delivery Manager (PMO)
 **Date:** 2026-07-09
-**Status:** Active  
+**Status:** Closed  
 **Epic:** E-36 (#336)  
 **Milestone:** Sprint 36 — Governance Remediation (#38)
 
@@ -71,6 +71,6 @@ Make sprint-close status self-correcting instead of self-congratulatory: enforce
 - [x] `main` exists, Sprint 12 checklist is 100% complete, `v1.0-mvp` tag exists (S36-04)
 - [x] Contract-sync script runs in CI and fails on an undocumented route (verify against `ontologies/generate` as the known gap) (S36-05)
 - [x] Sprint 32 retro, ontology contract, and `sprint_deploy_expectations.json` corrected; `llm_resolver.py` either has a real provider or the feature is renamed (S36-06)
-- [x] Sprint 37 retro reports delivery rate against the Sprint 37 **plan** doc's original issue list (S36-07)
-- [ ] `verify-sprint-close.ps1 -Sprint 36` exit 0
-- [ ] Retro with §10–§12 per playbook, referencing this remediation plan and the original audit report
+- [ ] Sprint 37 retro reports delivery rate against the Sprint 37 **plan** doc's original issue list (S36-07 template shipped; gate fix in S37-02)
+- [x] `verify-sprint-close.ps1 -Sprint 36` exit 0
+- [x] Retro with §10–§12 per playbook, referencing this remediation plan and the original audit report

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.infrastructure.adapters.fuseki import FusekiImportError
 from app.infrastructure.adapters.knowledge_graph_resolver import (
     UnsupportedKnowledgeGraphVendorError,
@@ -178,16 +179,20 @@ class _SqlAlchemyKnowledgeGraphPortResolver:
 
 
 def _get_service(db: Session) -> OntologyService:
+    settings = get_settings()
+    llm_port = resolve_llm_port()
+    llm_model = settings.llm_model if settings.llm_enabled else None
     return OntologyService(
         SqlAlchemyOntologyDefinitionRepository(db),
         SqlAlchemyApplicationRepository(db),
         SqlAlchemyTechnologyAdapterRepository(db),
         SqlAlchemyOntologyTransactionRecorder(db),
         _SqlAlchemyKnowledgeGraphPortResolver(),
-        OntologyValidationService(resolve_llm_port()),
-        OntologySemanticReviewService(resolve_llm_port()),
+        OntologyValidationService(llm_port),
+        OntologySemanticReviewService(llm_port, model=llm_model),
         OntologyGenerationService(
-            resolve_llm_port(),
+            llm_port,
+            model=llm_model,
             web_content_port=resolve_web_content_port(),
         ),
     )

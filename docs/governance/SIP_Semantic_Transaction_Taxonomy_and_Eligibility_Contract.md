@@ -57,6 +57,24 @@ Every trace record MUST be classifiable into exactly one **trace audience**:
 
 **Sprint 32 note:** Classification may initially be derived from this contract table at read time (#293). A persisted column or enum may follow in a later migration; the eligibility rules below are normative regardless of storage mechanism.
 
+### 4.1 Trace layers (`TraceLayer`, S38-01; extended S39-02 per ADR-002)
+
+Multi-step semantic journeys persist each `TraceStep.layer` using the normative enum values below (see `audit_trace/domain/enums.py`). Sprint 39 (S39-02, ADR-002 §"TraceLayer enum extension") extends the original four values to the six-layer routing taxonomy without breaking existing rows:
+
+| `TraceLayer` | Scope | Examples |
+|--------------|-------|----------|
+| `ExperienceLayer` | User-facing inputs and rendered answers | Question received, answer returned to Console |
+| `SemanticLayer` | Intent, routing, and LLM orchestration over semantic assets | Intent analysis, LLM response generation, transaction completion |
+| `OntologyLayer` | Ontology structure / concept context retrieval | Ontology class/property/relationship context loaded for grounding |
+| `KnowledgeGraphLayer` | Curated knowledge graph traversal | Entity/relationship query against the graph store |
+| `InformationLayer` | Business Glossary / Data Catalog context (ADR-005) | Glossary term or catalog metadata resolution |
+| `DataLayer` | Physical data access when part of an explainable journey | SQL generated and executed against the customer database |
+| `OperationalLayer` | Platform or connector execution only | Connector ping, pod restart — not standalone semantic lineage |
+
+**Legacy value:** `KnowledgeLayer` (S38) remains valid for existing rows and denotes ontology/graph context retrieval. New writes SHOULD use `OntologyLayer` for ontology-structure grounding and `KnowledgeGraphLayer` for graph traversal. Readers MUST accept both `KnowledgeLayer` and `KnowledgeGraphLayer`.
+
+**Rule:** Semantic Transactions surfaces show steps from all layers when they explain a semantic journey; `OperationalLayer` steps alone do not create `semantic_lineage` eligibility.
+
 ---
 
 ## 5. Semantic layers and routing (eligibility context)
@@ -93,6 +111,11 @@ Platform and application **Semantic Transactions** surfaces expose ontology line
 | `ontology.version_forked` | `OntologyDefinition` | Lineage branch of semantic asset |
 | `ontology.published` | `OntologyDefinition` | Semantic asset publication |
 | `ontology.validation_run` | `OntologyDefinition` | Structural validation journey |
+| `ontology.generated` | `OntologyDefinition` | Generate-from-Sources draft creation |
+| `ontology.suggestion_reviewed` | `OntologyDefinition` | Advisory semantic review decision |
+| `ontology.connector_selected` | `OntologyDefinition` | Graph store connector selection |
+| `ontology.materialized` | `OntologyDefinition` | Draft materialization to knowledge graph |
+| `ontology.question_answered` | `OntologyDefinition` | Grounded ontology Q&A (chat over structure; S38) |
 
 ### 6.2 Operational audit (`operational_audit`)
 
@@ -154,12 +177,33 @@ Ontology Wizard success links may deep-link to **Semantic Transactions** for the
 
 Semantic lineage transactions SHOULD include ordered trace steps that name:
 
-- Semantic layer or routing decision
+- **`TraceStep.layer`** — one of §4.1 (six-layer taxonomy; legacy `KnowledgeLayer` accepted)
+- **`TraceStep.status`**, **`input_summary`**, **`output_summary`**, **`duration_ms`** when the journey is multi-step (S38-01 schema)
 - Semantic asset reference (ontology IRI, product id, agent id)
 - Connector reference **as a step**, when a physical system was involved
 - Input/output artifact references where applicable
 
 Operational-only transactions MAY have zero or minimal steps; they remain ineligible for Semantic Transactions regardless.
+
+### 9.1 trx_main first-class fields (S39-01/S39-03, ADR-002)
+
+Question and answer text, timing, and execution mode are **first-class columns on the `semantic_transactions` row (trx_main)** — not derived from trace step summaries. Trace step `input_summary` / `output_summary` remain truncated denormalized hints; trx_main is authoritative for the full text.
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `question_text` | text, nullable | Full user question (untruncated) |
+| `answer_text` | text, nullable | Full generated answer (untruncated) |
+| `started_at` | timestamptz, nullable | Wall-clock start of the transaction |
+| `completed_at` | timestamptz, nullable | Wall-clock completion (set on success and failure) |
+| `total_duration_ms` | integer, nullable | End-to-end duration for the transaction |
+| `mode` | string, nullable | Execution mode: `Rich` (full semantic stack) or `Bare` (LLM + Database baseline, Compare Mode). Ontology structure-only chat records `Rich`. |
+
+**Rules:**
+
+1. All trx_main fields are nullable so existing rows (pre-S39-01) remain valid.
+2. Consumers MUST read full question/answer from trx_main, not from trace step summaries.
+3. `mode` values are constrained to the `SemanticTransactionMode` enum (`Rich`, `Bare`).
+4. Fields reserved by ADR-002 but out of Sprint 39 scope — `cost_estimate` / `total_cost_estimate` (S40), `conversation_id` (S40), `comparison_id` (Compare Mode), `sandbox_id` (ADR-003) — are documented in their own sprint updates when landed.
 
 ---
 

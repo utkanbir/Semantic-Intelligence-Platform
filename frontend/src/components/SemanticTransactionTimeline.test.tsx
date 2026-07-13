@@ -39,4 +39,32 @@ describe("SemanticTransactionTimeline", () => {
 
     expect(screen.getByText("No trace steps recorded.")).toBeInTheDocument();
   });
+
+  it("renders extended trace fields when present", () => {
+    const extendedSteps: TraceStepResponse[] = [
+      {
+        id: "step-1",
+        semantic_transaction_id: "txn-1",
+        step_number: 1,
+        step_type: "QuestionReceived",
+        message: "User question received",
+        created_at: "2025-06-01T10:00:01Z",
+        layer: "Experience",
+        status: "Completed",
+        input_summary: "question=What is Invoice?",
+        output_summary: "accepted",
+        duration_ms: 15,
+      },
+    ];
+
+    render(<SemanticTransactionTimeline steps={extendedSteps} />);
+
+    expect(screen.getByText("Experience")).toBeInTheDocument();
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(screen.getByText("Input")).toBeInTheDocument();
+    expect(screen.getByText("question=What is Invoice?")).toBeInTheDocument();
+    expect(screen.getByText("Output")).toBeInTheDocument();
+    expect(screen.getByText("accepted")).toBeInTheDocument();
+    expect(screen.getByText("15 ms")).toBeInTheDocument();
+  });
 });

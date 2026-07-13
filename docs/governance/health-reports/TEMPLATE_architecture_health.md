@@ -5,6 +5,8 @@
 **Author:** Lead Architect  
 **Companion:** [SIP_Architecture_Governance_Policy.md](../SIP_Architecture_Governance_Policy.md)
 
+**Closed-sprint edits (S37-08):** After merge, any change to this file MUST include an inline blockquote on the edited section: `> Correction (YYYY-MM-DD, #issue): <reason>`.
+
 ---
 
 ## 1. Summary
@@ -87,12 +89,14 @@ Policy trigger **#11** covers SemanticTransaction / TraceStep pattern changes (R
 
 **Rating rule:** Section 1 may be **Green** only when every applicable row below is **Pass** or **N/A** (no **Fail**).
 
-| ID | Check | Result (Pass / Fail / N/A) | Notes |
-|----|-------|----------------------------|-------|
+| ID | Check | Result (Pass / Fail / N/A) | Evidence / Notes |
+|----|-------|----------------------------|------------------|
 | G11-1 | SemanticTransaction / TraceStep write paths unchanged, or gate-Yes PR(s) reviewed per policy trigger #11 | | |
 | G11-2 | New/changed Console labels for semantic lineage align with taxonomy/ontology contract (no `audit_trace` ↔ semantic conflation) | | |
 | G11-3 | New semantic read/write routes documented in the relevant module contract | | |
 | G11-4 | `trace_audience` / lineage classification matches contract (persisted on write when required) | | |
+
+**Pass rows (Sprint 37+):** Evidence column must cite a file path, PR (`#NNN`), or test name. Reviewer spot-checks at least one link before accepting Green.
 
 **Section 1 summary line must cite this table** when rated Green (e.g. "Green — §9 gate-trigger-11 checklist: all Pass/N/A").
 

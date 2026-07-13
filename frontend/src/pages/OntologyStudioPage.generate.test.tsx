@@ -298,6 +298,7 @@ describe("OntologyStudioPage · Generate from Sources", () => {
 
     // Candidate concepts are rendered as editable inputs.
     expect(screen.getByLabelText("Candidate class name")).toHaveValue("Vendor");
+    expect(screen.getByRole("heading", { name: "Sample / stub output" })).toBeInTheDocument();
     expect(screen.getByLabelText("Candidate property name")).toHaveValue("vendorName");
     expect(screen.getByLabelText("Candidate relationship name")).toHaveValue("suppliesTo");
 
@@ -559,7 +560,7 @@ describe("OntologyStudioPage · Generate from Sources", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("location-probe")).toHaveTextContent(
-        "/applications/app-1/semantic-transactions/txn-materialize-gen-1",
+        "/applications/app-1/ontology",
       );
     });
   }, 15000);

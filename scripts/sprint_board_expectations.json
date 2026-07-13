@@ -145,6 +145,18 @@
     "36": {
       "label": "Governance Remediation",
       "issues": [334, 337, 338, 339, 340, 341, 342]
+    },
+    "37": {
+      "label": "Governance Hardening",
+      "issues": [356, 357, 358, 359, 360, 361, 362, 363, 364]
+    },
+    "38": {
+      "label": "Ontology Chat",
+      "issues": [381, 382, 383, 384, 385, 386, 387]
+    },
+    "39": {
+      "label": "Semantic Transaction Data Model",
+      "issues": [397, 398, 399, 400, 401]
     }
   }
 }

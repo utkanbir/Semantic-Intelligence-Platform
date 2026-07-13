@@ -42,6 +42,7 @@ def temp_repo(tmp_path: Path) -> Path:
                 "title": "Test",
                 "github_issue": 346,
                 "target_milestone": "Technical Debt Backlog",
+                "expires_sprint": 42,
                 "status": "open",
             }
         ]
@@ -89,7 +90,7 @@ def test_td_id_in_line_passes_via_ledger(temp_repo: Path) -> None:
 def test_issue_hash_in_line_passes(temp_repo: Path) -> None:
     retro = temp_repo / "docs" / "governance" / "retros" / "Sprint_36_Test_retro.md"
     retro.write_text(
-        "# retro\n\n- Auth ADR deferred; tracked in #343.\n",
+        "# retro\n\n- Auth ADR deferred to next sprint; tracked in #343.\n",
         encoding="utf-8",
     )
     index = vsd._ledger_index(vsd._load_ledger(vsd.LEDGER_PATH))
@@ -97,8 +98,25 @@ def test_issue_hash_in_line_passes(temp_repo: Path) -> None:
     assert errors == []
 
 
-def test_real_ledger_has_four_seeded_items() -> None:
+def test_ledger_expiry_fails_when_past() -> None:
+    ledger = {
+        "items": [
+            {
+                "id": "TD-TEST",
+                "status": "open",
+                "github_issue": 1,
+                "target_milestone": "M",
+                "expires_sprint": 30,
+            }
+        ]
+    }
+    errors = vsd.validate_ledger_expiry(ledger, current_sprint=37)
+    assert any("expired at Sprint 30" in item for item in errors)
+
+
+def test_real_ledger_has_six_seeded_items() -> None:
     ledger = vsd._load_ledger(SCRIPTS_DIR / "deferred_items_ledger.json")
     open_items = [i for i in ledger["items"] if i.get("status") == "open"]
-    assert len(open_items) == 4
-    assert {i["github_issue"] for i in open_items} == {343, 344, 345, 346}
+    assert len(open_items) == 7
+    assert {i["github_issue"] for i in open_items} == {343, 344, 345, 346, 366, 367, 369}
+    assert all(i.get("expires_sprint") is not None for i in open_items)

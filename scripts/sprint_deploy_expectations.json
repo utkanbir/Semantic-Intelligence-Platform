@@ -79,6 +79,51 @@
           "image": "sip-console:s54"
         }
       ]
+    },
+    "37": {
+      "label": "Governance Hardening",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s53"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s54"
+        }
+      ]
+    },
+    "38": {
+      "label": "Ontology Chat",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s55"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s56"
+        }
+      ]
+    },
+    "39": {
+      "label": "Semantic Transaction Data Model",
+      "deployments": [
+        {
+          "name": "sip-backend",
+          "container": "backend",
+          "image": "sip-backend:s60"
+        },
+        {
+          "name": "sip-console",
+          "container": "console",
+          "image": "sip-console:s59"
+        }
+      ]
     }
   }
 }

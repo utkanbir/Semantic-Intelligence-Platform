@@ -87,11 +87,55 @@ def test_all_pass_allows_green(health_dir: Path) -> None:
 
 | ID | Check | Result (Pass / Fail / N/A) | Notes |
 |----|-------|----------------------------|-------|
-| G11-1 | Write paths | Pass | |
+| G11-1 | Write paths | Pass | ok |
 | G11-2 | Labels | N/A | |
 """,
     )
     errors = vhg.verify_health_report_gate11(36, repo_root=health_dir.parents[2], enforce_from=36)
+    assert errors == []
+
+
+def test_pass_without_evidence_fails_from_sprint_37(health_dir: Path) -> None:
+    report = health_dir / "Sprint_37_Test_health.md"
+    _write_report(
+        report,
+        """# health
+
+## 1. Summary
+
+**Green.**
+
+## 9. Gate trigger #11-class checklist
+
+| ID | Check | Result (Pass / Fail / N/A) | Evidence / Notes |
+|----|-------|----------------------------|------------------|
+| G11-1 | Write paths | Pass | looks fine |
+| G11-2 | Labels | N/A | |
+""",
+    )
+    errors = vhg.verify_health_report_gate11(37, repo_root=health_dir.parents[2], enforce_from=36)
+    assert any("missing evidence" in item.lower() for item in errors)
+
+
+def test_pass_with_evidence_passes_from_sprint_37(health_dir: Path) -> None:
+    report = health_dir / "Sprint_37_Test_health.md"
+    _write_report(
+        report,
+        """# health
+
+## 1. Summary
+
+**Green.**
+
+## 9. Gate trigger #11-class checklist
+
+| ID | Check | Result (Pass / Fail / N/A) | Evidence / Notes |
+|----|-------|----------------------------|------------------|
+| G11-1 | Write paths | Pass | `scripts/verify_contract_sync.py` |
+| G11-2 | Labels | N/A | |
+""",
+    )
+    errors = vhg.verify_health_report_gate11(37, repo_root=health_dir.parents[2], enforce_from=36)
     assert errors == []
 
 

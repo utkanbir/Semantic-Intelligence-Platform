@@ -12,6 +12,7 @@ import {
   type OntologyDefinitionResponse,
   type OntologyDefinitionStatus,
 } from "../api/ontologies";
+import { OntologyAreaNav } from "../components/OntologyAreaNav";
 import { getVendorLabel, readConnectorVendor } from "../connectors/catalog";
 
 type PageState =
@@ -249,6 +250,8 @@ export function OntologiesPage({ applicationId }: OntologiesPageProps) {
           Create or import ontology
         </Link>
       </div>
+
+      <OntologyAreaNav applicationId={applicationId} />
 
       {state.kind === "loading" && (
         <p className="ontologies-page__status" role="status" aria-live="polite">
