@@ -6,6 +6,7 @@ describe("App", () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
+    window.history.pushState({}, "", "/");
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -47,20 +48,19 @@ describe("App", () => {
   it("renders platform overview at home", async () => {
     render(<App />);
     expect(
-      screen.getByText("Semantic Intelligence Platform"),
+      screen.getByRole("heading", { name: "Semantic Intelligence Platform" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Platform overview" })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText("Backend connected")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Sandboxlar" })).toBeInTheDocument();
     });
+    expect(
+      screen.getByText("Henüz sandbox yok. Yeni sandbox oluşturarak başlayın."),
+    ).toBeInTheDocument();
   });
 
   it("loads platform hub at /platform", async () => {
+    window.history.pushState({}, "", "/platform");
     render(<App />);
-
-    fireEvent.click(
-      screen.getByRole("link", { name: /Connectors, governance, semantic transactions/i }),
-    );
 
     expect(screen.getByRole("heading", { name: "Platform" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /View and provision connectors/i })).toHaveAttribute(
@@ -69,10 +69,10 @@ describe("App", () => {
     );
   });
 
-  it("loads applications list at /applications", async () => {
+  it("loads applications list from home create action", async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("link", { name: "Applications" }));
+    fireEvent.click(screen.getByRole("link", { name: "+ Yeni uygulama" }));
 
     expect(screen.getByRole("heading", { name: "Applications" })).toBeInTheDocument();
     await waitFor(() => {

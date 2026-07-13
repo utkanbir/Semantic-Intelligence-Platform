@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Verify health-report gate-trigger-11 checklist hygiene (S36-03).
+"""Verify health-report gate-trigger-11 checklist hygiene (S36-03, S37-07).
 
 From Sprint 36 onward, each sprint health report must include §9-style
 gate-trigger-11-class checklist. A **Green** summary is invalid when any
 applicable checklist row is **Fail** or unset.
+
+From Sprint 37 onward (S37-07), every **Pass** row must cite evidence
+(file path, PR number, or test name) in the Evidence or Notes column.
 
 Usage:
   python scripts/verify_health_report_gate11.py --sprint 36
@@ -19,6 +22,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HEALTH_GLOB = "Sprint_{sprint}_*_health.md"
 ENFORCE_FROM_SPRINT = 36
+EVIDENCE_ENFORCE_FROM_SPRINT = 37
 
 SECTION_HEADING = re.compile(
     r"(?i)^##\s+.*gate\s+trigger\s+#?11",
@@ -26,6 +30,17 @@ SECTION_HEADING = re.compile(
 SUMMARY_GREEN = re.compile(r"(?i)\*\*green\*\*|\bgreen\b")
 TABLE_ROW = re.compile(r"^\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|")
 RESULT_CELL = re.compile(r"^\s*(pass|fail|n/?a)\s*$", re.IGNORECASE)
+EVIDENCE_LINK = re.compile(
+    r"("
+    r"`[^`]+`"
+    r"|#\d+"
+    r"|test_[A-Za-z0-9_]+"
+    r"|[A-Za-z0-9_./\\-]+\.(?:md|py|ts|tsx|yml|yaml|json)"
+    r"|scripts/"
+    r"|PR\s*#\d+"
+    r")",
+    re.IGNORECASE,
+)
 
 
 def _health_paths(repo_root: Path, sprint: int) -> list[Path]:
@@ -44,25 +59,43 @@ def _extract_section(lines: list[str], heading_idx: int) -> list[str]:
     return section
 
 
-def _parse_checklist_table(section_lines: list[str]) -> list[tuple[str, str]]:
-    """Return (check_id, result) for data rows in the gate-11 table."""
-    rows: list[tuple[str, str]] = []
+def _split_table_row(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _parse_checklist_table(section_lines: list[str]) -> list[dict[str, str]]:
+    """Return checklist rows with id, result, evidence_text."""
+    rows: list[dict[str, str]] = []
     in_table = False
+    result_idx = 2
+    evidence_idx = 3
     for line in section_lines:
         if not line.strip().startswith("|"):
             if in_table:
                 break
             continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        cells = _split_table_row(line)
         if len(cells) < 4:
             continue
         if cells[0].lower() in {"id", "---", "----"} or set(cells[0]) <= {"-"}:
             in_table = True
+            if cells[0].lower() == "id":
+                for idx, header in enumerate(cells):
+                    header_lower = header.lower()
+                    if header_lower.startswith("result"):
+                        result_idx = idx
+                    elif header_lower.startswith("evidence") or header_lower.startswith("notes"):
+                        evidence_idx = idx
             continue
         in_table = True
-        check_id = cells[0]
-        result = cells[2]
-        rows.append((check_id, result))
+        evidence_text = cells[evidence_idx] if len(cells) > evidence_idx else ""
+        rows.append(
+            {
+                "id": cells[0],
+                "result": cells[result_idx] if len(cells) > result_idx else "",
+                "evidence_text": evidence_text,
+            }
+        )
     return rows
 
 
@@ -85,6 +118,7 @@ def verify_health_report_gate11(
     *,
     repo_root: Path = REPO_ROOT,
     enforce_from: int = ENFORCE_FROM_SPRINT,
+    evidence_from: int = EVIDENCE_ENFORCE_FROM_SPRINT,
 ) -> list[str]:
     if sprint < enforce_from:
         return []
@@ -120,13 +154,23 @@ def verify_health_report_gate11(
 
         fails: list[str] = []
         unset: list[str] = []
-        for check_id, result in rows:
+        missing_evidence: list[str] = []
+        for row in rows:
+            check_id = row["id"]
+            result = row["result"]
             if not result:
                 unset.append(check_id)
                 continue
             if RESULT_CELL.match(result):
-                if result.strip().lower() == "fail":
+                normalized = result.strip().lower()
+                if normalized == "fail":
                     fails.append(check_id)
+                elif (
+                    normalized == "pass"
+                    and sprint >= evidence_from
+                    and not EVIDENCE_LINK.search(row["evidence_text"])
+                ):
+                    missing_evidence.append(check_id)
             else:
                 unset.append(check_id)
 
@@ -137,6 +181,11 @@ def verify_health_report_gate11(
         if unset:
             errors.append(
                 f"{rel}: gate-trigger-11 checklist missing Pass/Fail/N/A for: {', '.join(unset)}"
+            )
+        if missing_evidence:
+            errors.append(
+                f"{rel}: Pass row(s) missing evidence link (path, PR, or test name): "
+                f"{', '.join(missing_evidence)}"
             )
 
         if _summary_is_green(content) and (fails or unset):
@@ -159,12 +208,19 @@ def main() -> int:
         default=ENFORCE_FROM_SPRINT,
         help=f"First sprint requiring checklist (default {ENFORCE_FROM_SPRINT})",
     )
+    parser.add_argument(
+        "--evidence-from",
+        type=int,
+        default=EVIDENCE_ENFORCE_FROM_SPRINT,
+        help=f"First sprint requiring evidence on Pass rows (default {EVIDENCE_ENFORCE_FROM_SPRINT})",
+    )
     args = parser.parse_args()
 
     errors = verify_health_report_gate11(
         args.sprint,
         repo_root=args.repo_root,
         enforce_from=args.enforce_from,
+        evidence_from=args.evidence_from,
     )
 
     if errors:

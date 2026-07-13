@@ -1,0 +1,7 @@
+{
+  "$schema_note": "S37-01: closed sprint milestones must have matching end_of_sprint commit + docs on reconcile_branch.",
+  "reconcile_branch": "develop",
+  "enforce_from_sprint": 37,
+  "waived_sprints": [29, 30, 33],
+  "milestone_title_pattern": "^Sprint (\\d+)\\s+—"
+}

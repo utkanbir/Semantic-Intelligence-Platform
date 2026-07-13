@@ -7,6 +7,11 @@ export interface TraceStepResponse {
   step_type: string;
   message: string | null;
   created_at: string;
+  layer?: string | null;
+  status?: string | null;
+  input_summary?: string | null;
+  output_summary?: string | null;
+  duration_ms?: number | null;
 }
 
 export interface SemanticTransactionResponse {
@@ -17,6 +22,9 @@ export interface SemanticTransactionResponse {
   created_at: string;
   trace_steps: TraceStepResponse[];
   application_id?: string | null;
+  status?: string | null;
+  initiated_by?: string | null;
+  participating_assets?: Record<string, string> | null;
 }
 
 export interface AuditTraceListQuery {

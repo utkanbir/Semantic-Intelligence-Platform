@@ -13,6 +13,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.modules.audit_trace.repositories.orm_models  # noqa: F401
+from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionStatus,
+    TraceLayer,
+    TraceStepStatus,
+)
 from app.modules.audit_trace.domain.models import TraceStep
 from app.modules.audit_trace.repositories.orm_models import Base, SemanticTransaction
 from app.modules.audit_trace.repositories.sqlalchemy_repository import (
@@ -158,3 +163,38 @@ def test_list_transactions_batches_trace_step_loading(
     assert all(len(record.trace_steps) == 2 for record in records)
     assert [step.step_number for step in records[0].trace_steps] == [1, 2]
     assert len(select_statements) == 2
+
+
+def test_create_trace_step_with_extension_fields(
+    db_session: Session, semantic_transaction_id: UUID
+) -> None:
+    repo = SqlAlchemyTraceStepRepository(db_session)
+    now = datetime(2026, 7, 9, 12, 0, 0, tzinfo=UTC)
+    step_id = uuid4()
+
+    created = repo.create(
+        TraceStep(
+            id=step_id,
+            semantic_transaction_id=semantic_transaction_id,
+            step_number=1,
+            step_type="QuestionReceived",
+            message="User asked about Invoice class",
+            created_at=now,
+            layer=TraceLayer.EXPERIENCE,
+            status=TraceStepStatus.COMPLETED,
+            input_summary="question=What is Invoice?",
+            output_summary="accepted",
+            duration_ms=12,
+        )
+    )
+
+    assert created.layer is TraceLayer.EXPERIENCE
+    assert created.status is TraceStepStatus.COMPLETED
+    assert created.duration_ms == 12
+
+    query_repo = SqlAlchemyAuditTraceQueryRepository(db_session)
+    record = query_repo.get_transaction(semantic_transaction_id)
+    assert record is not None
+    assert record.status is SemanticTransactionStatus.COMPLETED
+    assert len(record.trace_steps) == 1
+    assert record.trace_steps[0].input_summary == "question=What is Invoice?"

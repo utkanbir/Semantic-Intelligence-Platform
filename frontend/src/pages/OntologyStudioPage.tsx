@@ -51,7 +51,6 @@ interface OntologyStudioPageProps {
 }
 
 type WizardMode = "create" | "import" | "generate";
-type ImportSourceMethod = "file" | "paste";
 type GenerateSourceMethod = "file" | "paste" | "knowledge_source" | "url";
 type WizardPhase =
   | "mode"
@@ -158,25 +157,6 @@ function inferSourceFormat(fileName: string): string {
   }
 }
 
-function previewSourceContent(content: string): string {
-  const trimmed = content.trim();
-  if (trimmed.length <= 1400) {
-    return trimmed;
-  }
-
-  return `${trimmed.slice(0, 1400)}\n\n…`;
-}
-
-function hasBasicRdfStructure(content: string): boolean {
-  const normalized = content.trim().toLowerCase();
-  return (
-    normalized.includes("@prefix") ||
-    normalized.includes("owl:ontology") ||
-    normalized.includes("<rdf:rdf") ||
-    normalized.includes("rdf:rdf")
-  );
-}
-
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -187,26 +167,6 @@ function formatFileSize(bytes: number): string {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatGenerateSourceLabel(entry: GenerateSourceEntry): string {
-  if (entry.kind === "url") {
-    return entry.url ?? entry.name;
-  }
-  if (entry.kind === "file") {
-    return entry.name;
-  }
-  return entry.name;
-}
-
-function formatGenerateSourceMeta(entry: GenerateSourceEntry): string {
-  if (entry.kind === "url") {
-    return `url · ${entry.url ?? entry.name}`;
-  }
-  if (entry.kind === "file") {
-    return `file · ${entry.content?.length ?? 0} chars`;
-  }
-  return `${entry.kind.replace("_", " ")} · ${entry.content?.length ?? 0} chars`;
 }
 
 function readUploadedFile(file: File): Promise<string> {
@@ -227,6 +187,45 @@ function readUploadedFile(file: File): Promise<string> {
   }
 
   return readWithFileReader();
+}
+
+function previewSourceContent(content: string): string {
+  const trimmed = content.trim();
+  if (trimmed.length <= 1400) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, 1400)}\n\n…`;
+}
+
+function hasBasicRdfStructure(content: string): boolean {
+  const normalized = content.trim().toLowerCase();
+  return (
+    normalized.includes("@prefix") ||
+    normalized.includes("owl:ontology") ||
+    normalized.includes("<rdf:rdf") ||
+    normalized.includes("rdf:rdf")
+  );
+}
+
+function formatGenerateSourceLabel(entry: GenerateSourceEntry): string {
+  if (entry.kind === "url") {
+    return entry.url ?? entry.name;
+  }
+  if (entry.kind === "file") {
+    return entry.name;
+  }
+  return entry.name;
+}
+
+function formatGenerateSourceMeta(entry: GenerateSourceEntry): string {
+  if (entry.kind === "url") {
+    return `url · ${entry.url ?? entry.name}`;
+  }
+  if (entry.kind === "file") {
+    return `file · ${entry.content?.length ?? 0} chars`;
+  }
+  return `${entry.kind.replace("_", " ")} · ${entry.content?.length ?? 0} chars`;
 }
 
 function stepsForMode(
@@ -420,10 +419,9 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
   const [namespaceIri, setNamespaceIri] = useState("");
   const [prefix, setPrefix] = useState("");
   const [description, setDescription] = useState("");
-  const [sourceMethod, setSourceMethod] = useState<ImportSourceMethod>("file");
+  const [connectorId, setConnectorId] = useState("");
   const [sourceFileName, setSourceFileName] = useState("");
   const [sourceFileSize, setSourceFileSize] = useState<number | null>(null);
-  const [connectorId, setConnectorId] = useState("");
   const [sourceFormat, setSourceFormat] = useState("ttl");
   const [sourceContent, setSourceContent] = useState("");
   const [createdBy, setCreatedBy] = useState("");
@@ -603,8 +601,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       { id: "title", label: "Title provided", passed: Boolean(title.trim()) },
       {
         id: "source",
-        label:
-          sourceMethod === "file" ? "Ontology file uploaded" : "Ontology content pasted",
+        label: "Ontology file uploaded",
         passed: Boolean(trimmedContent),
       },
       {
@@ -618,7 +615,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
         passed: !trimmedContent || hasBasicRdfStructure(trimmedContent),
       },
     ];
-  }, [mode, sourceContent, sourceFormat, sourceMethod, title]);
+  }, [mode, sourceContent, sourceFormat, title]);
 
   const editStepValid =
     mode !== null &&
@@ -699,9 +696,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
       }
 
       if (mode === "import" && !sourceContent.trim()) {
-        return sourceMethod === "file"
-          ? "Upload an ontology file to continue"
-          : "Paste ontology content to continue";
+        return "Upload an ontology file to continue";
       }
     }
 
@@ -1220,12 +1215,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
   }
 
-  function redirectAfterMaterialize(ontology: OntologyDefinitionResponse) {
-    const transactionId = ontology.semantic_transaction_id;
-    if (transactionId) {
-      navigate(`/applications/${applicationId}/semantic-transactions/${transactionId}`);
-      return;
-    }
+  function redirectAfterMaterialize(_ontology: OntologyDefinitionResponse) {
     navigate(`/applications/${applicationId}/ontology`);
   }
 
@@ -1300,25 +1290,6 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
     }
   }
 
-  function handleImportMethodChange(method: ImportSourceMethod) {
-    if (method === sourceMethod) {
-      return;
-    }
-
-    setSourceMethod(method);
-    setBackendValidationReport(null);
-    setParsedContentApproved(false);
-    setStepError(null);
-    setSubmitError(null);
-  }
-
-  function handlePasteContentChange(value: string) {
-    setSourceContent(value);
-    setBackendValidationReport(null);
-    setParsedContentApproved(false);
-    setStepError(null);
-  }
-
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) {
@@ -1327,7 +1298,6 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
     try {
       const text = await readUploadedFile(file);
-      setSourceMethod("file");
       setSourceFileName(file.name);
       setSourceFileSize(file.size);
       setSourceContent(text);
@@ -1517,7 +1487,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                   <span className="ontology-wizard__mode-title">OWL Import</span>
                   <span className="ontology-wizard__mode-copy">
-                    Import existing OWL/RDF content from a file upload or pasted text.
+                    Import existing OWL/RDF semantics by uploading a .ttl, .owl, .rdf, or JSON-LD file.
                   </span>
                 </label>
                 <label className="ontology-wizard__mode-card">
@@ -1650,8 +1620,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                 Step {stepNumber} · Edit draft
               </h3>
               <p className="ontology-wizard__panel-lead">
-                Provide OWL/RDF/TTL content by uploading a file or pasting text. Basic RDF
-                structure is checked before validation.
+                Upload an OWL/RDF/TTL file. Basic RDF structure is checked before validation.
               </p>
               <div className="ontology-wizard__step-body">
                 <div className="agent-runs-page__field">
@@ -1668,108 +1637,26 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                   />
                 </div>
 
-                <div
-                  className="ontology-wizard__source-tabs"
-                  role="tablist"
-                  aria-label="Import source method"
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    id="import-tab-file"
-                    aria-selected={sourceMethod === "file"}
-                    aria-controls="import-panel-file"
-                    className={`ontology-wizard__source-tab${
-                      sourceMethod === "file" ? " ontology-wizard__source-tab--active" : ""
-                    }`}
-                    onClick={() => handleImportMethodChange("file")}
-                  >
-                    Upload file
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    id="import-tab-paste"
-                    aria-selected={sourceMethod === "paste"}
-                    aria-controls="import-panel-paste"
-                    className={`ontology-wizard__source-tab${
-                      sourceMethod === "paste" ? " ontology-wizard__source-tab--active" : ""
-                    }`}
-                    onClick={() => handleImportMethodChange("paste")}
-                  >
-                    Paste text
-                  </button>
+                <div className="agent-runs-page__field">
+                  <label htmlFor="ontology-import-file">Ontology file</label>
+                  <input
+                    id="ontology-import-file"
+                    type="file"
+                    accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
+                    onChange={(event) => void handleFileChange(event)}
+                  />
+                  {sourceFileName ? (
+                    <p className="ontology-wizard__file-info" role="status">
+                      {sourceFileName}
+                      {sourceFileSize !== null && ` · ${formatFileSize(sourceFileSize)}`}
+                      {` · format: ${effectiveSourceFormat}`}
+                    </p>
+                  ) : (
+                    <p className="agent-runs-page__field-hint">
+                      Accepted formats include TTL, RDF/XML, OWL, and JSON-LD.
+                    </p>
+                  )}
                 </div>
-
-                {sourceMethod === "file" ? (
-                  <div
-                    className="agent-runs-page__field"
-                    id="import-panel-file"
-                    role="tabpanel"
-                    aria-labelledby="import-tab-file"
-                  >
-                    <label htmlFor="ontology-import-file">Ontology file</label>
-                    <input
-                      id="ontology-import-file"
-                      type="file"
-                      accept=".owl,.xml,.ttl,.rdf,.jsonld,text/plain,application/xml"
-                      onChange={(event) => void handleFileChange(event)}
-                    />
-                    {sourceFileName ? (
-                      <p className="ontology-wizard__file-info" role="status">
-                        {sourceFileName}
-                        {sourceFileSize !== null && ` · ${formatFileSize(sourceFileSize)}`}
-                        {` · format: ${effectiveSourceFormat}`}
-                      </p>
-                    ) : (
-                      <p className="agent-runs-page__field-hint">
-                        Accepted formats include TTL, RDF/XML, OWL, and JSON-LD.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div
-                    className="ontology-wizard__step-body"
-                    id="import-panel-paste"
-                    role="tabpanel"
-                    aria-labelledby="import-tab-paste"
-                  >
-                    <div className="agent-runs-page__field">
-                      <label htmlFor="ontology-paste-format">Source format</label>
-                      <select
-                        id="ontology-paste-format"
-                        value={sourceFormat}
-                        onChange={(event) => {
-                          setSourceFormat(event.target.value);
-                          setStepError(null);
-                          setBackendValidationReport(null);
-                          setParsedContentApproved(false);
-                        }}
-                      >
-                        <option value="ttl">Turtle (TTL)</option>
-                        <option value="rdf">RDF/XML</option>
-                        <option value="owl">OWL</option>
-                        <option value="xml">XML</option>
-                        <option value="jsonld">JSON-LD</option>
-                      </select>
-                    </div>
-                    <div className="agent-runs-page__field">
-                      <label htmlFor="ontology-paste-content">Ontology content</label>
-                      <textarea
-                        id="ontology-paste-content"
-                        className="ontology-wizard__import-textarea"
-                        rows={10}
-                        placeholder="@prefix ex: <https://example.com/> ."
-                        value={sourceContent}
-                        onChange={(event) => handlePasteContentChange(event.target.value)}
-                      />
-                      <p className="agent-runs-page__field-hint">
-                        Paste OWL/RDF/TTL content. It is parsed via the validate step before
-                        becoming a draft.
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 {contentForSubmission && (
                   <div className="ontology-wizard__review-card">
@@ -1880,6 +1767,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                         ? " ontology-wizard__source-tab--active"
                         : ""
                     }`}
+                    title="Tag pasted text with an existing application knowledge source reference id for extraction lineage"
                     onClick={() => setGenerateSourceMethod("knowledge_source")}
                   >
                     Knowledge source
@@ -1975,6 +1863,12 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
 
                 {generateSourceMethod === "knowledge_source" && (
                   <div className="ontology-wizard__step-body">
+                    <p className="ontology-wizard__info-callout" role="note">
+                      Use this when the text comes from an existing application knowledge source.
+                      Enter its <strong>reference id</strong> so the extraction lineage records
+                      which source informed generated concepts. Paste the source text below — SIP
+                      does not fetch content by reference id automatically.
+                    </p>
                     <div className="agent-runs-page__field">
                       <label htmlFor="ontology-generate-knowledge-ref">
                         Knowledge source reference id
@@ -1983,7 +1877,15 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                         id="ontology-generate-knowledge-ref"
                         value={knowledgeReference}
                         onChange={(event) => setKnowledgeReference(event.target.value)}
+                        aria-describedby="ontology-generate-knowledge-ref-hint"
                       />
+                      <p
+                        id="ontology-generate-knowledge-ref-hint"
+                        className="agent-runs-page__field-hint"
+                      >
+                        Opaque id from your application knowledge catalog (for example a document or
+                        asset reference).
+                      </p>
                     </div>
                     <div className="agent-runs-page__field">
                       <label htmlFor="ontology-generate-knowledge-name">
@@ -2008,8 +1910,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                         onChange={(event) => setKnowledgeContent(event.target.value)}
                       />
                       <p className="agent-runs-page__field-hint">
-                        Paste the text of an existing application knowledge source. Its reference id
-                        is recorded for lineage.
+                        Paste the knowledge source text to include in generation.
                       </p>
                     </div>
                     <button
@@ -2244,11 +2145,7 @@ export function OntologyStudioPage({ applicationId }: OntologyStudioPageProps) {
                     {mode === "import" && (
                       <div>
                         <dt>Import source</dt>
-                        <dd>
-                          {sourceMethod === "file"
-                            ? sourceFileName || "Uploaded file"
-                            : "Pasted text"}
-                        </dd>
+                        <dd>{sourceFileName || "Uploaded file"}</dd>
                       </div>
                     )}
                     <div>

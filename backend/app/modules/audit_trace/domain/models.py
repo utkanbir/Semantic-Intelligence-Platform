@@ -4,7 +4,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 from uuid import UUID
+
+from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionMode,
+    SemanticTransactionStatus,
+    TraceLayer,
+    TraceStepStatus,
+)
+
+
+@dataclass(slots=True)
+class LayeredTraceStepSpec:
+    """Input for a typed trace step on a layered semantic transaction (S38-05)."""
+
+    step_type: str
+    layer: TraceLayer
+    status: TraceStepStatus = TraceStepStatus.COMPLETED
+    message: str | None = None
+    input_summary: str | None = None
+    output_summary: str | None = None
+    duration_ms: int | None = None
 
 
 @dataclass(slots=True)
@@ -17,6 +38,11 @@ class TraceStep:
     step_type: str
     created_at: datetime
     message: str | None = None
+    layer: TraceLayer | None = None
+    status: TraceStepStatus | None = None
+    input_summary: str | None = None
+    output_summary: str | None = None
+    duration_ms: int | None = None
 
 
 @dataclass(slots=True)
@@ -30,3 +56,12 @@ class SemanticTransactionRecord:
     created_at: datetime
     trace_steps: list[TraceStep]
     application_id: UUID | None = None
+    status: SemanticTransactionStatus | None = None
+    initiated_by: str | None = None
+    participating_assets: dict[str, Any] | None = None
+    question_text: str | None = None
+    answer_text: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    total_duration_ms: int | None = None
+    mode: SemanticTransactionMode | None = None

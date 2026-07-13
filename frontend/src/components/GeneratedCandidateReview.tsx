@@ -88,9 +88,21 @@ export function GeneratedCandidateReview({
     });
   }
 
+  const isStubSample =
+    extractionAvailable && (model == null || model === "" || /stub/i.test(model));
+
   return (
     <div className="ontology-wizard__candidate-review">
-      {model && (
+      {isStubSample && (
+        <div className="ontology-wizard__parse-warnings" role="status">
+          <h5>Sample / stub output</h5>
+          <p className="ontology-wizard__hint">
+            Candidates below are produced by the deterministic stub adapter, not a live LLM.
+            Treat them as illustrative placeholders until a real provider is configured.
+          </p>
+        </div>
+      )}
+      {model && !isStubSample && (
         <p className="ontology-wizard__file-info" role="status">
           Extracted with model: {model}
         </p>

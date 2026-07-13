@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { getHealth } from "../api";
 
 interface PlatformShellProps {
@@ -32,6 +32,8 @@ function navLinkClass(isActive: boolean): string {
 }
 
 export function PlatformShell({ children }: PlatformShellProps) {
+  const location = useLocation();
+  const isHomeRoute = location.pathname === "/";
   const [connectionStatus, setConnectionStatus] =
     useState<BackendConnectionStatus>("loading");
 
@@ -56,52 +58,56 @@ export function PlatformShell({ children }: PlatformShellProps) {
   }, []);
 
   return (
-    <div className="platform-shell">
-      <header className="platform-header">
-        <div className="platform-header__brand">
-          <span className="platform-header__title">Semantic Intelligence Platform</span>
-        </div>
-        <div className="platform-header__actions">
-          <span
-            className={`backend-status backend-status--${connectionStatus}`}
-            role="status"
-            aria-live="polite"
-          >
-            {connectionLabel(connectionStatus)}
-          </span>
-          <nav className="platform-nav" aria-label="Primary">
-            <div className="platform-nav__group">
-              <span className="platform-nav__label">Platform</span>
-              <ul className="platform-nav__list">
-                {PLATFORM_NAV.map((item) => (
-                  <li key={item.to}>
+    <div className={`platform-shell${isHomeRoute ? " platform-shell--home" : ""}`}>
+      {!isHomeRoute && (
+        <header className="platform-header">
+          <div className="platform-header__brand">
+            <NavLink to="/" end className="platform-header__title">
+              Semantic Intelligence Platform
+            </NavLink>
+          </div>
+          <div className="platform-header__actions">
+            <span
+              className={`backend-status backend-status--${connectionStatus}`}
+              role="status"
+              aria-live="polite"
+            >
+              {connectionLabel(connectionStatus)}
+            </span>
+            <nav className="platform-nav" aria-label="Primary">
+              <div className="platform-nav__group">
+                <span className="platform-nav__label">Platform</span>
+                <ul className="platform-nav__list">
+                  {PLATFORM_NAV.map((item) => (
+                    <li key={item.to}>
+                      <NavLink
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) => navLinkClass(isActive)}
+                      >
+                        {item.label}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="platform-nav__group">
+                <span className="platform-nav__label">Applications</span>
+                <ul className="platform-nav__list">
+                  <li>
                     <NavLink
-                      to={item.to}
-                      end={item.end}
+                      to="/applications"
                       className={({ isActive }) => navLinkClass(isActive)}
                     >
-                      {item.label}
+                      Applications
                     </NavLink>
                   </li>
-                ))}
-              </ul>
-            </div>
-            <div className="platform-nav__group">
-              <span className="platform-nav__label">Applications</span>
-              <ul className="platform-nav__list">
-                <li>
-                  <NavLink
-                    to="/applications"
-                    className={({ isActive }) => navLinkClass(isActive)}
-                  >
-                    Applications
-                  </NavLink>
-                </li>
-              </ul>
-            </div>
-          </nav>
-        </div>
-      </header>
+                </ul>
+              </div>
+            </nav>
+          </div>
+        </header>
+      )}
       <main className="platform-main">{children}</main>
     </div>
   );

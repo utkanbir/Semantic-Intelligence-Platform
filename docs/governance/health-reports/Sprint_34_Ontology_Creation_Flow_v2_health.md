@@ -11,6 +11,8 @@
 
 ## 1. Summary
 
+> Correction (2026-07-09, #358): Generate-from-Sources used `StubLLMAdapter` for any `llm_provider` setting; this stub behavior was not disclosed in the Sprint 34 close health report.
+
 **Green.** Sprint 34 delivered a draft-first, three-mode ontology creation lifecycle without a schema migration or a cross-module boundary violation. The one gated item (S34-01 draft-first / materialize-after-approve contract) was resolved before this session; all subsequent work reused the established `LLMPort` (R-018) and the Sprint 32 semantic transaction taxonomy with no new port contracts.
 
 ---

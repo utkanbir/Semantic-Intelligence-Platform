@@ -10,7 +10,17 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules.audit_trace.domain.models import SemanticTransactionRecord, TraceStep
+from app.modules.audit_trace.domain.enums import (
+    SemanticTransactionMode,
+    SemanticTransactionStatus,
+    TraceLayer,
+    TraceStepStatus,
+)
+from app.modules.audit_trace.domain.models import (
+    LayeredTraceStepSpec,
+    SemanticTransactionRecord,
+    TraceStep,
+)
 from app.modules.audit_trace.domain.trace_audience import (
     OPERATIONAL_AUDIT_TRANSACTION_TYPES,
     PLATFORM_PROVISIONING_TRANSACTION_TYPES,
@@ -26,6 +36,22 @@ from app.modules.audit_trace.repositories.orm_models import (
 )
 
 
+def _parse_trace_layer(value: str | None) -> TraceLayer | None:
+    return TraceLayer(value) if value else None
+
+
+def _parse_trace_step_status(value: str | None) -> TraceStepStatus | None:
+    return TraceStepStatus(value) if value else None
+
+
+def _parse_transaction_status(value: str | None) -> SemanticTransactionStatus | None:
+    return SemanticTransactionStatus(value) if value else None
+
+
+def _parse_transaction_mode(value: str | None) -> SemanticTransactionMode | None:
+    return SemanticTransactionMode(value) if value else None
+
+
 def _to_domain(trace_step_orm: TraceStepORM) -> TraceStep:
     return TraceStep(
         id=trace_step_orm.id,
@@ -34,6 +60,11 @@ def _to_domain(trace_step_orm: TraceStepORM) -> TraceStep:
         step_type=trace_step_orm.step_type,
         message=trace_step_orm.message,
         created_at=trace_step_orm.created_at,
+        layer=_parse_trace_layer(trace_step_orm.layer),
+        status=_parse_trace_step_status(trace_step_orm.status),
+        input_summary=trace_step_orm.input_summary,
+        output_summary=trace_step_orm.output_summary,
+        duration_ms=trace_step_orm.duration_ms,
     )
 
 
@@ -106,6 +137,88 @@ class SqlAlchemyAuditTraceRepository:
         self._session.commit()
         return transaction_id
 
+    def begin_semantic_transaction(
+        self,
+        *,
+        transaction_type: str,
+        resource_type: str,
+        resource_id: str,
+        application_id: UUID | None,
+        initiated_by: str | None = None,
+        participating_assets: dict | None = None,
+        question_text: str | None = None,
+        started_at: datetime | None = None,
+        mode: str | None = None,
+    ) -> UUID:
+        """Create a Running semantic transaction before layered steps are appended."""
+        transaction_id = uuid4()
+        now = datetime.now(UTC)
+        semantic_transaction = SemanticTransaction(
+            id=transaction_id,
+            transaction_type=transaction_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            application_id=application_id,
+            status=SemanticTransactionStatus.RUNNING.value,
+            initiated_by=initiated_by,
+            participating_assets=participating_assets,
+            question_text=question_text,
+            started_at=started_at or now,
+            mode=mode,
+            created_at=now,
+        )
+        self._session.add(semantic_transaction)
+        self._session.commit()
+        return transaction_id
+
+    def append_layered_step(
+        self,
+        transaction_id: UUID,
+        *,
+        step_number: int,
+        spec: LayeredTraceStepSpec,
+    ) -> None:
+        """Append one typed trace step and commit for live trace polling."""
+        now = datetime.now(UTC)
+        self._session.add(
+            TraceStepORM(
+                id=uuid4(),
+                semantic_transaction_id=transaction_id,
+                step_number=step_number,
+                step_type=spec.step_type,
+                message=spec.message,
+                layer=spec.layer.value,
+                status=spec.status.value,
+                input_summary=spec.input_summary,
+                output_summary=spec.output_summary,
+                duration_ms=spec.duration_ms,
+                created_at=now,
+            )
+        )
+        self._session.commit()
+
+    def finalize_semantic_transaction(
+        self,
+        transaction_id: UUID,
+        *,
+        status: SemanticTransactionStatus,
+        answer_text: str | None = None,
+        completed_at: datetime | None = None,
+        total_duration_ms: int | None = None,
+    ) -> None:
+        """Set the final semantic transaction status."""
+        transaction = self._session.get(SemanticTransaction, transaction_id)
+        if transaction is None:
+            raise ValueError(f"SemanticTransaction {transaction_id} not found")
+        transaction.status = status.value
+        if answer_text is not None:
+            transaction.answer_text = answer_text
+        if completed_at is not None:
+            transaction.completed_at = completed_at
+        if total_duration_ms is not None:
+            transaction.total_duration_ms = total_duration_ms
+        self._session.commit()
+
 
 class SqlAlchemyTraceStepRepository(TraceStepRepository):
     """SQLAlchemy-backed persistence for trace step records."""
@@ -121,6 +234,11 @@ class SqlAlchemyTraceStepRepository(TraceStepRepository):
             step_type=trace_step.step_type,
             message=trace_step.message,
             created_at=trace_step.created_at,
+            layer=trace_step.layer.value if trace_step.layer else None,
+            status=trace_step.status.value if trace_step.status else None,
+            input_summary=trace_step.input_summary,
+            output_summary=trace_step.output_summary,
+            duration_ms=trace_step.duration_ms,
         )
         self._session.add(trace_step_orm)
         self._session.commit()
@@ -148,6 +266,15 @@ def _to_transaction_record(
         created_at=transaction_orm.created_at,
         trace_steps=list(steps),
         application_id=transaction_orm.application_id,
+        status=_parse_transaction_status(transaction_orm.status),
+        initiated_by=transaction_orm.initiated_by,
+        participating_assets=transaction_orm.participating_assets,
+        question_text=transaction_orm.question_text,
+        answer_text=transaction_orm.answer_text,
+        started_at=transaction_orm.started_at,
+        completed_at=transaction_orm.completed_at,
+        total_duration_ms=transaction_orm.total_duration_ms,
+        mode=_parse_transaction_mode(transaction_orm.mode),
     )
 
 

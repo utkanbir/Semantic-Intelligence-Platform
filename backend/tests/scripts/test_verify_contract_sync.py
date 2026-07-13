@@ -94,3 +94,27 @@ def test_real_repo_contract_sync_passes() -> None:
         baseline_path=SCRIPTS_DIR / "contract_sync_baseline.json",
     )
     assert errors == []
+
+
+def test_baseline_frozen_at_21_routes() -> None:
+    errors = vcs.verify_baseline_frozen(
+        baseline_path=SCRIPTS_DIR / "contract_sync_baseline.json",
+        route_debt_path=SCRIPTS_DIR / "contract_sync_route_debt.json",
+    )
+    assert errors == []
+
+
+def test_baseline_growth_fails(tmp_path: Path) -> None:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(
+        json.dumps({"routes": [{"method": "GET", "path": f"/api/v1/r{i}"} for i in range(22)]}),
+        encoding="utf-8",
+    )
+    debt = tmp_path / "debt.json"
+    debt.write_text(json.dumps({"frozen_route_count": 21, "groups": []}), encoding="utf-8")
+    errors = vcs.verify_baseline_frozen(
+        baseline_path=baseline,
+        route_debt_path=debt,
+        frozen_count=21,
+    )
+    assert any("frozen maximum is 21" in item for item in errors)

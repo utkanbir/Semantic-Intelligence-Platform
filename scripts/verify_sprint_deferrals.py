@@ -27,17 +27,20 @@ LEDGER_PATH = SCRIPTS_DIR / "deferred_items_ledger.json"
 RETRO_GLOB = "Sprint_{sprint}_*_retro.md"
 HEALTH_GLOB = "Sprint_{sprint}_*_health.md"
 
-DEFERRAL_LINE = re.compile(
-    r"(?i)"
-    r"(\bdeferred?\b|\bcarried forward\b|\bnext sprint\b|\btarget sprint\b|"
-    r"out of scope for this sprint|defer to sprint|deferred to sprint)"
+DEFERRAL_PHRASES = (
+    "deferred to sprint",
+    "defer to sprint",
+    "deferred to next sprint",
+    "carried forward to sprint",
+    "out of scope for this sprint",
+    "target sprint",
 )
 
-EXCLUDE_LINE = re.compile(
-    r"(?i)"
-    r"(no longer deferred|not deferred|shipped since original deferral|"
-    r"formerly deferral|deferred section|deferred items ledger|"
-    r"verify_sprint_deferrals)"
+EXCLUDE_PHRASES = (
+    "no longer deferred",
+    "not deferred",
+    "shipped since original deferral",
+    "formerly deferral",
 )
 
 ISSUE_REF = re.compile(r"#(\d+)\b")
@@ -80,6 +83,31 @@ def validate_ledger_structure(ledger: dict) -> list[str]:
             errors.append(f"Ledger {item_id}: missing github_issue")
         if not item.get("target_milestone"):
             errors.append(f"Ledger {item_id}: missing target_milestone")
+        if item.get("expires_sprint") is None:
+            errors.append(f"Ledger {item_id}: missing expires_sprint")
+    return errors
+
+
+def validate_ledger_expiry(ledger: dict, *, current_sprint: int) -> list[str]:
+    """Fail when an open ledger item is past its expires_sprint (S37-06)."""
+    errors: list[str] = []
+    for item in ledger.get("items", []):
+        if item.get("status", "open") != "open":
+            continue
+        item_id = item.get("id", "?")
+        expires = item.get("expires_sprint")
+        if expires is None:
+            continue
+        try:
+            expires_sprint = int(expires)
+        except (TypeError, ValueError):
+            errors.append(f"Ledger {item_id}: invalid expires_sprint {expires!r}")
+            continue
+        if current_sprint > expires_sprint:
+            errors.append(
+                f"Ledger {item_id}: expired at Sprint {expires_sprint} "
+                f"(current sprint {current_sprint})"
+            )
     return errors
 
 
@@ -148,20 +176,19 @@ def _sprint_doc_paths(repo_root: Path, sprint: int) -> list[Path]:
     return paths
 
 
+def _line_is_deferral(line: str) -> bool:
+    lower = line.lower()
+    if any(phrase in lower for phrase in EXCLUDE_PHRASES):
+        return False
+    return any(phrase in lower for phrase in DEFERRAL_PHRASES)
+
+
 def _line_has_ledger_coverage(line: str, ledger_index: dict[str, dict]) -> bool:
     if ISSUE_REF.search(line):
         return True
     for token in LEDGER_ID.findall(line):
         key = token.upper()
         if key in ledger_index and ledger_index[key].get("github_issue"):
-            return True
-    upper = line.upper()
-    for key, entry in ledger_index.items():
-        if entry.get("status", "open") != "open":
-            continue
-        if not entry.get("github_issue"):
-            continue
-        if key in upper and len(key) >= 4:
             return True
     return False
 
@@ -188,9 +215,7 @@ def scan_sprint_documents(
                 continue
             if in_code_fence or not line or line.startswith("#"):
                 continue
-            if not DEFERRAL_LINE.search(line):
-                continue
-            if EXCLUDE_LINE.search(line):
+            if not _line_is_deferral(line):
                 continue
             if _line_has_ledger_coverage(line, ledger_index):
                 continue
@@ -215,6 +240,7 @@ def verify_sprint_deferrals(
 
     ledger = _load_ledger(ledger_path)
     errors.extend(validate_ledger_structure(ledger))
+    errors.extend(validate_ledger_expiry(ledger, current_sprint=sprint))
     if not skip_github:
         gh_errors = validate_ledger_issues_github(ledger, gh_token=gh_token)
         errors.extend(gh_errors)

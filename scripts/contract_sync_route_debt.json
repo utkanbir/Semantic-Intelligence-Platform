@@ -1,0 +1,75 @@
+{
+  "$schema_note": "S37-05: one tracked issue per grandfathered route surface in contract_sync_baseline.json. Shrink baseline only when contract docs absorb routes (close linked issue).",
+  "frozen_route_count": 21,
+  "groups": [
+    {
+      "id": "route-debt-health",
+      "title": "Document health routes in architecture contract",
+      "github_issue": 371,
+      "target_milestone": "Technical Debt Backlog",
+      "routes": [
+        { "method": "GET", "path": "/api/v1/health" },
+        { "method": "GET", "path": "/api/v1/health/live" },
+        { "method": "GET", "path": "/api/v1/health/ready" }
+      ]
+    },
+    {
+      "id": "route-debt-applications",
+      "title": "Document applications CRUD/status routes",
+      "github_issue": 372,
+      "target_milestone": "Technical Debt Backlog",
+      "routes": [
+        { "method": "GET", "path": "/api/v1/applications" },
+        { "method": "PUT", "path": "/api/v1/applications/{id}" },
+        { "method": "DELETE", "path": "/api/v1/applications/{id}" },
+        { "method": "PATCH", "path": "/api/v1/applications/{id}/status" }
+      ]
+    },
+    {
+      "id": "route-debt-audit-traces",
+      "title": "Document audit-traces read routes",
+      "github_issue": 373,
+      "target_milestone": "Technical Debt Backlog",
+      "routes": [
+        { "method": "GET", "path": "/api/v1/audit-traces" },
+        { "method": "GET", "path": "/api/v1/audit-traces/{id}" }
+      ]
+    },
+    {
+      "id": "route-debt-semantic-transactions",
+      "title": "Document semantic-transactions read routes",
+      "github_issue": 374,
+      "target_milestone": "Technical Debt Backlog",
+      "routes": [
+        { "method": "GET", "path": "/api/v1/semantic-transactions" },
+        { "method": "GET", "path": "/api/v1/semantic-transactions/{id}" }
+      ]
+    },
+    {
+      "id": "route-debt-adapters",
+      "title": "Document adapters test/provision routes",
+      "github_issue": 375,
+      "target_milestone": "Technical Debt Backlog",
+      "routes": [
+        { "method": "POST", "path": "/api/v1/adapters/test" },
+        { "method": "POST", "path": "/api/v1/adapters/{id}/provision" }
+      ]
+    },
+    {
+      "id": "route-debt-connectors-alias",
+      "title": "Document connectors alias routes",
+      "github_issue": 376,
+      "target_milestone": "Technical Debt Backlog",
+      "routes": [
+        { "method": "GET", "path": "/api/v1/connectors" },
+        { "method": "POST", "path": "/api/v1/connectors" },
+        { "method": "GET", "path": "/api/v1/connectors/{id}" },
+        { "method": "PATCH", "path": "/api/v1/connectors/{id}" },
+        { "method": "PATCH", "path": "/api/v1/connectors/{id}/status" },
+        { "method": "POST", "path": "/api/v1/connectors/test" },
+        { "method": "POST", "path": "/api/v1/connectors/{id}/ping" },
+        { "method": "POST", "path": "/api/v1/connectors/{id}/provision" }
+      ]
+    }
+  ]
+}

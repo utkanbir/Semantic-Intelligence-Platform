@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     )
     llm_enabled: bool = True
     llm_provider: str = "stub"
+    llm_api_key: str | None = None
+    llm_model: str = "gpt-4o-mini"
+    llm_api_base_url: str = "https://api.openai.com/v1"
 
 
 @lru_cache
