@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SIP — System Landscape (interactive)</title>
+<style>
+  :root{
+    --paper:#F4F4F8;--surface:#FFFFFF;--surface-2:#FAFAFC;--ink:#1B1A28;--ink-soft:#565571;--ink-faint:#8B8AA0;
+    --line:#E4E3EE;--accent:#5A4BD4;--accent-deep:#372F82;--accent-wash:#ECEAFB;
+    --gr:#1B9E76;--grd:#0E6B52;--grw:#E4F5EE;
+    --am:#B4661F;--amd:#8A4A11;--amw:#F8ECDF;
+    --bl:#2C6AB0;--bld:#184E86;--blw:#E6F0FA;
+    --rd:#B4304A;--rdd:#87213A;--rdw:#F8E4E9;
+    --font-display:"Palatino Linotype","Book Antiqua",Palatino,Georgia,ui-serif,serif;
+    --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:"Cascadia Code","Cascadia Mono",Consolas,ui-monospace,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --paper:#121120;--surface:#1C1B2B;--surface-2:#201F31;--ink:#ECEBF4;--ink-soft:#ABA9C2;--ink-faint:#7C7A94;
+    --line:#302E45;--accent:#A79BF2;--accent-deep:#C9C1FA;--accent-wash:#241F4A;
+    --gr:#5DCAA5;--grd:#9FE1CB;--grw:#123B30;--am:#E0A15E;--amd:#F0C48F;--amw:#3D2913;
+    --bl:#85B7EB;--bld:#B5D4F4;--blw:#0C2A44;--rd:#E8879B;--rdd:#F3B7C4;--rdw:#3E1622;
+  }}
+  :root[data-theme="dark"]{--paper:#121120;--surface:#1C1B2B;--surface-2:#201F31;--ink:#ECEBF4;--ink-soft:#ABA9C2;--ink-faint:#7C7A94;--line:#302E45;--accent:#A79BF2;--accent-deep:#C9C1FA;--accent-wash:#241F4A;--gr:#5DCAA5;--grd:#9FE1CB;--grw:#123B30;--am:#E0A15E;--amd:#F0C48F;--amw:#3D2913;--bl:#85B7EB;--bld:#B5D4F4;--blw:#0C2A44;--rd:#E8879B;--rdd:#F3B7C4;--rdw:#3E1622;}
+  :root[data-theme="light"]{--paper:#F4F4F8;--surface:#FFFFFF;--surface-2:#FAFAFC;--ink:#1B1A28;--ink-soft:#565571;--ink-faint:#8B8AA0;--line:#E4E3EE;--accent:#5A4BD4;--accent-deep:#372F82;--accent-wash:#ECEAFB;--gr:#1B9E76;--grd:#0E6B52;--grw:#E4F5EE;--am:#B4661F;--amd:#8A4A11;--amw:#F8ECDF;--bl:#2C6AB0;--bld:#184E86;--blw:#E6F0FA;--rd:#B4304A;--rdd:#87213A;--rdw:#F8E4E9;}
+
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-body);line-height:1.5;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px 20px 60px;}
+  h1{font-family:var(--font-display);font-weight:600;font-size:clamp(1.4rem,2.6vw,1.9rem);margin:0 0 4px;letter-spacing:-.01em;}
+  .sub{color:var(--ink-soft);margin:0 0 14px;max-width:78ch;font-size:.93rem;}
+  .eyebrow{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 10px;font-weight:600;}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 14px;}
+  .filt{font-family:var(--font-mono);font-size:.72rem;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);
+    padding:6px 11px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+  .filt .dot{width:10px;height:10px;border-radius:3px;}
+  .filt[aria-pressed="true"]{border-color:var(--accent);color:var(--ink);background:var(--accent-wash);font-weight:600;}
+  .filt .n{font-variant-numeric:tabular-nums;opacity:.8;}
+  .dot.built{background:var(--gr);}.dot.stub{background:var(--am);}.dot.plan{background:var(--bl);}.dot.none{background:var(--rd);}.dot.j{background:var(--accent);}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:18px;align-items:start;}
+  @media (max-width:980px){.layout{grid-template-columns:1fr;}}
+  .mapbox{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:10px;overflow-x:auto;}
+  .mapbox svg{display:block;width:100%;min-width:920px;height:auto;}
+
+  .detail{position:sticky;top:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:18px 20px;min-height:300px;max-height:calc(100vh - 40px);overflow-y:auto;}
+  .detail .ph{color:var(--ink-faint);font-size:.9rem;}
+  .badge{display:inline-block;font-family:var(--font-mono);font-size:.64rem;font-weight:700;letter-spacing:.05em;padding:4px 10px;border-radius:999px;text-transform:uppercase;margin-bottom:8px;}
+  .badge.built{background:var(--grw);color:var(--grd);}.badge.stub{background:var(--amw);color:var(--amd);}
+  .badge.plan{background:var(--blw);color:var(--bld);}.badge.none{background:var(--rdw);color:var(--rdd);}
+  .detail h3{margin:0 0 8px;font-size:1.08rem;letter-spacing:-.01em;}
+  .detail .lyr{font-family:var(--font-mono);font-size:.66rem;color:var(--ink-faint);margin-bottom:10px;}
+  .detail dt{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-top:13px;}
+  .detail dd{margin:4px 0 0;color:var(--ink-soft);font-size:.9rem;}
+  .detail dd b{color:var(--ink);}
+  .cand{list-style:none;margin:6px 0 0;padding:0;}
+  .cand li{margin:6px 0;padding:8px 11px;border:1px solid var(--line);border-radius:9px;font-size:.86rem;color:var(--ink-soft);background:var(--surface-2);}
+  .cand li b{color:var(--ink);}
+  .tag{display:inline-block;font-family:var(--font-mono);font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:999px;margin-right:6px;vertical-align:1px;}
+  .tag.oss{background:var(--grw);color:var(--grd);}.tag.cots{background:var(--blw);color:var(--bld);}.tag.code{background:var(--amw);color:var(--amd);}
+  .cand li.rec{border-color:var(--accent);background:var(--accent-wash);}
+  .cand li.rec::before{content:"★ recommended · ";font-family:var(--font-mono);font-size:.62rem;color:var(--accent-deep);font-weight:700;}
+
+  .rollup{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0 0 14px;}
+  .rz{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.68rem;color:var(--ink-soft);}
+  .rz .bar{display:flex;width:84px;height:8px;border-radius:4px;overflow:hidden;background:var(--line);}
+  .rz .seg{height:100%;}
+  .seg.built{background:var(--gr);}.seg.stub{background:var(--am);}.seg.plan{background:var(--bl);}.seg.none{background:var(--rd);}
+
+  /* svg interactivity */
+  .node{cursor:pointer;}
+  .node rect{transition:filter .12s;}
+  .node:hover rect{filter:brightness(1.06);}
+  .node.sel > rect{stroke-width:2.6 !important;filter:drop-shadow(0 0 4px var(--accent));}
+  .edgehit{cursor:pointer;stroke:transparent;stroke-width:14;fill:none;}
+  .edge.sel{stroke-width:3 !important;}
+  .dim{opacity:.16;}
+  footer{margin-top:20px;color:var(--ink-faint);font-size:.76rem;font-family:var(--font-mono);line-height:1.7;}
+  footer b{color:var(--ink-soft);}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Semantic Intelligence Platform · interactive system landscape</p>
+  <h1>The whole system — built, decided, or missing, and what fills each gap.</h1>
+  <p class="sub"><b>Click any box or arrow</b> for what it is, its verified state, and the candidate technologies (open-source vs COTS) for the gaps. Numbers ①–⑧ trace the <b>Customer 360</b> example; the legend at the bottom of the map shows at a glance which steps are missing today.</p>
+  <div class="toolbar" id="filters"></div>
+  <div class="rollup" id="rollup" title="Progress by layer — green built · amber stub · blue decided · red missing"></div>
+
+  <div class="layout">
+    <div class="mapbox" id="mapbox"></div>
+    <aside class="detail" id="detail"><p class="ph">Click a box or an arrow in the map.<br><br>Filters above isolate a status — e.g. “missing” shows every gap at once; “journey ①–⑧” highlights the Customer 360 path.</p></aside>
+  </div>
+
+  <footer><b>Grounded in</b> the Sprint-36 code + contract audit (statuses are as-built, verified — not as-specced). Candidate lists favor SIP's cloud-native/K8s posture; COTS alternatives noted for a Microsoft-leaning estate. Companions: the Architecture Walkthrough and the in-repo delivery-truth reconciliation.</footer>
+</div>
+
+<script>
+(function(){
+/* ---------------- data ---------------- */
+var D = {
+ endusers:{l:"End users",z:"Clients",s:"built",what:"People operating the Platform Console.",state:"Works — the Console renders against the live API.",tech:"Browser → React Console.",cand:null},
+ exttools:{l:"External tools / agents",z:"Clients",s:"plan",what:"Programmatic consumers outside the Console — other systems, AI agents.",state:"Decided (API-001: REST-internal, MCP-external) but there is nothing for them to call yet.",tech:"—",cand:[["oss","MCP clients (Claude, IDEs, custom) once an MCP surface exists"]]},
+ "edge-authn":{l:"Authentication",z:"Security edge",s:"none",what:"Establish who is calling, once, at the edge.",state:"None. TD-007 tracked (#343) but the ADR is unwritten and no code auth exists anywhere.",ev:"Only Depends(get_db) in the whole backend.",tech:"—",cand:[["oss","Keycloak — self-host IdP on their K8s, OIDC/JWT",1],["cots","Microsoft Entra ID — if riding the KOMTAS SSO estate"],["cots","Auth0 / Okta — managed, faster start"],["code","FastAPI JWT middleware (Authlib / python-jose) + get_current_user dependency"]]},
+ "edge-rbac":{l:"Authorization / RBAC",z:"Security edge",s:"none",what:"Decide what an identity may do — per app, per role, per resource.",state:"None — any caller passes any application_id and reads/writes any tenant's data.",tech:"—",cand:[["oss","OpenFGA / SpiceDB — ReBAC (Zanzibar); fits SIP's relationship-shaped rules (D-003, ownership)",1],["oss","OPA + Rego — general-purpose PDP, sidecar or library"],["oss","Cerbos — stateless YAML-policy PDP, gentle learning curve"],["code","PEPs = FastAPI dependencies on every governed route (integration work, not a product)"]]},
+ "edge-gw":{l:"API gateway",z:"Security edge",s:"none",what:"Edge routing, TLS termination, rate limiting.",state:"None — the API is bare; no CORS, no rate limit, no global error handler.",tech:"—",cand:[["oss","K8s ingress (nginx / Traefik) — sufficient day one",1],["oss","Kong / Emissary — if API-management features are needed"],["cots","Azure API Management — MS estate option"]]},
+ "edge-secrets":{l:"Secrets management",z:"Security edge",s:"none",what:"Encrypt credentials at rest; stop storing passwords in plaintext.",state:"Connector passwords sit in plaintext JSON in Postgres — and the contract labels that column 'non-secret' (proposed TD-022).",tech:"Plaintext adapter_configuration JSON.",cand:[["cots","Azure Key Vault + envelope encryption — MS estate fit",1],["oss","HashiCorp Vault + External Secrets Operator on K8s"],["code","App-level envelope encryption of the credentials block (interim)"]]},
+ console:{l:"Platform Console + API",z:"Platform core",s:"built",what:"The React Console and the FastAPI /api/v1 surface.",state:"Built and working — screens, routers, schemas. One UI gap: no ontology viewer/editor (create-wizard only; updateOntology API exists but no UI uses it).",tech:"React 18 + TS + Vite · FastAPI + Pydantic.",cand:[["code","OntologyDetail page + edit form wired to the existing updateOntology endpoint",1],["oss","WebProtégé embed — full ontology editor, heavier integration"]]},
+ mcp:{l:"MCP surface",z:"Platform core",s:"none",what:"The decided external protocol: expose data products & agents as tools.",state:"Undesigned, unbuilt — external consumers have no entry point.",tech:"—",cand:[["oss","FastMCP / official MCP SDK — one tool per published data product",1],["code","Tool schema per product from its product_definition"]]},
+ modules:{l:"Governance modules",z:"Platform core",s:"built",what:"The 13 backend modules: records, lifecycles, gates, trace.",state:"Genuinely built — real CRUD + state machines + trace on every action. But products* (publish = status flag), agents* (definition only), policies* (never evaluated) have no runtime effect behind the record.",tech:"FastAPI · SQLAlchemy 2 · Alembic · ports & adapters.",cand:null},
+ discovery:{l:"Discovery — intent & scouting",z:"Semantic pipeline",s:"stub",what:"The governed intake: 10 phases including 'Knowledge Discovery' (inventory sources & data) and 'Semantic Design' (formalize the ontology). By design, THIS is where the user's registered connectors would be scouted to propose a candidate ontology for approval.",state:"Built only as a state machine you advance through — intent is a free-text field, the phases are labels, and it never touches a connector. The contract explicitly marks automated phase content out of scope.",ev:"Discovery contract §2 (out-of-scope) + §4 (phases); intent_summary / discovery_notes are free text.",tech:"DiscoverySession + append-only phase history (records only).",cand:[["code","Wire the phases to real actions: Phase 3 'Knowledge Discovery' = introspect the registered connectors (schema reflection)",1],["code","Phase 5/8 = LLM-proposed candidate ontology, grounded on the real schema, into the existing approval wizard"],["oss","Same stack as the ✕ derive link: reflection + R2RML bootstrap + LLM assist"]]},
+ datasource:{l:"Customer DB (data source)",z:"Semantic pipeline",s:"stub",what:"The customer's operational database, registered as a connector.",state:"Connector registry works (live ping → Ready) — but the source is never read; schema and data are untouched.",ev:"DB ping = SELECT 1 only; no introspection code exists.",tech:"Connector record + SQLAlchemy ping.",cand:[["code","See the ✕ derive link for the introspection pipeline this box is waiting for"]]},
+ ontology:{l:"Ontology (T-Box)",z:"Semantic pipeline",s:"built",what:"The meaning model — Customer, Order, their properties and relationships.",state:"Built: author/import/generate → validate → approve → materialize. Hand-authored only; 'generate' reads documents on a stubbed LLM.",tech:"rdflib validation · Turtle serialization · Fuseki write.",cand:[["oss","pyshacl — add SHACL constraint validation to the existing validation service",1],["oss","owlrl — OWL-RL inference for consistency checks"]]},
+ kg:{l:"Knowledge graph (A-Box)",z:"Semantic pipeline",s:"plan",what:"The instance facts — real customers and orders as triples, conforming to the ontology.",state:"Registry exists and binds the ontology, but 0 triples: population is deferred (Decision 2, ARR-004).",tech:"KnowledgeGraphRegistry record only.",cand:[["oss","Morph-KGC — fast R2RML/RML materializer (rows → triples)",1],["oss","Ontop — OBDA: virtualize instead (SPARQL → SQL at query time, no ETL)"],["oss","RMLMapper — reference RML implementation"],["cots","Stardog virtual graphs — commercial OBDA"],["code","Decide materialize vs virtualize on data volume + freshness first"]]},
+ product:{l:"Data product — “Customer 360”",z:"Semantic pipeline",s:"stub",what:"The governed, consumable output surface — the only thing agents may consume (D-003).",state:"'Publish' sets a status and stamps a date. Serves no data; has no reference to the ontology or graph.",tech:"PublishedDataProduct record.",cand:[["code","Define the product→semantic-layer resolver contract — this is Decision 1 (see the ✕ serve link)",1]]},
+ agentrt:{l:"Agent runtime",z:"Semantic pipeline",s:"stub",what:"Runs an agent against its bound products and returns an answer.",state:"Stub: run completes instantly with status 'stub_completed' and echoes the input. No LLM, no retrieval, no reasoning.",ev:"agent_runtime_service.py:132-150.",tech:"Run record + D-003 binding checks (these are real).",cand:[["oss","LlamaIndex — hybrid retriever + agent loop over the semantic layer",1],["oss","LangChain / LangGraph — alternative orchestration"],["code","Lean custom loop (often better than a framework) — LLM + retriever + citations"],["oss","Ragas / DeepEval — the eval harness to prove grounded beats ungrounded BEFORE committing"]]},
+ "eng-llm":{l:"LLM engine",z:"Engines",s:"stub",what:"Generation + advisory review behind the existing LLMPort.",state:"Always the stub — canned 'Invoice/Vendor' output even when a provider is configured (resolver returns the stub on every branch). Sprint 36 S36-06 acknowledges this.",ev:"llm_resolver.py:10-16.",tech:"StubLLMAdapter.",cand:[["cots","Azure OpenAI — KOMTAS Microsoft posture",1],["cots","Anthropic API (Claude)"],["oss","vLLM + open model (Llama/Qwen) — self-host on K8s"],["code","One real adapter class behind the existing LLMPort — the port design is already right"]]},
+ "eng-reasoner":{l:"Reasoner (OWL / SHACL)",z:"Engines",s:"none",what:"Infer new facts and validate data against the ontology's rules.",state:"Absent — no reasoner, no SHACL, no inference anywhere. The stack only parses, validates structure, and stores.",tech:"—",cand:[["oss","pyshacl — SHACL validation in-process; natural first step",1],["oss","owlrl — OWL-RL rule-based inference over rdflib graphs"],["oss","Jena reasoners — already on the Jena/Fuseki stack, config-level"],["cots","GraphDB / Stardog — reasoning-at-scale in the store itself"]]},
+ "eng-retrieval":{l:"Retrieval (embeddings + GraphRAG)",z:"Engines",s:"none",what:"Turn a question into grounded context: vector recall + graph traversal, fused.",state:"Nothing exists — no embeddings ever computed, no retriever, no GraphRAG. This is the engine behind Decision 1.",tech:"—",cand:[["oss","LlamaIndex hybrid retriever — vector recall + SPARQL traversal + fusion",1],["cots","Azure OpenAI embeddings (or OSS: BGE / sentence-transformers)"],["oss","Microsoft GraphRAG — reference pattern for graph-grounded RAG"],["code","Ontology IRIs as the join key: tag chunks with entity IRIs so text ⇄ graph pivot works"]]},
+ "eng-pdp":{l:"Policy PDP / PEP",z:"Engines",s:"none",what:"Evaluate governance policies and enforce them on governed actions.",state:"Policies are inert records — never evaluated, never enforced. 'Governed' currently means 'recorded'.",tech:"—",cand:[["oss","Same engine as RBAC: OPA / OpenFGA / Cerbos as the PDP",1],["code","PEP hooks in the service layer on each governed action (enforce-before-write)"]]},
+ "st-pg":{l:"Postgres",z:"Stores",s:"built",what:"The governance database — every record and the trace spine.",state:"Real and live (16 tables, Alembic head 20260706_0019).",tech:"PostgreSQL 16 · SQLAlchemy 2 · Alembic.",cand:[["oss","pgvector — add vectors here instead of a separate store (one less system)"]]},
+ "st-fuseki":{l:"Fuseki (triple store)",z:"Stores",s:"built",what:"The RDF store — holds the materialized ontology (T-Box).",state:"Real: 20 verified triples in the demo app, SPARQL-queryable. Single-node TDB2 — fine now, unproven at A-Box scale.",tech:"Apache Jena Fuseki 5.1.",cand:[["cots","GraphDB / Stardog / Neptune — if instance volume outgrows single-node (the port makes the swap feasible)"]]},
+ "st-qdrant":{l:"Qdrant (vectors)",z:"Stores",s:"plan",what:"Vector store for similarity recall.",state:"Collection name reserved per app; never written, never queried. Port declares ping() only.",tech:"Reserved namespace.",cand:[["oss","pgvector — start here; simplest",1],["oss","Qdrant — when scale or filtering demands a dedicated engine"]]},
+ "st-minio":{l:"MinIO (objects)",z:"Stores",s:"plan",what:"Object storage for documents/blobs (e.g. sources for generate-mode).",state:"Namespace reserved; never used — even imported ontology files are stored inline in Postgres.",tech:"Reserved namespace.",cand:[["oss","MinIO SDK / boto3 adapter behind the existing ObjectStoragePort — when a real use case lands"]]},
+ trace:{l:"Trace spine",z:"Cross-cutting",s:"built",what:"SemanticTransaction + TraceStep on every governed action — the audit backbone.",state:"Genuinely real and the platform's best feature. One flaw: records what & when, never who (no actor identity — created_by is unauthenticated free text).",tech:"audit_trace module → Postgres.",cand:[["code","Actor identity comes free once Authentication lands — stamp the JWT subject into every transaction",1],["oss","OpenTelemetry + structlog → Loki/OpenSearch for ops-level observability (currently zero logging)"]]},
+ /* edges */
+ "e-derive":{l:"✕ derive — data → ontology",z:"Missing link ①-side",s:"none",what:"Scout the customer DB's schema (and sample data) to propose a candidate ontology for human approval.",state:"Does not exist. Discovery's phases name it ('Knowledge Discovery', 'Semantic Design') but automated generation is contract-out-of-scope; connectors are pinged, never read.",tech:"—",cand:[["code","SQLAlchemy reflection / information_schema over the existing DB connectors",1],["oss","R2RML/RML 'direct mapping' to bootstrap classes from tables (Morph-KGC)"],["code","LLM proposal grounded on the real schema → into the existing approval wizard"],["oss","OpenMetadata / Azure Purview — heavier cataloging route if governance-at-scale is wanted"]]},
+ "e-populate":{l:"✕ populate — rows → A-Box",z:"Missing link (Decision 2)",s:"plan",what:"Load real instance facts (customers, orders) into the graph, conforming to the ontology.",state:"Deferred by design (ARR-004 'create ≠ populate'); triple_count stays 0.",tech:"—",cand:[["oss","Materialize: Morph-KGC / RMLMapper (R2RML mappings, batch or incremental)",1],["oss","Virtualize: Ontop OBDA — SPARQL rewritten to SQL at query time; no ETL, always fresh"],["code","Decide by data volume + freshness; hybrid (hot entities materialized) is legitimate"]]},
+ "e-serve":{l:"✕ serve — semantic layer → product",z:"Missing link (Decision 1)",s:"none",what:"How a published data product actually exposes meaning + facts to its consumers.",state:"Undesigned — the product record has no reference to the ontology or graph. This is the single most consequential open decision.",tech:"—",cand:[["code","Option B: hybrid GraphRAG — vector recall + SPARQL traversal, fused, cited",1],["oss","Option C: MCP tool per product (fits API-001) — needs B underneath"],["code","Option A: governed SPARQL view (needs A-Box + LLM-written SPARQL)"],["code","Gate whichever option on an eval harness: grounded vs ungrounded on ~20 questions"]]},
+ "e-d003":{l:"D-003 — product → agent binding",z:"Consumption rail",s:"stub",what:"Agents may consume only their bound, published data products.",state:"The binding and its enforcement checks are genuinely built. What's missing is everything after the check — execution (see Agent runtime).",tech:"Binding validation in agents/agent_runtime services.",cand:null},
+ "e-materialize":{l:"materialize — ontology → Fuseki",z:"The one real semantic write",s:"built",what:"Write the approved ontology's RDF into the app's dataset as a named graph.",state:"Built and verified: gated on Approved + passing validation + Ready connector; wrote 20 triples in the live demo.",tech:"rdflib → Turtle → Fuseki HTTP (urn:sip:ontology:{id}).",cand:null},
+ "e-kgtarget":{l:"target — KG → Fuseki",z:"Logical pointer",s:"plan",what:"The registry's write target — derived via application_id → workspace.fuseki_dataset (no direct field).",state:"Pointer resolves; nothing is ever written through it (see populate).",tech:"Derived namespace.",cand:null},
+ "e-vectors":{l:"vectors — retrieval → Qdrant",z:"Planned write",s:"plan",what:"Embedding upsert + similarity query, once retrieval exists.",state:"Nothing implemented; port declares ping() only.",tech:"—",cand:[["oss","qdrant-client or pgvector behind the existing VectorStorePort"]]},
+ "e-records":{l:"records — modules → Postgres",z:"Persistence",s:"built",what:"All governance records and trace rows persist here.",state:"Real (SQLAlchemy). One caveat: no optimistic locking — last-write-wins on every aggregate (proposed TD-024).",tech:"SQLAlchemy 2 sessions.",cand:[["code","Version/ETag + If-Match guards in repositories (closes TD-024)",1]]},
+ "e-answer":{l:"✕ grounded answer — agent → user",z:"The loop that never closes",s:"none",what:"The whole point: a cited, grounded answer flowing back to whoever asked.",state:"Never happens — the run echoes its input. This closes only when LLM + retrieval + serve all exist.",tech:"—",cand:[["code","Falls out of Decision 1 + a real LLM: answer = synthesis over fused context, with citations to triples & chunks, traced end-to-end",1]]}
+};
+
+/* -------- extracted from the delivery-truth report: forward-plan priorities (§6) -------- */
+var PRI={
+ "e-serve":"W1 · Decision 1 — the first build; gate it on an eval harness",
+ "eng-retrieval":"W1 — core of the agent-consumption slice",
+ "eng-llm":"W1 — real provider behind the existing port (S36-06 tracks it)",
+ "agentrt":"W1 — becomes real once LLM + retrieval land",
+ "e-answer":"W1 — closes when the W1 slice ships",
+ "mcp":"W1 — Decision 1, option C surface",
+ "e-vectors":"W1 — retrieval slice (scale later in W4)",
+ "exttools":"W1 — unblocked by the MCP surface",
+ "edge-authn":"W2 — with RBAC; unblocks any shared deployment",
+ "edge-rbac":"W2 — co-critical with authn; also fixes tenant isolation",
+ "eng-pdp":"W2 — same engine as RBAC",
+ "edge-gw":"W2 — optional edge hardening",
+ "trace":"W2 — actor identity lands with authentication",
+ "edge-secrets":"W3 — blind-spot remediation (proposed TD-022)",
+ "e-records":"W3 — optimistic locking (proposed TD-024)",
+ "kg":"W4 · Decision 2 — physical adapters",
+ "e-populate":"W4 · Decision 2 — materialize vs virtualize first",
+ "st-qdrant":"W4 — when retrieval outgrows pgvector",
+ "st-minio":"W4 — when a blob use case lands",
+ "e-kgtarget":"W4 — becomes real with populate",
+ "e-derive":"NOT in the W-plan yet — §4a argues it belongs above Decisions 1–2",
+ "discovery":"NOT in the W-plan yet — the designed home of the derive link (§4a)",
+ "datasource":"Waits on the derive link (§4a — not yet planned)",
+ "console":"UI gap (ontology viewer/editor) — in no plan yet; propose alongside W1"
+};
+Object.keys(PRI).forEach(function(k){if(D[k])D[k].pri=PRI[k];});
+/* -------- extracted: contract ↔ code drift (§4) -------- */
+var DRIFT={
+ ontology:"Contract specs Draft→…→Published→Versioned→Retired, but code makes Approved terminal — publish & version-fork unreachable (proposed TD-027).",
+ kg:"Contract §4.3 allows binding Published/Versioned ontologies only; code also accepts Approved (pragmatic widening).",
+ "eng-llm":"Config promises a provider switch; the resolver returns the stub on every branch. S36-06 (#341): wire a real provider or rename the feature.",
+ "edge-secrets":"Adapter contract labels the credentials column 'non-secret connection metadata' — contradicted by the code storing passwords in it.",
+ "e-records":"Docs celebrate versioning — but that's forking, not concurrency control; no version guard exists on updates."
+};
+Object.keys(DRIFT).forEach(function(k){if(D[k])D[k].drift=DRIFT[k];});
+
+/* ---------------- svg ---------------- */
+var SVG = '\
+<svg viewBox="0 0 1000 872" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SIP interactive system landscape" font-family="inherit">\
+<defs>\
+<marker id="ma" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--ink-soft)"/></marker>\
+<marker id="mg" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--gr)"/></marker>\
+<marker id="mr" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--rd)"/></marker>\
+<marker id="mb" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--bl)"/></marker>\
+<marker id="mm" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--am)"/></marker>\
+</defs>\
+<style>text{font-family:inherit}.h{font-weight:700}.t{fill:var(--ink);font-size:11px}.t2{fill:var(--ink-soft);font-size:9px}.zn{fill:var(--ink-faint);font-size:9px;font-weight:700;letter-spacing:.12em}.nm{fill:#fff;font-size:11px;font-weight:800}</style>\
+\
+<g font-size="9">\
+<rect x="484" y="14" width="10" height="10" rx="3" fill="var(--grw)" stroke="var(--gr)"/><text x="500" y="23" class="t2">built</text>\
+<rect x="536" y="14" width="10" height="10" rx="3" fill="var(--amw)" stroke="var(--am)"/><text x="552" y="23" class="t2">stub</text>\
+<rect x="590" y="14" width="10" height="10" rx="3" fill="var(--blw)" stroke="var(--bl)" stroke-dasharray="3 2"/><text x="606" y="23" class="t2">decided, not done</text>\
+<rect x="700" y="14" width="10" height="10" rx="3" fill="var(--rdw)" stroke="var(--rd)" stroke-dasharray="3 2"/><text x="716" y="23" class="t2">not available</text>\
+<line x1="796" y1="19" x2="824" y2="19" stroke="var(--rd)" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#mr)"/><text x="830" y="23" class="t2">missing link</text>\
+</g>\
+\
+<text x="60" y="32" class="zn">CLIENTS</text>\
+<g class="node" data-id="endusers"><rect x="60" y="40" width="170" height="46" rx="9" fill="var(--grw)" stroke="var(--gr)"/><text x="145" y="59" text-anchor="middle" class="t h">End users</text><text x="145" y="74" text-anchor="middle" class="t2">via Platform Console</text></g>\
+<g class="node" data-id="exttools"><rect x="640" y="40" width="190" height="46" rx="9" fill="var(--blw)" stroke="var(--bl)" stroke-dasharray="5 3"/><text x="735" y="59" text-anchor="middle" class="t h">External tools / agents</text><text x="735" y="74" text-anchor="middle" class="t2">future consumers</text></g>\
+\
+<rect x="40" y="106" width="920" height="52" rx="10" fill="var(--rdw)" stroke="var(--rd)" stroke-dasharray="6 4"/>\
+<text x="54" y="127" class="t h" fill="var(--rdd)">SECURITY EDGE</text>\
+<text x="54" y="143" class="t2" fill="var(--rdd)">not available — requests pass unauthenticated</text>\
+<g class="node" data-id="edge-authn"><rect x="330" y="116" width="140" height="32" rx="7" fill="var(--surface)" stroke="var(--rd)" stroke-dasharray="4 3"/><text x="400" y="136" text-anchor="middle" class="t2 h" fill="var(--rdd)">authn ✕</text></g>\
+<g class="node" data-id="edge-rbac"><rect x="486" y="116" width="140" height="32" rx="7" fill="var(--surface)" stroke="var(--rd)" stroke-dasharray="4 3"/><text x="556" y="136" text-anchor="middle" class="t2 h" fill="var(--rdd)">RBAC / tenancy ✕</text></g>\
+<g class="node" data-id="edge-gw"><rect x="642" y="116" width="140" height="32" rx="7" fill="var(--surface)" stroke="var(--rd)" stroke-dasharray="4 3"/><text x="712" y="136" text-anchor="middle" class="t2 h" fill="var(--rdd)">gateway ✕</text></g>\
+<g class="node" data-id="edge-secrets"><rect x="798" y="116" width="150" height="32" rx="7" fill="var(--surface)" stroke="var(--rd)" stroke-dasharray="4 3"/><text x="873" y="136" text-anchor="middle" class="t2 h" fill="var(--rdd)">secrets at rest ✕</text></g>\
+<path d="M145 86 L145 106" stroke="var(--ink-soft)" stroke-width="1.6" fill="none" marker-end="url(#ma)"/>\
+<path d="M735 86 L735 106" stroke="var(--ink-soft)" stroke-width="1.4" fill="none" stroke-dasharray="5 3" marker-end="url(#ma)"/>\
+<path d="M145 158 L145 176" stroke="var(--ink-soft)" stroke-width="1.6" fill="none" marker-end="url(#ma)"/>\
+<path d="M735 158 L735 176" stroke="var(--rd)" stroke-width="1.5" fill="none" stroke-dasharray="5 3" marker-end="url(#mr)"/>\
+\
+<g class="node" data-id="console"><rect x="60" y="178" width="360" height="52" rx="9" fill="var(--grw)" stroke="var(--gr)"/><text x="240" y="199" text-anchor="middle" class="t h" fill="var(--grd)">Platform Console + FastAPI /api/v1</text><text x="240" y="215" text-anchor="middle" class="t2" fill="var(--grd)">built · (ontology viewer/editor missing)</text></g>\
+<g class="node" data-id="mcp"><rect x="640" y="178" width="190" height="52" rx="9" fill="var(--rdw)" stroke="var(--rd)" stroke-dasharray="5 3"/><text x="735" y="199" text-anchor="middle" class="t h" fill="var(--rdd)">MCP surface ✕</text><text x="735" y="215" text-anchor="middle" class="t2" fill="var(--rdd)">would front products &amp; agents</text></g>\
+<path d="M240 230 L240 250" stroke="var(--ink-soft)" stroke-width="1.6" fill="none" marker-end="url(#ma)"/>\
+\
+<g class="node" data-id="modules"><rect x="60" y="252" width="560" height="64" rx="9" fill="var(--surface)" stroke="var(--gr)"/><text x="76" y="274" class="t h" fill="var(--grd)">Governance modules — built (records · lifecycles · gates)</text><text x="76" y="291" class="t2">applications · discovery · blueprints · assets · connectors · products* · agents* · policies*</text><text x="76" y="306" class="t2" fill="var(--amd)">* the record works; the runtime effect is stubbed</text><circle cx="66" cy="250" r="10" fill="var(--gr)"/><text x="66" y="254" text-anchor="middle" class="nm">2</text></g>\
+<path d="M340 316 L340 356" stroke="var(--ink-soft)" stroke-width="1.6" fill="none" marker-end="url(#ma)"/>\
+<text x="350" y="340" class="t2">creates &amp; governs the records below</text>\
+\
+<g class="node" data-id="discovery"><rect x="60" y="318" width="200" height="42" rx="8" fill="var(--amw)" stroke="var(--am)"/><text x="160" y="335" text-anchor="middle" class="t2 h" fill="var(--amd)">Discovery — intent &amp; scouting</text><text x="160" y="350" text-anchor="middle" class="t2" fill="var(--amd)">text-box today · designed to drive ⤵</text></g>\
+<path d="M186 360 C 205 370, 218 378, 226 390" stroke="var(--am)" stroke-width="1.4" fill="none" stroke-dasharray="4 3" marker-end="url(#mm)"/>\
+<text x="280" y="360" class="zn">SEMANTIC PIPELINE — the Customer&#160;360 value path</text>\
+<g class="node" data-id="datasource"><rect x="60" y="368" width="150" height="62" rx="9" fill="var(--amw)" stroke="var(--am)"/><text x="135" y="392" text-anchor="middle" class="t h" fill="var(--amd)">Customer DB</text><text x="135" y="407" text-anchor="middle" class="t2" fill="var(--amd)">data source · connector</text><text x="135" y="420" text-anchor="middle" class="t2" fill="var(--amd)">ping only — never read</text><circle cx="66" cy="366" r="10" fill="var(--gr)"/><text x="66" y="370" text-anchor="middle" class="nm">1</text></g>\
+<path class="edge" data-id="e-derive" d="M210 399 L246 399" stroke="var(--rd)" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#mr)"/><path class="edgehit" data-id="e-derive" d="M210 399 L246 399"/>\
+<text x="228" y="388" text-anchor="middle" class="t2 h" fill="var(--rdd)">✕ derive</text>\
+<g class="node" data-id="ontology"><rect x="250" y="368" width="150" height="62" rx="9" fill="var(--grw)" stroke="var(--gr)"/><text x="325" y="392" text-anchor="middle" class="t h" fill="var(--grd)">Ontology</text><text x="325" y="407" text-anchor="middle" class="t2" fill="var(--grd)">Customer · Order (T-Box)</text><text x="325" y="420" text-anchor="middle" class="t2" fill="var(--grd)">hand-authored ✓</text><circle cx="256" cy="366" r="10" fill="var(--gr)"/><text x="256" y="370" text-anchor="middle" class="nm">3</text></g>\
+<path class="edge" data-id="e-populate" d="M400 399 L436 399" stroke="var(--rd)" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#mr)"/><path class="edgehit" data-id="e-populate" d="M400 399 L436 399"/>\
+<text x="418" y="388" text-anchor="middle" class="t2 h" fill="var(--rdd)">✕ populate</text>\
+<g class="node" data-id="kg"><rect x="440" y="368" width="150" height="62" rx="9" fill="var(--blw)" stroke="var(--bl)" stroke-dasharray="5 3"/><text x="515" y="392" text-anchor="middle" class="t h" fill="var(--bld)">Knowledge graph</text><text x="515" y="407" text-anchor="middle" class="t2" fill="var(--bld)">customer facts (A-Box)</text><text x="515" y="420" text-anchor="middle" class="t2" fill="var(--bld)">0 triples · Decision 2</text><circle cx="446" cy="366" r="10" fill="var(--rd)"/><text x="446" y="370" text-anchor="middle" class="nm">5</text></g>\
+<path class="edge" data-id="e-serve" d="M590 399 L626 399" stroke="var(--rd)" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#mr)"/><path class="edgehit" data-id="e-serve" d="M590 399 L626 399"/>\
+<text x="608" y="388" text-anchor="middle" class="t2 h" fill="var(--rdd)">✕ serve</text>\
+<g class="node" data-id="product"><rect x="630" y="368" width="150" height="62" rx="9" fill="var(--amw)" stroke="var(--am)"/><text x="705" y="392" text-anchor="middle" class="t h" fill="var(--amd)">Data product</text><text x="705" y="407" text-anchor="middle" class="t2" fill="var(--amd)">&#8220;Customer 360&#8221; view</text><text x="705" y="420" text-anchor="middle" class="t2" fill="var(--amd)">publish = status flag</text><circle cx="636" cy="366" r="10" fill="var(--am)"/><text x="636" y="370" text-anchor="middle" class="nm">6</text></g>\
+<path class="edge" data-id="e-d003" d="M780 399 L816 399" stroke="var(--am)" stroke-width="1.8" fill="none" stroke-dasharray="5 3" marker-end="url(#mm)"/><path class="edgehit" data-id="e-d003" d="M780 399 L816 399"/>\
+<text x="798" y="388" text-anchor="middle" class="t2" fill="var(--amd)">D-003</text>\
+<g class="node" data-id="agentrt"><rect x="820" y="368" width="150" height="62" rx="9" fill="var(--amw)" stroke="var(--am)"/><text x="895" y="392" text-anchor="middle" class="t h" fill="var(--amd)">Agent runtime</text><text x="895" y="407" text-anchor="middle" class="t2" fill="var(--amd)">stub — echoes input</text><text x="895" y="420" text-anchor="middle" class="t2" fill="var(--amd)">no LLM · no retrieval</text><circle cx="826" cy="366" r="10" fill="var(--rd)"/><text x="826" y="370" text-anchor="middle" class="nm">8</text></g>\
+<path class="edge" data-id="e-answer" d="M930 368 C 985 292, 985 150, 800 88" stroke="var(--rd)" stroke-width="1.6" fill="none" stroke-dasharray="6 4" marker-end="url(#mr)"/><path class="edgehit" data-id="e-answer" d="M930 368 C 985 292, 985 150, 800 88"/>\
+<text x="944" y="268" class="t2 h" fill="var(--rdd)">grounded answer ✕</text>\
+\
+<text x="250" y="460" class="zn">ENGINES</text>\
+<g class="node" data-id="eng-llm"><rect x="250" y="468" width="150" height="58" rx="9" fill="var(--amw)" stroke="var(--am)"/><text x="325" y="490" text-anchor="middle" class="t h" fill="var(--amd)">LLM engine — stub</text><text x="325" y="505" text-anchor="middle" class="t2" fill="var(--amd)">canned output only</text></g>\
+<path d="M325 468 L325 434" stroke="var(--am)" stroke-width="1.5" fill="none" stroke-dasharray="5 3" marker-end="url(#mm)"/>\
+<g class="node" data-id="eng-reasoner"><rect x="440" y="468" width="150" height="58" rx="9" fill="var(--rdw)" stroke="var(--rd)" stroke-dasharray="5 3"/><text x="515" y="486" text-anchor="middle" class="t h" fill="var(--rdd)">Reasoner ✕</text><text x="515" y="500" text-anchor="middle" class="t2" fill="var(--rdd)">OWL / SHACL inference</text><text x="515" y="513" text-anchor="middle" class="t2" fill="var(--rdd)">absent</text></g>\
+<path d="M515 468 L515 434" stroke="var(--rd)" stroke-width="1.5" fill="none" stroke-dasharray="5 3" marker-end="url(#mr)"/>\
+<g class="node" data-id="eng-retrieval"><rect x="630" y="468" width="150" height="58" rx="9" fill="var(--rdw)" stroke="var(--rd)" stroke-dasharray="5 3"/><text x="705" y="486" text-anchor="middle" class="t h" fill="var(--rdd)">Retrieval ✕</text><text x="705" y="500" text-anchor="middle" class="t2" fill="var(--rdd)">embeddings + GraphRAG</text><text x="705" y="513" text-anchor="middle" class="t2" fill="var(--rdd)">Decision 1</text><circle cx="636" cy="466" r="10" fill="var(--rd)"/><text x="636" y="470" text-anchor="middle" class="nm">7</text></g>\
+<path d="M705 468 L705 434" stroke="var(--rd)" stroke-width="1.5" fill="none" stroke-dasharray="5 3" marker-end="url(#mr)"/>\
+<g class="node" data-id="eng-pdp"><rect x="820" y="468" width="150" height="58" rx="9" fill="var(--rdw)" stroke="var(--rd)" stroke-dasharray="5 3"/><text x="895" y="486" text-anchor="middle" class="t h" fill="var(--rdd)">Policy PDP/PEP ✕</text><text x="895" y="500" text-anchor="middle" class="t2" fill="var(--rdd)">governance never</text><text x="895" y="513" text-anchor="middle" class="t2" fill="var(--rdd)">enforced at runtime</text></g>\
+<path d="M895 468 L895 434" stroke="var(--rd)" stroke-width="1.5" fill="none" stroke-dasharray="5 3" marker-end="url(#mr)"/>\
+\
+<text x="60" y="580" class="zn">STORES</text>\
+<g class="node" data-id="st-pg"><rect x="60" y="588" width="170" height="56" rx="9" fill="var(--grw)" stroke="var(--gr)"/><text x="145" y="610" text-anchor="middle" class="t h" fill="var(--grd)">Postgres ✓</text><text x="145" y="626" text-anchor="middle" class="t2" fill="var(--grd)">all governance records</text></g>\
+<g class="node" data-id="st-fuseki"><rect x="250" y="588" width="170" height="56" rx="9" fill="var(--grw)" stroke="var(--gr)"/><text x="335" y="610" text-anchor="middle" class="t h" fill="var(--grd)">Fuseki ✓</text><text x="335" y="626" text-anchor="middle" class="t2" fill="var(--grd)">20 T-Box triples live</text><circle cx="256" cy="586" r="10" fill="var(--gr)"/><text x="256" y="590" text-anchor="middle" class="nm">4</text></g>\
+<g class="node" data-id="st-qdrant"><rect x="630" y="588" width="150" height="56" rx="9" fill="var(--blw)" stroke="var(--bl)" stroke-dasharray="5 3"/><text x="705" y="610" text-anchor="middle" class="t h" fill="var(--bld)">Qdrant</text><text x="705" y="626" text-anchor="middle" class="t2" fill="var(--bld)">reserved · unused</text></g>\
+<g class="node" data-id="st-minio"><rect x="820" y="588" width="150" height="56" rx="9" fill="var(--blw)" stroke="var(--bl)" stroke-dasharray="5 3"/><text x="895" y="610" text-anchor="middle" class="t h" fill="var(--bld)">MinIO</text><text x="895" y="626" text-anchor="middle" class="t2" fill="var(--bld)">reserved · unused</text></g>\
+\
+<path class="edge" data-id="e-records" d="M72 316 L72 340 Q72 348 64 348 L52 348 Q44 348 44 356 L44 606 Q44 614 52 614 L56 614" stroke="var(--gr)" stroke-width="1.5" fill="none" marker-end="url(#mg)"/><path class="edgehit" data-id="e-records" d="M72 316 L72 340 L44 348 L44 606 L56 614"/>\
+<text x="30" y="490" class="t2" fill="var(--grd)" transform="rotate(-90 30 490)">records</text>\
+<path class="edge" data-id="e-materialize" d="M295 430 C 222 462, 222 550, 300 588" stroke="var(--gr)" stroke-width="1.8" fill="none" marker-end="url(#mg)"/><path class="edgehit" data-id="e-materialize" d="M295 430 C 222 462, 222 550, 300 588"/>\
+<text x="196" y="514" class="t2 h" fill="var(--grd)">materialize ✓</text>\
+<path class="edge" data-id="e-kgtarget" d="M478 430 C 428 470, 428 548, 396 586" stroke="var(--bl)" stroke-width="1.4" fill="none" stroke-dasharray="5 3" marker-end="url(#mb)"/><path class="edgehit" data-id="e-kgtarget" d="M478 430 C 428 470, 428 548, 396 586"/>\
+<text x="404" y="560" class="t2" fill="var(--bld)">target</text>\
+<path class="edge" data-id="e-vectors" d="M705 526 L705 584" stroke="var(--bl)" stroke-width="1.4" fill="none" stroke-dasharray="5 3" marker-end="url(#mb)"/><path class="edgehit" data-id="e-vectors" d="M705 526 L705 584"/>\
+<text x="713" y="560" class="t2" fill="var(--bld)">vectors</text>\
+\
+<g class="node" data-id="trace"><rect x="40" y="672" width="920" height="48" rx="10" fill="var(--accent-wash)" stroke="var(--accent)"/><text x="56" y="692" class="t h" fill="var(--accent-deep)">TRACE SPINE — built</text><text x="56" y="708" class="t2" fill="var(--accent-deep)">every action writes SemanticTransaction + TraceStep · records what &amp; when — not who</text></g>\
+\
+<rect x="40" y="742" width="920" height="112" rx="10" fill="var(--surface-2)" stroke="var(--line)"/>\
+<text x="56" y="764" class="t h">CUSTOMER 360 — the journey in numbers</text>\
+<g><circle cx="66" cy="786" r="9" fill="var(--gr)"/><text x="66" y="790" text-anchor="middle" class="nm" font-size="10">1</text>\
+<circle cx="88" cy="786" r="9" fill="var(--gr)"/><text x="88" y="790" text-anchor="middle" class="nm" font-size="10">2</text>\
+<circle cx="110" cy="786" r="9" fill="var(--gr)"/><text x="110" y="790" text-anchor="middle" class="nm" font-size="10">3</text>\
+<circle cx="132" cy="786" r="9" fill="var(--gr)"/><text x="132" y="790" text-anchor="middle" class="nm" font-size="10">4</text>\
+<text x="150" y="790" class="t2"><tspan class="h" fill="var(--grd)">work today</tspan> — connect the customer DB · app + discovery + blueprint · author the ontology · materialize to Fuseki</text></g>\
+<g><circle cx="66" cy="810" r="9" fill="var(--am)"/><text x="66" y="814" text-anchor="middle" class="nm" font-size="10">6</text>\
+<text x="84" y="814" class="t2"><tspan class="h" fill="var(--amd)">hollow</tspan> — &#8220;Customer 360&#8221; product publishes as a record, but serves no data</text></g>\
+<g><circle cx="66" cy="834" r="9" fill="var(--rd)"/><text x="66" y="838" text-anchor="middle" class="nm" font-size="10">5</text>\
+<circle cx="88" cy="834" r="9" fill="var(--rd)"/><text x="88" y="838" text-anchor="middle" class="nm" font-size="10">7</text>\
+<circle cx="110" cy="834" r="9" fill="var(--rd)"/><text x="110" y="838" text-anchor="middle" class="nm" font-size="10">8</text>\
+<text x="128" y="838" class="t2"><tspan class="h" fill="var(--rdd)">missing</tspan> — load customer facts (D2) · retrieve meaning + facts (D1) · a grounded answer back to the user. <tspan class="h">The journey stops after &#9315;.</tspan></text></g>\
+</svg>';
+
+document.getElementById('mapbox').innerHTML = SVG;
+
+/* journey membership for the journey filter */
+var JOURNEY = ["discovery","datasource","modules","ontology","st-fuseki","kg","product","eng-retrieval","agentrt","e-derive","e-populate","e-serve","e-answer","e-materialize"];
+
+/* ---------------- interactivity ---------------- */
+var counts={built:0,stub:0,plan:0,none:0};
+Object.keys(D).forEach(function(k){counts[D[k].s]++;});
+
+var active="all";
+var fbar=document.getElementById('filters');
+function mkF(key,label,cls,count){
+  var b=document.createElement('button');b.className='filt';b.setAttribute('aria-pressed',key===active);
+  b.innerHTML=(cls?'<span class="dot '+cls+'"></span>':'')+label+(count!=null?' <span class="n">'+count+'</span>':'');
+  b.onclick=function(){active=key;apply();[].forEach.call(fbar.children,function(c){c.setAttribute('aria-pressed',c===b);});};
+  fbar.appendChild(b);
+}
+mkF('all','All','',Object.keys(D).length);
+mkF('built','Built','built',counts.built);
+mkF('stub','Stub','stub',counts.stub);
+mkF('plan','Decided, not done','plan',counts.plan);
+mkF('none','Not available','none',counts.none);
+mkF('journey','Customer 360 journey ①–⑧','j',JOURNEY.length);
+
+/* per-layer progress rollup */
+var ZONES=["Clients","Security edge","Platform core","Semantic pipeline","Engines","Stores","Cross-cutting"];
+var rb=document.getElementById('rollup');
+ZONES.forEach(function(z){
+  var cs={built:0,stub:0,plan:0,none:0},tot=0;
+  Object.keys(D).forEach(function(k){if(D[k].z===z){cs[D[k].s]++;tot++;}});
+  if(!tot)return;
+  var segs=['built','stub','plan','none'].map(function(s){return cs[s]?'<span class="seg '+s+'" style="width:'+(cs[s]/tot*100)+'%"></span>':'';}).join('');
+  rb.innerHTML+='<span class="rz">'+z+' <span class="bar">'+segs+'</span> '+cs.built+'/'+tot+' built</span>';
+});
+
+function apply(){
+  [].forEach.call(document.querySelectorAll('.node,.edge'),function(el){
+    var id=el.getAttribute('data-id'); var d=D[id]; if(!d){return;}
+    var show = active==='all' || (active==='journey' ? JOURNEY.indexOf(id)>-1 : d.s===active);
+    el.classList.toggle('dim',!show);
+  });
+}
+
+var detail=document.getElementById('detail');
+function select(id){
+  var d=D[id]; if(!d)return;
+  [].forEach.call(document.querySelectorAll('.node,.edge'),function(el){
+    el.classList.toggle('sel',el.getAttribute('data-id')===id);
+  });
+  var stl={built:'Built',stub:'Stub — shell only',plan:'Decided, not done',none:'Not available'}[d.s];
+  var h='<span class="badge '+d.s+'">'+stl+'</span><div class="lyr">'+d.z+'</div><h3>'+d.l+'</h3><dl>';
+  h+='<dt>What it is</dt><dd>'+d.what+'</dd>';
+  h+='<dt>Current state (verified)</dt><dd>'+d.state+'</dd>';
+  if(d.ev)h+='<dt>Evidence</dt><dd style="font-family:var(--font-mono);font-size:.8rem">'+d.ev+'</dd>';
+  if(d.tech&&d.tech!=='—')h+='<dt>Technology today</dt><dd>'+d.tech+'</dd>';
+  if(d.drift)h+='<dt>Contract ↔ code drift</dt><dd>'+d.drift+'</dd>';
+  if(d.pri)h+='<dt>Forward-plan priority</dt><dd><b>'+d.pri+'</b></dd>';
+  h+='</dl>';
+  if(d.cand){
+    h+='<dt style="font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-top:14px;display:block">Candidates to fill the gap</dt><ul class="cand">';
+    d.cand.forEach(function(c){
+      var tag={oss:'OSS',cots:'COTS',code:'CODE'}[c[0]];
+      h+='<li'+(c[2]?' class="rec"':'')+'><span class="tag '+c[0]+'">'+tag+'</span>'+c[1]+'</li>';
+    });
+    h+='</ul>';
+  }
+  detail.innerHTML=h;
+}
+document.getElementById('mapbox').addEventListener('click',function(e){
+  var el=e.target.closest('.node,.edgehit'); if(!el)return;
+  select(el.getAttribute('data-id'));
+});
+})();
+</script>
+
+</html>
