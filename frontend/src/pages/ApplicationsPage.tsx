@@ -5,7 +5,12 @@ import {
   createApplication,
   listApplications,
   type ApplicationResponse,
+  type ApplicationWorkspaceResponse,
 } from "../api/applications";
+import {
+  sandboxStatusBadge,
+  sortApplicationsByRecent,
+} from "./platform/homeUtils";
 
 type PageState =
   | { kind: "loading" }
@@ -14,18 +19,65 @@ type PageState =
 
 const KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-function formatDate(iso: string | null): string {
-  if (!iso) {
-    return "—";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(iso));
+interface MetadataRow {
+  label: string;
+  value: string;
 }
 
-function statusLabel(status: ApplicationResponse["status"]): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+function formatRelativeTimeTr(iso: string | null): string {
+  if (!iso) {
+    return "henüz kullanılmadı";
+  }
+
+  const timestamp = Date.parse(iso);
+  if (Number.isNaN(timestamp)) {
+    return "henüz kullanılmadı";
+  }
+
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.floor(diffMs / 60_000);
+
+  if (diffMinutes < 1) {
+    return "az önce";
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes} dakika önce`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} saat önce`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) {
+    return `${diffDays} gün önce`;
+  }
+
+  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(timestamp));
+}
+
+function sandboxMetadataRows(workspace: ApplicationWorkspaceResponse): MetadataRow[] {
+  return [
+    {
+      label: "Ontology / KG",
+      value: workspace.fuseki_dataset
+        ? `Fuseki (${workspace.fuseki_dataset})`
+        : "bağlı değil",
+    },
+    {
+      label: "Glossary / Catalog",
+      value: workspace.metadata_domain || "bağlı değil",
+    },
+    {
+      label: "Vector store",
+      value: workspace.qdrant_collection ? "Qdrant" : "bağlı değil",
+    },
+    {
+      label: "Database",
+      value: workspace.postgres_schema ? "PostgreSQL" : "bağlı değil",
+    },
+  ];
 }
 
 interface CreateFormFields {
@@ -55,13 +107,13 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
     const trimmedName = fields.name.trim();
 
     if (!trimmedKey) {
-      errors.key = "Key is required";
+      errors.key = "Anahtar gerekli";
     } else if (!KEY_PATTERN.test(trimmedKey)) {
-      errors.key = "Use lowercase letters, numbers, and dashes only";
+      errors.key = "Yalnızca küçük harf, rakam ve tire kullanın";
     }
 
     if (!trimmedName) {
-      errors.name = "Name is required";
+      errors.name = "Ad gerekli";
     }
 
     setFieldErrors(errors);
@@ -91,7 +143,7 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
           ? error.message
           : error instanceof Error
             ? error.message
-            : "Failed to create application";
+            : "Sandbox oluşturulamadı";
       setSubmitError(message);
     } finally {
       setSubmitting(false);
@@ -103,10 +155,10 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
       className="applications-page__form"
       onSubmit={handleSubmit}
       noValidate
-      aria-label="Create application"
+      aria-label="Yeni sandbox oluştur"
     >
       <div className="applications-page__field">
-        <label htmlFor="application-key">Key</label>
+        <label htmlFor="application-key">Anahtar</label>
         <input
           id="application-key"
           name="key"
@@ -123,7 +175,7 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
           aria-describedby="application-key-hint application-key-error"
         />
         <p id="application-key-hint" className="applications-page__field-hint">
-          Lowercase letters, numbers, and dashes (e.g. <code>my-app</code>)
+          Küçük harf, rakam ve tire (ör. <code>my-app</code>)
         </p>
         {fieldErrors.key && (
           <p id="application-key-error" className="applications-page__field-error" role="alert">
@@ -133,7 +185,7 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
       </div>
 
       <div className="applications-page__field">
-        <label htmlFor="application-name">Name</label>
+        <label htmlFor="application-name">Ad</label>
         <input
           id="application-name"
           name="name"
@@ -157,7 +209,7 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
 
       <div className="applications-page__field">
         <label htmlFor="application-description">
-          Description <span className="applications-page__optional">(optional)</span>
+          Açıklama <span className="applications-page__optional">(isteğe bağlı)</span>
         </label>
         <textarea
           id="application-description"
@@ -184,7 +236,7 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
             onClick={onCancel}
             disabled={submitting}
           >
-            Cancel
+            İptal
           </button>
         )}
         <button
@@ -192,10 +244,51 @@ function ApplicationCreateForm({ onCreated, onCancel }: CreateFormProps) {
           className="applications-page__button applications-page__button--primary"
           disabled={submitting}
         >
-          {submitting ? "Creating…" : "Create application"}
+          {submitting ? "Oluşturuluyor…" : "Sandbox oluştur"}
         </button>
       </div>
     </form>
+  );
+}
+
+interface SandboxCardProps {
+  application: ApplicationResponse;
+}
+
+function SandboxCard({ application }: SandboxCardProps) {
+  const badge = sandboxStatusBadge(application.status);
+  const metadata = sandboxMetadataRows(application.workspace);
+  const lastUsed = formatRelativeTimeTr(
+    application.updated_at ?? application.created_at,
+  );
+
+  return (
+    <article className="sandbox-card" aria-labelledby={`sandbox-${application.id}-title`}>
+      <header className="sandbox-card__header">
+        <h2 id={`sandbox-${application.id}-title`} className="sandbox-card__title">
+          {application.name}
+        </h2>
+        <span className={`sandbox-card__badge sandbox-card__badge--${badge.tone}`}>
+          {badge.label}
+        </span>
+      </header>
+
+      <dl className="sandbox-card__meta">
+        {metadata.map((row) => (
+          <div key={row.label} className="sandbox-card__meta-row">
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <footer className="sandbox-card__footer">
+        <span className="sandbox-card__last-used">Son kullanım: {lastUsed}</span>
+        <Link to={`/applications/${application.id}`} className="sandbox-card__open">
+          Aç
+        </Link>
+      </footer>
+    </article>
   );
 }
 
@@ -221,7 +314,7 @@ export function ApplicationsPage() {
             ? error.message
             : error instanceof Error
               ? error.message
-              : "Failed to load applications";
+              : "Sandbox listesi yüklenemedi";
         setState({ kind: "error", message });
         throw error;
       });
@@ -243,7 +336,7 @@ export function ApplicationsPage() {
               ? error.message
               : error instanceof Error
                 ? error.message
-                : "Failed to load applications";
+                : "Sandbox listesi yüklenemedi";
           setState({ kind: "error", message });
         }
       });
@@ -263,53 +356,67 @@ export function ApplicationsPage() {
     state.kind === "success" && state.applications.length === 0;
   const hasApplications =
     state.kind === "success" && state.applications.length > 0;
+  const applications =
+    state.kind === "success" ? sortApplicationsByRecent(state.applications) : [];
 
   return (
-    <section className="applications-page">
-      <div className="applications-page__header">
-        <div>
-          <h1>Applications</h1>
-          <p className="applications-page__lead">
-            Select an application to manage discovery, assets, and data products. The
-            console is organized around your applications—not underlying technologies.
-          </p>
-        </div>
-        {hasApplications && !showCreateForm && (
+    <section className="sandbox-list-page" aria-labelledby="sandbox-list-heading">
+      <header className="sandbox-list-page__header">
+        <h1 id="sandbox-list-heading" className="sandbox-list-page__title">
+          Sandboxlar
+        </h1>
+        {(hasApplications || isEmpty) && !showCreateForm && (
           <button
             type="button"
-            className="applications-page__button applications-page__button--primary"
+            className="sandbox-list-page__button sandbox-list-page__button--primary"
             onClick={() => setShowCreateForm(true)}
           >
-            New application
+            + Yeni sandbox
           </button>
         )}
-      </div>
+      </header>
 
       {state.kind === "loading" && (
-        <p className="applications-page__status" role="status" aria-live="polite">
-          Loading applications…
+        <p className="sandbox-list-page__status" role="status" aria-live="polite">
+          Yükleniyor…
         </p>
       )}
 
       {state.kind === "error" && (
-        <div className="applications-page__error" role="alert">
+        <div className="sandbox-list-page__error" role="alert">
           {state.message}
         </div>
       )}
 
-      {isEmpty && (
-        <div className="applications-page__empty" role="status">
-          <p>No applications yet.</p>
-          <p className="applications-page__hint">
-            Create your first application to get started.
+      {isEmpty && !showCreateForm && (
+        <div className="sandbox-list-page__empty" role="status">
+          <p>Henüz sandbox yok.</p>
+          <p className="sandbox-list-page__hint">
+            İlk sandbox&apos;ınızı oluşturarak başlayın.
           </p>
-          <ApplicationCreateForm onCreated={handleCreated} />
+          <button
+            type="button"
+            className="sandbox-list-page__create-card"
+            onClick={() => setShowCreateForm(true)}
+          >
+            + Yeni sandbox oluştur
+          </button>
+        </div>
+      )}
+
+      {isEmpty && showCreateForm && (
+        <div className="sandbox-list-page__create-panel">
+          <h2 className="sandbox-list-page__create-title">Yeni sandbox</h2>
+          <ApplicationCreateForm
+            onCreated={handleCreated}
+            onCancel={() => setShowCreateForm(false)}
+          />
         </div>
       )}
 
       {hasApplications && showCreateForm && (
-        <div className="applications-page__create-panel">
-          <h2 className="applications-page__create-title">New application</h2>
+        <div className="sandbox-list-page__create-panel">
+          <h2 className="sandbox-list-page__create-title">Yeni sandbox</h2>
           <ApplicationCreateForm
             onCreated={handleCreated}
             onCancel={() => setShowCreateForm(false)}
@@ -318,47 +425,20 @@ export function ApplicationsPage() {
       )}
 
       {hasApplications && (
-        <div className="applications-page__table-wrap">
-          <table className="applications-table">
-            <thead>
-              <tr>
-                <th scope="col">Key</th>
-                <th scope="col">Name</th>
-                <th scope="col">Status</th>
-                <th scope="col">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.applications.map((application) => (
-                <tr key={application.id}>
-                  <td>
-                    <Link
-                      to={`/applications/${application.id}`}
-                      className="applications-table__link"
-                    >
-                      <code className="applications-table__key">{application.key}</code>
-                    </Link>
-                  </td>
-                  <td>
-                    <Link
-                      to={`/applications/${application.id}`}
-                      className="applications-table__link"
-                    >
-                      {application.name}
-                    </Link>
-                  </td>
-                  <td>
-                    <span
-                      className={`applications-table__status applications-table__status--${application.status}`}
-                    >
-                      {statusLabel(application.status)}
-                    </span>
-                  </td>
-                  <td>{formatDate(application.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="sandbox-list-page__grid">
+          {applications.map((application) => (
+            <SandboxCard key={application.id} application={application} />
+          ))}
+
+          {!showCreateForm && (
+            <button
+              type="button"
+              className="sandbox-list-page__create-card sandbox-list-page__create-card--inline"
+              onClick={() => setShowCreateForm(true)}
+            >
+              + Yeni sandbox oluştur
+            </button>
+          )}
         </div>
       )}
     </section>

@@ -1486,6 +1486,252 @@ body {
   color: #c5221f;
 }
 
+/* F1-02 sandbox list (s1_sandboxes mockup) */
+.sandbox-list-page {
+  display: grid;
+  gap: 1.75rem;
+}
+
+.sandbox-list-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.sandbox-list-page__title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1a1a2e;
+}
+
+.sandbox-list-page__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.sandbox-list-page__button--primary {
+  color: #fff;
+  background: #1a1a2e;
+  border-color: #1a1a2e;
+}
+
+.sandbox-list-page__button--primary:hover:not(:disabled) {
+  background: #2d2d44;
+}
+
+.sandbox-list-page__status {
+  margin: 0;
+  color: #6b6b80;
+}
+
+.sandbox-list-page__error {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.sandbox-list-page__empty {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: center;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: #4a5568;
+}
+
+.sandbox-list-page__empty p {
+  margin: 0;
+}
+
+.sandbox-list-page__hint {
+  font-size: 0.875rem;
+  color: #6b6b80;
+}
+
+.sandbox-list-page__create-panel {
+  padding: 1.5rem;
+  border: 1px solid #e0e3ea;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.sandbox-list-page__create-title {
+  margin: 0 0 1rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.sandbox-list-page__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+}
+
+.sandbox-list-page__create-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.5rem;
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  border: 2px dashed #c8ccd4;
+  border-radius: 12px;
+  background: #fff;
+  color: #4a5568;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.sandbox-list-page__create-card:hover {
+  border-color: #8b95a8;
+  background: #f8f9fc;
+  color: #1a1a2e;
+}
+
+.sandbox-list-page__create-card--inline {
+  grid-column: 1 / -1;
+}
+
+.sandbox-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 1.375rem;
+  border: 1px solid #e0e3ea;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(26, 29, 46, 0.04);
+}
+
+.sandbox-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sandbox-card__title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  line-height: 1.3;
+}
+
+.sandbox-card__badge {
+  flex-shrink: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.sandbox-card__badge--active {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.sandbox-card__badge--draft {
+  color: #4b5563;
+  background: #eef0f4;
+  border-color: #d5dae3;
+}
+
+.sandbox-card__badge--retired {
+  color: #6b7280;
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.sandbox-card__meta {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.sandbox-card__meta-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: baseline;
+  font-size: 0.8125rem;
+}
+
+.sandbox-card__meta-row dt {
+  margin: 0;
+  color: #6b6b80;
+  font-weight: 500;
+}
+
+.sandbox-card__meta-row dd {
+  margin: 0;
+  color: #1a1a2e;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandbox-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e8ebf0;
+}
+
+.sandbox-card__last-used {
+  font-size: 0.8125rem;
+  color: #6b6b80;
+}
+
+.sandbox-card__open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid #c8ccd4;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a2e;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.sandbox-card__open:hover {
+  border-color: #8b95a8;
+  background: #f8f9fc;
+}
+
 .applications-page h1 {
   margin: 0 0 0.5rem;
   font-size: 1.75rem;

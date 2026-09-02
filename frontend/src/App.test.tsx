@@ -74,9 +74,9 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "+ Yeni uygulama" }));
 
-    expect(screen.getByRole("heading", { name: "Applications" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sandboxlar" })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText("No applications yet.")).toBeInTheDocument();
+      expect(screen.getByLabelText("Anahtar")).toBeInTheDocument();
     });
   });
 });
